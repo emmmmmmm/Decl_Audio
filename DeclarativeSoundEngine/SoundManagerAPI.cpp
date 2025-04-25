@@ -55,12 +55,22 @@ DECLSOUND_API void SoundManager_ClearEntity(SoundManager* mgr, const char* entit
 
 DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(SoundManager* mgr, const char* path) {
 	auto loaded = LoadAudioBehaviorsFromFile(path);
-	for (const auto& b : loaded) {
+	for (const auto b : loaded) {
 		mgr->AddBehavior(b);
 	}
 }
 
 DECLSOUND_API void SoundManager_DebugPrintState(SoundManager* mgr) {
 	mgr->DebugPrintState();
+}
+
+DECLSOUND_API int SoundManager_GetLastEmitCount(SoundManager* mgr)
+{
+	return (int) mgr->lastEmittedSoundIds.size();
+}
+
+DECLSOUND_API const char* SoundManager_GetLastEmitName(SoundManager* mgr, int index)
+{
+	return mgr->lastEmittedSoundIds[index].c_str();
 }
 

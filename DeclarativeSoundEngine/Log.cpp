@@ -27,6 +27,7 @@ static const char* ToString(LogCategory category) {
     case LogCategory::BehaviorLoader: return "BehaviorLoader";
     case LogCategory::CLI: return "CLI";
     case LogCategory::General: return "General";
+    case LogCategory::AudioCore: return "AudioCore";
     default: return "Unknown";
     }
 }

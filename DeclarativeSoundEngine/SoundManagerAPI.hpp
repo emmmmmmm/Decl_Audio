@@ -26,4 +26,7 @@ extern "C" {
 	DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(SoundManager* mgr, const char* path);
 	DECLSOUND_API void SoundManager_DebugPrintState(SoundManager* mgr);
 
+	DECLSOUND_API int SoundManager_GetLastEmitCount(SoundManager* mgr);
+	DECLSOUND_API const char* SoundManager_GetLastEmitName(SoundManager* mgr, int index);
+
 }

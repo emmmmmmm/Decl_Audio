@@ -2,10 +2,24 @@
 #include "SoundManager.hpp"
 #include "Log.hpp"
 #include <sstream>
+#include <regex>
 
-void SoundManager::AddBehavior(const AudioBehavior& behavior) {
+
+SoundManager::SoundManager()
+{
+    audioCore = new AudioCore(this, &managerToCore, &coreToManager);
+
+}
+
+SoundManager::~SoundManager()
+{
+    delete audioCore;
+}
+
+
+void SoundManager::AddBehavior(const AudioBehavior behavior) {
     behaviors.push_back(behavior);
-    LogMessage("Behavior added: " + behavior.id, LogCategory::SoundManager, LogLevel::Debug);
+    LogMessage("Behavior added: " + behavior.id, LogCategory::SoundManager, LogLevel::Trace);
 }
 
 void SoundManager::SetTag(const std::string& entityId, const std::string& tag) {
@@ -55,7 +69,29 @@ bool SoundManager::TagMatches(const std::string& pattern, const std::string& act
     return !std::getline(act, aseg, '.');
 }
 
-int SoundManager::MatchScore(const AudioBehavior& behavior, const TagMap& entityMap, const TagMap& globalMap) {
+bool SoundManager::EvaluateCondition(const std::string& condition, const ValueMap& entityVals, const ValueMap& globalVals) {
+    static std::regex expr(R"((\w+)\s*([<>=!]+)\s*([\d\.]+))");
+    std::smatch match;
+
+    if (std::regex_match(condition, match, expr)) {
+        std::string key = match[1];
+        std::string op = match[2];
+        float value = std::stof(match[3]);
+
+        float actual = entityVals.HasValue(key) ? entityVals.GetValue(key) : globalVals.GetValue(key);
+
+        if (op == ">") return actual > value;
+        if (op == ">=") return actual >= value;
+        if (op == "<") return actual < value;
+        if (op == "<=") return actual <= value;
+        if (op == "==") return actual == value;
+        if (op == "!=") return actual != value;
+    }
+
+    return false; // malformed or unknown operator
+}
+
+int SoundManager::MatchScore(const AudioBehavior& behavior, const TagMap& entityMap, const TagMap& globalMap, const std::string& entityId) {
     int score = 0;
     auto allTags = entityMap.GetAllTags();
     const auto& globalTags = globalMap.GetAllTags();
@@ -72,10 +108,24 @@ int SoundManager::MatchScore(const AudioBehavior& behavior, const TagMap& entity
         }
         if (!matched) return -1;
     }
+
+    static const ValueMap emptyVals;
+    const ValueMap& entityVals = entityValues.count(entityId) ? entityValues.at(entityId) : emptyVals;
+    const ValueMap& globalVals = entityValues.count("global") ? entityValues.at("global") : emptyVals;
+
+    for (const auto& condition : behavior.matchConditions) {
+        if (!EvaluateCondition(condition, entityVals, globalVals)) {
+            return -1;
+        }
+    }
+
     return score;
 }
 
+
+
 void SoundManager::Update() {
+    lastEmittedSoundIds.clear();
     const TagMap& globalMap = entityTags["global"];
 
     for (const auto& [entityId, tagMap] : entityTags) {
@@ -83,7 +133,7 @@ void SoundManager::Update() {
         const AudioBehavior* best = nullptr;
 
         for (const auto& behavior : behaviors) {
-            int score = MatchScore(behavior, tagMap, globalMap);
+            int score = MatchScore(behavior, tagMap, globalMap, entityId);
             if (score > bestScore) {
                 bestScore = score;
                 best = &behavior;
@@ -91,10 +141,43 @@ void SoundManager::Update() {
         }
 
         if (best) {
-            LogMessage("Entity " + entityId + " matched behavior: " + best->id + " -> PlaySound: " + best->soundName, LogCategory::SoundManager, LogLevel::Info);
+            //LogMessage("Entity " + entityId + " matched behavior: " + best->id + " -> PlaySound: " + best->soundName, LogCategory::SoundManager, LogLevel::Info);
+            
+            Command cmd;
+            cmd.type = CommandType::StartBehavior;
+            cmd.entityId = entityId;
+            cmd.behavior = *best;
+            cmd.soundName = best->soundName;
+
+            managerToCore.push(cmd);
+            
+            
+            lastEmittedSoundIds.push_back(best->soundName);
         }
     }
+
+    audioCore->Update(); // TODO: remove once audiocore gets detached into it's own thread!
+
+    ProcessCoreResponses();
 }
+
+
+
+void SoundManager::ProcessCoreResponses() {
+    // lots, callbacks, etc
+    while (!coreToManager.empty()) {
+        const Command cmd = coreToManager.front();
+        coreToManager.pop();
+
+        // Handle the response - logging, etc.
+        if (cmd.type == CommandType::Log) {
+            LogMessage("CORE: " + cmd.strValue, LogCategory::AudioCore, LogLevel::Info);
+        }
+        
+    }
+}
+
+
 
 void SoundManager::DebugPrintState() {
     for (const auto& [entityId, tagMap] : entityTags) {
