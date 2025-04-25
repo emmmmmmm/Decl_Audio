@@ -13,6 +13,9 @@ float ValueMap::GetValue(const std::string& key, float defaultValue) const {
 	auto it = values.find(key);
 	return it != values.end() ? it->second : defaultValue;
 }
+void ValueMap::ClearValue(const std::string& key) {
+	values.erase(key);
+}
 
 
 std::vector<std::pair<std::string, float>> ValueMap::GetAllValues() const {

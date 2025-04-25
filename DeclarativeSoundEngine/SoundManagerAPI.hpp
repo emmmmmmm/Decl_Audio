@@ -19,6 +19,8 @@ extern "C" {
 	DECLSOUND_API void SoundManager_SetTag(SoundManager* mgr, const char* entityId, const char* tag);
 	DECLSOUND_API void SoundManager_ClearTag(SoundManager* mgr, const char* entityId, const char* tag);
 	DECLSOUND_API void SoundManager_SetValue(SoundManager* mgr, const char* entityId, const char* key, float value);
+	DECLSOUND_API void SoundManager_ClearValue(SoundManager* mgr, const char* entityId, const char* key);
+	DECLSOUND_API void SoundManager_ClearEntity(SoundManager* mgr, const char* entityId);
 
 
 	DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(SoundManager* mgr, const char* path);

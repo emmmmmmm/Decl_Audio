@@ -14,10 +14,19 @@ public:
 	void SetTag(const std::string& entityId, const std::string& tag);
 	void ClearTag(const std::string& entityId, const std::string& tag);
 	void SetValue(const std::string& entityId, const std::string& key, float value);
+	void ClearValue(const std::string& entityId, const std::string& key);
+	void ClearEntity(const std::string& entityId);
 	void DebugPrintState();
 
 private:
 	std::vector<AudioBehavior> behaviors;
 	std::unordered_map<std::string, TagMap> entityTags;
 	std::unordered_map<std::string, ValueMap> entityValues;
+
+	int MatchScore(const AudioBehavior& behavior, const TagMap& entityMap, const TagMap& globalMap);
+	int TagSpecificity(const std::string& tag);
+
+	bool TagMatches(const std::string& pattern, const std::string& actual);
+
+
 };

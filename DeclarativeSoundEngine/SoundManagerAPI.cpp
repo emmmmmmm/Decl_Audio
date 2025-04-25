@@ -42,6 +42,16 @@ DECLSOUND_API void SoundManager_SetValue(SoundManager* mgr, const char* entityId
 	mgr->SetValue(std::string(entityId), std::string(key), value);
 }
 
+DECLSOUND_API void SoundManager_ClearValue(SoundManager* mgr, const char* entityId, const char* key)
+{
+	mgr->ClearValue(std::string(entityId), std::string(key));
+}
+
+DECLSOUND_API void SoundManager_ClearEntity(SoundManager* mgr, const char* entityId)
+{
+	mgr->ClearEntity(std::string(entityId));
+}
+
 
 DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(SoundManager* mgr, const char* path) {
 	auto loaded = LoadAudioBehaviorsFromFile(path);
