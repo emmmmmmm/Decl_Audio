@@ -3,74 +3,74 @@
 #include "SoundManager.hpp"
 #include "BehaviorLoader.hpp"
 
-DECLSOUND_API SoundManager* CreateSoundManager() {
+DECLSOUND_API void* CreateSoundManager() {
 	return new SoundManager();
 }
 
-DECLSOUND_API void DestroySoundManager(SoundManager* mgr) {
-	delete mgr;
+DECLSOUND_API void DestroySoundManager(void* mgr) {
+	delete static_cast<SoundManager*>(mgr);
 }
 
-DECLSOUND_API void SoundManager_Update(SoundManager* mgr) {
-	mgr->Update();
+DECLSOUND_API void SoundManager_Update(void* mgr) {
+	static_cast<SoundManager*>(mgr)->Update();
 }
 
-DECLSOUND_API void SoundManager_AddBehavior(SoundManager* mgr, const AudioBehavior* behavior) {
-	mgr->AddBehavior(*behavior);
+DECLSOUND_API void SoundManager_AddBehavior(void* mgr, const AudioBehavior* behavior) {
+	static_cast<SoundManager*>(mgr)->AddBehavior(*behavior);
 }
 
-DECLSOUND_API void SoundManager_SetGlobalTag(SoundManager* mgr, const char* tag) {
-	mgr->SetTag("global", std::string(tag));
+DECLSOUND_API void SoundManager_SetGlobalTag(void* mgr, const char* tag) {
+	static_cast<SoundManager*>(mgr)->SetTag("global", std::string(tag));
 }
-DECLSOUND_API void SoundManager_ClearGlobalTag(SoundManager* mgr, const char* tag) {
-	mgr->ClearTag("global", std::string(tag));
+DECLSOUND_API void SoundManager_ClearGlobalTag(void* mgr, const char* tag) {
+	static_cast<SoundManager*>(mgr)->ClearTag("global", std::string(tag));
 }
-DECLSOUND_API void SoundManager_SetGlobalValue(SoundManager* mgr, const char* key, float value) {
-	mgr->SetValue("global", std::string(key), value);
-}
-
-
-DECLSOUND_API void SoundManager_SetTag(SoundManager* mgr, const char* entityId, const char* tag) {
-	mgr->SetTag(std::string(entityId), std::string(tag));
+DECLSOUND_API void SoundManager_SetGlobalValue(void* mgr, const char* key, float value) {
+	static_cast<SoundManager*>(mgr)->SetValue("global", std::string(key), value);
 }
 
-DECLSOUND_API void SoundManager_ClearTag(SoundManager* mgr, const char* entityId, const char* tag) {
-	mgr->ClearTag(std::string(entityId), std::string(tag));
+
+DECLSOUND_API void SoundManager_SetTag(void* mgr, const char* entityId, const char* tag) {
+	static_cast<SoundManager*>(mgr)->SetTag(std::string(entityId), std::string(tag));
 }
 
-DECLSOUND_API void SoundManager_SetValue(SoundManager* mgr, const char* entityId, const char* key, float value) {
-	mgr->SetValue(std::string(entityId), std::string(key), value);
+DECLSOUND_API void SoundManager_ClearTag(void* mgr, const char* entityId, const char* tag) {
+	static_cast<SoundManager*>(mgr)->ClearTag(std::string(entityId), std::string(tag));
 }
 
-DECLSOUND_API void SoundManager_ClearValue(SoundManager* mgr, const char* entityId, const char* key)
+DECLSOUND_API void SoundManager_SetValue(void* mgr, const char* entityId, const char* key, float value) {
+	static_cast<SoundManager*>(mgr)->SetValue(std::string(entityId), std::string(key), value);
+}
+
+DECLSOUND_API void SoundManager_ClearValue(void* mgr, const char* entityId, const char* key)
 {
-	mgr->ClearValue(std::string(entityId), std::string(key));
+	static_cast<SoundManager*>(mgr)->ClearValue(std::string(entityId), std::string(key));
 }
 
-DECLSOUND_API void SoundManager_ClearEntity(SoundManager* mgr, const char* entityId)
+DECLSOUND_API void SoundManager_ClearEntity(void* mgr, const char* entityId)
 {
-	mgr->ClearEntity(std::string(entityId));
+	static_cast<SoundManager*>(mgr)->ClearEntity(std::string(entityId));
 }
 
 
-DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(SoundManager* mgr, const char* path) {
+DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(void* mgr, const char* path) {
 	auto loaded = LoadAudioBehaviorsFromFile(path);
 	for (const auto b : loaded) {
-		mgr->AddBehavior(b);
+		static_cast<SoundManager*>(mgr)->AddBehavior(b);
 	}
 }
 
-DECLSOUND_API void SoundManager_DebugPrintState(SoundManager* mgr) {
-	mgr->DebugPrintState();
+DECLSOUND_API void SoundManager_DebugPrintState(void* mgr) {
+	static_cast<SoundManager*>(mgr)->DebugPrintState();
 }
 
-DECLSOUND_API int SoundManager_GetLastEmitCount(SoundManager* mgr)
+DECLSOUND_API int SoundManager_GetLastEmitCount(void* mgr)
 {
-	return (int) mgr->lastEmittedSoundIds.size();
+	return (int) static_cast<SoundManager*>(mgr)->lastEmittedSoundIds.size();
 }
 
-DECLSOUND_API const char* SoundManager_GetLastEmitName(SoundManager* mgr, int index)
+DECLSOUND_API const char* SoundManager_GetLastEmitName(void* mgr, int index)
 {
-	return mgr->lastEmittedSoundIds[index].c_str();
+	return static_cast<SoundManager*>(mgr)->lastEmittedSoundIds[index].c_str();
 }
 

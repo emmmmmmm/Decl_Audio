@@ -1,7 +1,8 @@
 #include <iostream>
 
+// why can we access those classes at all?
 #include "SoundManagerAPI.hpp"
-#include "AudioBehavior.hpp"
+#include "AudioBehavior.hpp" 
 #include "BehaviorLoader.hpp"
 #include "Log.hpp"
 
@@ -27,7 +28,7 @@ void AssertEmittedSound(SoundManager* mgr, const std::string& expectedSound, int
 
 void RunBasicBehaviorTest() {
     LogMessage("=== Basic Behavior Test ===", LogCategory::CLI, LogLevel::Info);
-    SoundManager* mgr = CreateSoundManager();
+    SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
     SoundManager_LoadBehaviorsFromFile(mgr, "test.audio");
 
     SoundManager_SetTag(mgr, "player", "entity.player");
@@ -55,7 +56,7 @@ void RunBasicBehaviorTest() {
 
 void RunValueConditionTests() {
     LogMessage("=== Value Condition Tests ===", LogCategory::CLI, LogLevel::Info);
-    SoundManager* mgr = CreateSoundManager();
+    SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
     SoundManager_LoadBehaviorsFromFile(mgr, "test.audio");
     SoundManager_SetTag(mgr, "player", "entity.player");
 
@@ -78,7 +79,7 @@ void RunValueConditionTests() {
 
 void RunInvalidTagTest() {
     LogMessage("=== Invalid Tag Test ===", LogCategory::CLI, LogLevel::Info);
-    SoundManager* mgr = CreateSoundManager();
+    SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
     SoundManager_LoadBehaviorsFromFile(mgr, "test.audio");
     SoundManager_SetTag(mgr, "ghost", "nonexistent.tag");
     SoundManager_SetTag(mgr, "ghost", "nonexistent2..tag");
@@ -88,7 +89,7 @@ void RunInvalidTagTest() {
 
 void RunWildcardMatchingTest() {
     LogMessage("=== Wildcard Matching Test ===", LogCategory::CLI, LogLevel::Info);
-    SoundManager* mgr = CreateSoundManager();
+    SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
     SoundManager_LoadBehaviorsFromFile(mgr, "test.audio");
     SoundManager_SetTag(mgr, "npc", "entity.npc.guard");
     SoundManager_SetTag(mgr, "npc", "foot.leftContact");
@@ -98,7 +99,7 @@ void RunWildcardMatchingTest() {
 
 void RunNoMatchTest() {
     LogMessage("=== No Match Test ===", LogCategory::CLI, LogLevel::Info);
-    SoundManager* mgr = CreateSoundManager();
+    SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
     SoundManager_LoadBehaviorsFromFile(mgr, "test.audio");
     SoundManager_SetTag(mgr, "thing", "something.unknown");
     SoundManager_Update(mgr);

@@ -8,6 +8,7 @@
 SoundManager::SoundManager()
 {
     audioCore = new AudioCore(this, &managerToCore, &coreToManager);
+    // todo: detach audio core as separate thread
 
 }
 

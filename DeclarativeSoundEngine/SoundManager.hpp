@@ -12,6 +12,7 @@ class SoundManager {
 public:
     SoundManager();
     ~SoundManager();
+
     void Update();
 
     void AddBehavior(const AudioBehavior behavior);

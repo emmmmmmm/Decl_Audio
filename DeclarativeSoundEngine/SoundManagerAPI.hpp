@@ -5,28 +5,34 @@
 class SoundManager;
 
 extern "C" {
-	DECLSOUND_API SoundManager* CreateSoundManager();
-	DECLSOUND_API void DestroySoundManager(SoundManager* mgr);
-	DECLSOUND_API void SoundManager_Update(SoundManager* mgr);
+	
 
-	DECLSOUND_API void SoundManager_AddBehavior(SoundManager* mgr, const AudioBehavior* behavior);
+	DECLSOUND_API void* CreateSoundManager();
+	DECLSOUND_API void DestroySoundManager(void* mgr);
+	DECLSOUND_API void SoundManager_Update(void* mgr);
 
-	DECLSOUND_API void SoundManager_SetGlobalTag(SoundManager* mgr, const char* tag);
-	DECLSOUND_API void SoundManager_ClearGlobalTag(SoundManager* mgr, const char* tag);
-	DECLSOUND_API void SoundManager_SetGlobalValue(SoundManager* mgr, const char* key, float value);
+	
+	// global tags and values
+	DECLSOUND_API void SoundManager_SetGlobalTag(void* mgr, const char* tag);
+	DECLSOUND_API void SoundManager_ClearGlobalTag(void* mgr, const char* tag);
+	DECLSOUND_API void SoundManager_SetGlobalValue(void* mgr, const char* key, float value);
 
-	// override for entity-level tags and values
-	DECLSOUND_API void SoundManager_SetTag(SoundManager* mgr, const char* entityId, const char* tag);
-	DECLSOUND_API void SoundManager_ClearTag(SoundManager* mgr, const char* entityId, const char* tag);
-	DECLSOUND_API void SoundManager_SetValue(SoundManager* mgr, const char* entityId, const char* key, float value);
-	DECLSOUND_API void SoundManager_ClearValue(SoundManager* mgr, const char* entityId, const char* key);
-	DECLSOUND_API void SoundManager_ClearEntity(SoundManager* mgr, const char* entityId);
+	// entity-level tags and values
+	DECLSOUND_API void SoundManager_SetTag(void* mgr, const char* entityId, const char* tag);
+	DECLSOUND_API void SoundManager_ClearTag(void* mgr, const char* entityId, const char* tag);
+	DECLSOUND_API void SoundManager_SetValue(void* mgr, const char* entityId, const char* key, float value);
+	DECLSOUND_API void SoundManager_ClearValue(void* mgr, const char* entityId, const char* key);
+	DECLSOUND_API void SoundManager_ClearEntity(void* mgr, const char* entityId);
 
+	// behavior loading
+	DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(void* mgr, const char* path);
+	// this one doesn't actually have to be exposed:
+	DECLSOUND_API void SoundManager_AddBehavior(void* mgr, const AudioBehavior* behavior);
+	
 
-	DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(SoundManager* mgr, const char* path);
-	DECLSOUND_API void SoundManager_DebugPrintState(SoundManager* mgr);
-
-	DECLSOUND_API int SoundManager_GetLastEmitCount(SoundManager* mgr);
-	DECLSOUND_API const char* SoundManager_GetLastEmitName(SoundManager* mgr, int index);
+	// debug, tests, etc
+	DECLSOUND_API void SoundManager_DebugPrintState(void* mgr);
+	DECLSOUND_API int SoundManager_GetLastEmitCount(void* mgr);
+	DECLSOUND_API const char* SoundManager_GetLastEmitName(void* mgr, int index);
 
 }
