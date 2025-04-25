@@ -1,32 +1,26 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
+# Visual Studio build files
+*.vcxproj
+*.vcxproj.filters
+*.suo
+*.user
+*.opensdf
+*.sdf
+*.ipch
 *.obj
-
-# Precompiled Headers
-*.gch
+*.log
+*.tlog
 *.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
+*.idb
+*.pdb
 *.exe
-*.out
-*.app
+*.dll
+*.lib
+*.exp
+
+# Build output
+x64/
+Debug/
+Release/
+build/
+/.vs/DeclarativeSoundEngine/FileContentIndex
+/.vs/DeclarativeSoundEngine/v17
