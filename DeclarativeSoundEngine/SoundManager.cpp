@@ -1,10 +1,11 @@
 ﻿#include "pch.h"
 #include "SoundManager.hpp"
-#include <iostream>
+#include "Log.hpp"
 #include <sstream>
 
 void SoundManager::AddBehavior(const AudioBehavior& behavior) {
     behaviors.push_back(behavior);
+    LogMessage("Behavior added: " + behavior.id, LogCategory::SoundManager, LogLevel::Debug);
 }
 
 void SoundManager::SetTag(const std::string& entityId, const std::string& tag) {
@@ -26,6 +27,7 @@ void SoundManager::ClearValue(const std::string& entityId, const std::string& ke
 void SoundManager::ClearEntity(const std::string& entityId) {
     entityTags.erase(entityId);
     entityValues.erase(entityId);
+    LogMessage("Entity cleared: " + entityId, LogCategory::SoundManager, LogLevel::Debug);
 }
 
 int SoundManager::TagSpecificity(const std::string& tag) {
@@ -50,7 +52,7 @@ bool SoundManager::TagMatches(const std::string& pattern, const std::string& act
         if (pseg != "*" && pseg != aseg) return false;
     }
 
-    return !std::getline(act, aseg, '.'); // ensure actual has no extra segments
+    return !std::getline(act, aseg, '.');
 }
 
 int SoundManager::MatchScore(const AudioBehavior& behavior, const TagMap& entityMap, const TagMap& globalMap) {
@@ -89,27 +91,21 @@ void SoundManager::Update() {
         }
 
         if (best) {
-            std::cout << "[SoundManager] Entity " << entityId << " matched behavior: "
-                << best->id << " -> Emitting PlaySound for " << best->soundName << std::endl;
+            LogMessage("Entity " + entityId + " matched behavior: " + best->id + " -> PlaySound: " + best->soundName, LogCategory::SoundManager, LogLevel::Info);
         }
     }
 }
 
 void SoundManager::DebugPrintState() {
-    std::cout << "[SoundManager] Log Active Entities:" << std::endl;
-
     for (const auto& [entityId, tagMap] : entityTags) {
-        std::cout << "  Entity: " << entityId << "\n  Tags:" << std::endl;
+        LogMessage("Entity: " + entityId, LogCategory::SoundManager, LogLevel::Debug);
+
         for (const auto& tag : tagMap.GetAllTags()) {
-            std::cout << "   - " << tag << std::endl;
+            LogMessage(" - Tag: " + tag, LogCategory::SoundManager, LogLevel::Debug);
         }
 
-        std::cout << "  Values:" << std::endl;
         for (const auto& pair : entityValues[entityId].GetAllValues()) {
-            std::cout << "   - " << pair.first << " = " << pair.second << std::endl;
+            LogMessage(" - Value: " + pair.first + " = " + std::to_string(pair.second), LogCategory::SoundManager, LogLevel::Debug);
         }
-        std::cout << std::endl;
     }
-    std::cout <<  std::endl;
-
 }
