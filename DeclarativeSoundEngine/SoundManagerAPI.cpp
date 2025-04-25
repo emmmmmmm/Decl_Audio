@@ -4,38 +4,53 @@
 #include "BehaviorLoader.hpp"
 
 DECLSOUND_API SoundManager* CreateSoundManager() {
-    return new SoundManager();
+	return new SoundManager();
 }
 
 DECLSOUND_API void DestroySoundManager(SoundManager* mgr) {
-    delete mgr;
+	delete mgr;
 }
 
 DECLSOUND_API void SoundManager_Update(SoundManager* mgr) {
-    mgr->Update();
+	mgr->Update();
 }
 
 DECLSOUND_API void SoundManager_AddBehavior(SoundManager* mgr, const AudioBehavior* behavior) {
-    mgr->AddBehavior(*behavior);
+	mgr->AddBehavior(*behavior);
 }
 
-DECLSOUND_API void SoundManager_SetTag(SoundManager* mgr, const char* tag) {
-    mgr->SetTag(std::string(tag));
+DECLSOUND_API void SoundManager_SetGlobalTag(SoundManager* mgr, const char* tag) {
+	mgr->SetTag("global", std::string(tag));
 }
-DECLSOUND_API void SoundManager_ClearTag(SoundManager* mgr, const char* tag) {
-    mgr->ClearTag(std::string(tag));
-}DECLSOUND_API void SoundManager_SetValue(SoundManager* mgr, const char* key, float value) {
-    mgr->SetValue(std::string(key), value);
+DECLSOUND_API void SoundManager_ClearGlobalTag(SoundManager* mgr, const char* tag) {
+	mgr->ClearTag("global", std::string(tag));
 }
+DECLSOUND_API void SoundManager_SetGlobalValue(SoundManager* mgr, const char* key, float value) {
+	mgr->SetValue("global", std::string(key), value);
+}
+
+
+DECLSOUND_API void SoundManager_SetTag(SoundManager* mgr, const char* entityId, const char* tag) {
+	mgr->SetTag(std::string(entityId), std::string(tag));
+}
+
+DECLSOUND_API void SoundManager_ClearTag(SoundManager* mgr, const char* entityId, const char* tag) {
+	mgr->ClearTag(std::string(entityId), std::string(tag));
+}
+
+DECLSOUND_API void SoundManager_SetValue(SoundManager* mgr, const char* entityId, const char* key, float value) {
+	mgr->SetValue(std::string(entityId), std::string(key), value);
+}
+
 
 DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(SoundManager* mgr, const char* path) {
-    auto loaded = LoadAudioBehaviorsFromFile(path);
-    for (const auto& b : loaded) {
-        mgr->AddBehavior(b);
-    }
+	auto loaded = LoadAudioBehaviorsFromFile(path);
+	for (const auto& b : loaded) {
+		mgr->AddBehavior(b);
+	}
 }
 
 DECLSOUND_API void SoundManager_DebugPrintState(SoundManager* mgr) {
-    mgr->DebugPrintState();
+	mgr->DebugPrintState();
 }
 
