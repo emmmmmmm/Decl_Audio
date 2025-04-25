@@ -13,3 +13,12 @@ float ValueMap::GetValue(const std::string& key, float defaultValue) const {
     auto it = values.find(key);
     return it != values.end() ? it->second : defaultValue;
 }
+
+
+std::vector<std::pair<std::string, float>> ValueMap::GetAllValues() const {
+    std::vector<std::pair<std::string, float>> out;
+    for (const auto& pair : values) {
+        out.push_back(pair);
+    }
+    return out;
+}

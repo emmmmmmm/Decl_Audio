@@ -31,9 +31,21 @@ void SoundManager::Update() {
 
         if (matched) {
             std::cout << "[SoundManager] Matched behavior: " << behavior.id
-                << " → Emitting PlaySound for " << behavior.soundName << std::endl;
+                << " -> Emitting PlaySound for " << behavior.soundName << std::endl;
         }
     }
 
 
+}
+
+void SoundManager::DebugPrintState() {
+    std::cout << "[SoundManager] Current Tags:" << std::endl;
+    for (const auto& tag : tagMap.GetAllTags()) {
+        std::cout << " - " << tag << std::endl;
+    }
+
+    std::cout << "[SoundManager] Current Values:" << std::endl;
+    for (const auto& pair : valueMap.GetAllValues()) {
+        std::cout << " - " << pair.first << " = " << pair.second << std::endl;
+    }
 }

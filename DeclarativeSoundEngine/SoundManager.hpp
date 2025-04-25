@@ -13,6 +13,7 @@ public:
     void ClearTag(const std::string& tag);
     void SetValue(const std::string& key, float value);
 
+    void DebugPrintState();
 private:
     std::vector<AudioBehavior> behaviors;
     TagMap tagMap;
