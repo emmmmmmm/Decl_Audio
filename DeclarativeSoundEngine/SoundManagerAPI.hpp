@@ -26,9 +26,7 @@ extern "C" {
 
 	// behavior loading
 	DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(void* mgr, const char* path);
-	// this one doesn't actually have to be exposed:
-	DECLSOUND_API void SoundManager_AddBehavior(void* mgr, const AudioBehavior* behavior);
-	
+
 
 	// debug, tests, etc
 	DECLSOUND_API void SoundManager_DebugPrintState(void* mgr);

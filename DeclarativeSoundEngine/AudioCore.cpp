@@ -46,7 +46,7 @@ void AudioCore::ProcessCommands() {
 
 void AudioCore::HandleStartBehavior(const Command& cmd) {
     LogMessage("AudioCore: StartBehavior called for " + cmd.soundName, LogCategory::AudioCore, LogLevel::Info);
-    activeBehaviors.push_back(cmd.behavior);
+    //activeBehaviors.push_back(std::move(cmd.behavior));
     // we actually need to turn the behavior into an audio event! 
     // load audio data, parse what the soundbehavior actually does, etc!
 

@@ -1,6 +1,12 @@
 #pragma once
-#include <string>
-#include <vector>
 #include "AudioBehavior.hpp"
+#include <vector>
+#include <string>
+#include "ASTNode.hpp"
 
-std::vector<AudioBehavior> LoadAudioBehaviorsFromFile(const std::string& path);
+class BehaviorLoader {
+public:
+    // Scan folder for .audio (or .yaml) files and build raw behaviors
+    static std::vector<AudioBehavior> LoadAudioBehaviorsFromFolder(const std::string& folderPath);
+
+};

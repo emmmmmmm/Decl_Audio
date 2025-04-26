@@ -1,7 +1,9 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "SoundManagerAPI.hpp"
 #include "SoundManager.hpp"
 #include "BehaviorLoader.hpp"
+#include <memory>
+
 
 DECLSOUND_API void* CreateSoundManager() {
 	return new SoundManager();
@@ -15,9 +17,6 @@ DECLSOUND_API void SoundManager_Update(void* mgr) {
 	static_cast<SoundManager*>(mgr)->Update();
 }
 
-DECLSOUND_API void SoundManager_AddBehavior(void* mgr, const AudioBehavior* behavior) {
-	static_cast<SoundManager*>(mgr)->AddBehavior(*behavior);
-}
 
 DECLSOUND_API void SoundManager_SetGlobalTag(void* mgr, const char* tag) {
 	static_cast<SoundManager*>(mgr)->SetTag("global", std::string(tag));
@@ -54,8 +53,8 @@ DECLSOUND_API void SoundManager_ClearEntity(void* mgr, const char* entityId)
 
 
 DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(void* mgr, const char* path) {
-	auto loaded = LoadAudioBehaviorsFromFile(path);
-	for (const auto b : loaded) {
+	auto loaded = BehaviorLoader::LoadAudioBehaviorsFromFolder(path);
+	for (auto& b : loaded) {
 		static_cast<SoundManager*>(mgr)->AddBehavior(b);
 	}
 }

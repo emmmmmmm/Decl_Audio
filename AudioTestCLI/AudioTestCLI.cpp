@@ -29,12 +29,12 @@ void AssertEmittedSound(SoundManager* mgr, const std::string& expectedSound, int
 void RunBasicBehaviorTest() {
     LogMessage("=== Basic Behavior Test ===", LogCategory::CLI, LogLevel::Info);
     SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
-    SoundManager_LoadBehaviorsFromFile(mgr, "test.audio");
+    SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
 
     SoundManager_SetTag(mgr, "player", "entity.player");
-    SoundManager_SetTag(mgr, "player", "foot.leftContact");
+    SoundManager_SetTag(mgr, "player", "foot.contact.left");
     SoundManager_SetTag(mgr, "monster", "entity.monster");
-    SoundManager_SetTag(mgr, "monster", "foot.leftContact");
+    SoundManager_SetTag(mgr, "monster", "foot.contact.left");
 
     SoundManager_SetValue(mgr, "player", "velocity", 3.2f);
     SoundManager_SetValue(mgr, "player", "fatigue", 0.8f);
@@ -43,7 +43,7 @@ void RunBasicBehaviorTest() {
     SoundManager_Update(mgr);
     SoundManager_DebugPrintState(mgr);
 
-    SoundManager_ClearTag(mgr, "player", "foot.leftContact");
+    SoundManager_ClearTag(mgr, "player", "foot.contact.left");
     SoundManager_ClearTag(mgr, "player", "entity.player");
     SoundManager_ClearValue(mgr, "player", "velocity");
     SoundManager_ClearEntity(mgr, "monster");
@@ -57,7 +57,7 @@ void RunBasicBehaviorTest() {
 void RunValueConditionTests() {
     LogMessage("=== Value Condition Tests ===", LogCategory::CLI, LogLevel::Info);
     SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
-    SoundManager_LoadBehaviorsFromFile(mgr, "test.audio");
+    SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
     SoundManager_SetTag(mgr, "player", "entity.player");
 
     SoundManager_SetValue(mgr, "player", "velocity", 0.0f); // idle
@@ -80,7 +80,7 @@ void RunValueConditionTests() {
 void RunInvalidTagTest() {
     LogMessage("=== Invalid Tag Test ===", LogCategory::CLI, LogLevel::Info);
     SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
-    SoundManager_LoadBehaviorsFromFile(mgr, "test.audio");
+    SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
     SoundManager_SetTag(mgr, "ghost", "nonexistent.tag");
     SoundManager_SetTag(mgr, "ghost", "nonexistent2..tag");
     SoundManager_Update(mgr);
@@ -90,9 +90,9 @@ void RunInvalidTagTest() {
 void RunWildcardMatchingTest() {
     LogMessage("=== Wildcard Matching Test ===", LogCategory::CLI, LogLevel::Info);
     SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
-    SoundManager_LoadBehaviorsFromFile(mgr, "test.audio");
+    SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
     SoundManager_SetTag(mgr, "npc", "entity.npc.guard");
-    SoundManager_SetTag(mgr, "npc", "foot.leftContact");
+    SoundManager_SetTag(mgr, "npc", "foot.contact.left");
     SoundManager_Update(mgr);
     DestroySoundManager(mgr);
 }
@@ -100,7 +100,7 @@ void RunWildcardMatchingTest() {
 void RunNoMatchTest() {
     LogMessage("=== No Match Test ===", LogCategory::CLI, LogLevel::Info);
     SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
-    SoundManager_LoadBehaviorsFromFile(mgr, "test.audio");
+    SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
     SoundManager_SetTag(mgr, "thing", "something.unknown");
     SoundManager_Update(mgr);
 
