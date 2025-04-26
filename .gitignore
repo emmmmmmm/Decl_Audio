@@ -1,26 +1,55 @@
-# Visual Studio build files
+# Visual Studio specific
+.vs/
 *.vcxproj
 *.vcxproj.filters
+*.vcxproj.user
 *.suo
 *.user
 *.opensdf
 *.sdf
+*.cache
+*.dbmdl
 *.ipch
+
+# Build artifacts
 *.obj
 *.log
 *.tlog
 *.pch
 *.idb
 *.pdb
+*.ilk
+*.exp
+*.lib
 *.exe
 *.dll
-*.lib
-*.exp
 
-# Build output
+# Build directories
+build/
 x64/
 Debug/
 Release/
-build/
-/.vs/DeclarativeSoundEngine/FileContentIndex
-/.vs/DeclarativeSoundEngine/v17
+out/
+bin/
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+*.log
+
+# CMake-generated files (if you ever use CMake later)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Others
+*.DS_Store    # (MacOS Finder junk if you ever work cross-platform)
+Thumbs.db     # (Windows Explorer junk)
+
+# Ignore system-specific indexing files
+/.vs/
+
+# Optional: ignore soundbanks if you build them
+*.soundbank
