@@ -3,6 +3,7 @@
 #include "SoundManager.hpp"
 #include "BehaviorLoader.hpp"
 #include <memory>
+#include <iostream>
 
 
 DECLSOUND_API void* CreateSoundManager() {
@@ -53,10 +54,21 @@ DECLSOUND_API void SoundManager_ClearEntity(void* mgr, const char* entityId)
 
 
 DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(void* mgr, const char* path) {
-	auto loaded = BehaviorLoader::LoadAudioBehaviorsFromFolder(path);
-	for (auto& b : loaded) {
-		static_cast<SoundManager*>(mgr)->AddBehavior(b);
-	}
+	auto manager = static_cast<SoundManager*>(mgr);
+	// load audio definitions from files
+	manager->defsProvider->LoadFilesFromFolder(path);
+	std::cout << "SoundManager_LoadBehaviorsFromFile: Files Loaded" << std::endl;
+	
+	// set match definitions
+	manager->matchDefinitions = manager->defsProvider->GetMatchDefs();
+	std::cout << "SoundManager_LoadBehaviorsFromFile: GetMatchDefs() done" << std::endl;
+	
+	// set play definitions:
+	Command cmd;
+	cmd.type = CommandType::RefreshDefinitions;
+	manager->managerToCore.push(cmd);
+	
+
 }
 
 DECLSOUND_API void SoundManager_DebugPrintState(void* mgr) {
@@ -71,5 +83,10 @@ DECLSOUND_API int SoundManager_GetLastEmitCount(void* mgr)
 DECLSOUND_API const char* SoundManager_GetLastEmitName(void* mgr, int index)
 {
 	return static_cast<SoundManager*>(mgr)->lastEmittedSoundIds[index].c_str();
+}
+
+DECLSOUND_API void SoundManager_BufferTest(void* mgr)
+{
+	return  static_cast<SoundManager*>(mgr)->BufferTest();
 }
 

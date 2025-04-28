@@ -3,23 +3,28 @@
 #include "Log.hpp"
 #include <sstream>
 #include <regex>
+#include "AudioDevice.hpp"
 
-
-SoundManager::SoundManager()
+SoundManager::SoundManager() : defsProvider(new BehaviorDefinitionManager())   
 {
-	audioCore = new AudioCore(this, &managerToCore, &coreToManager);
+	audioCore = new AudioCore(defsProvider, &managerToCore, &coreToManager);
 	// todo: detach audio core as separate thread
 
 }
 
 SoundManager::~SoundManager()
 {
-	delete audioCore;
+	delete audioCore;	// that wont work if i don't keep a ref to audiocore later... 
+						// it'd kind of have to clean itself up?^^
+
+	delete defsProvider;
+
 }
 
 void SoundManager::AddBehavior(AudioBehavior& behavior) {
-	behaviors.emplace_back(behavior);
-	LogMessage("Behavior added: " + behavior.id, LogCategory::SoundManager, LogLevel::Trace);
+	LogMessage("::Addbehavior is obsolete!!", LogCategory::SoundManager, LogLevel::Warning);
+	//behaviors.emplace_back(behavior);
+	//LogMessage("Behavior added: " + behavior.name, LogCategory::SoundManager, LogLevel::Trace);
 }
 
 void SoundManager::SetTag(const std::string& entityId, const std::string& tag) {
@@ -70,13 +75,13 @@ bool SoundManager::TagMatches(const std::string& pattern, const std::string& act
 }
 
 
-int SoundManager::MatchScore(const AudioBehavior& behavior, const TagMap& entityMap, const TagMap& globalMap, const std::string& entityId) {
+int SoundManager::MatchScore(const MatchDefinition& md, const TagMap& entityMap, const TagMap& globalMap, const std::string& entityId) {
 	int score = 0;
 	auto allTags = entityMap.GetAllTags();
 	const auto& globalTags = globalMap.GetAllTags();
 	allTags.insert(allTags.end(), globalTags.begin(), globalTags.end());
 
-	for (const auto& required : behavior.matchTags) {
+	for (const auto& required : md.matchTags) {
 		bool matched = false;
 		for (const auto& actual : allTags) {
 			if (TagMatches(required, actual)) {
@@ -92,7 +97,7 @@ int SoundManager::MatchScore(const AudioBehavior& behavior, const TagMap& entity
 	const ValueMap& entityVals = entityValues.count(entityId) ? entityValues.at(entityId) : emptyVals;
 	const ValueMap& globalVals = entityValues.count("global") ? entityValues.at("global") : emptyVals;
 
-	for (const auto& condition : behavior.matchConditions) {
+	for (const auto& condition : md.matchConditions) {
 		if (!condition.eval(entityVals, globalVals)) {
 			return -1;
 		}
@@ -104,18 +109,19 @@ int SoundManager::MatchScore(const AudioBehavior& behavior, const TagMap& entity
 
 
 void SoundManager::Update() {
+	LogFunctionCall();
 	lastEmittedSoundIds.clear();
 	const TagMap& globalMap = entityTags["global"];
 
 	for (const auto& [entityId, tagMap] : entityTags) {
 		int bestScore = -1;
-		const AudioBehavior* best = nullptr;
+		const MatchDefinition* best = nullptr;
 
-		for (const auto& behavior : behaviors) {
-			int score = MatchScore(behavior, tagMap, globalMap, entityId);
+		for (const auto& md : matchDefinitions) {
+			int score = MatchScore(md, tagMap, globalMap, entityId);
 			if (score > bestScore) {
 				bestScore = score;
-				best = &behavior;
+				best = &md;
 			}
 		}
 
@@ -125,22 +131,22 @@ void SoundManager::Update() {
 			Command cmd;
 			cmd.type = CommandType::StartBehavior;
 			cmd.entityId = entityId;
-			cmd.behavior = std::make_shared<AudioBehavior>(*best);
+			 // cmd.behavior = std::make_shared<AudioBehavior>(*best);
 			/*
 				TODO:
 				cmd.behavior = std::shared_ptr<AudioBehavior>(behaviors_shared_ptrs[i]);
 				(if you refactor behaviors into vector<shared_ptr<AudioBehavior>>).
 			*/
-			cmd.soundName = best->id;
+			cmd.soundName = best->name;
+			cmd.behaviorId = best->id;
 			managerToCore.push(cmd);
 
 
 			lastEmittedSoundIds.push_back(cmd.soundName);
 		}
 	}
-
 	audioCore->Update(); // TODO: remove once audiocore gets detached into it's own thread!
-
+	
 	ProcessCoreResponses();
 }
 
@@ -148,10 +154,8 @@ void SoundManager::Update() {
 
 void SoundManager::ProcessCoreResponses() {
 	// lots, callbacks, etc
-	while (!coreToManager.empty()) {
-		const Command cmd = coreToManager.front();
-		coreToManager.pop();
-
+	Command cmd;
+	while (coreToManager.pop(cmd)) {
 		// Handle the response - logging, etc.
 		if (cmd.type == CommandType::Log) {
 			LogMessage("CORE: " + cmd.strValue, LogCategory::AudioCore, LogLevel::Info);
@@ -174,4 +178,25 @@ void SoundManager::DebugPrintState() {
 			LogMessage(" - Value: " + pair.first + " = " + std::to_string(pair.second), LogCategory::SoundManager, LogLevel::Debug);
 		}
 	}
+}
+
+void SoundManager::BufferTest()
+{
+	// repeat load of same file:
+	AudioBuffer* buf1;
+	AudioBuffer* buf2;
+	bool handle1 = audioCore->audioBufferManager->TryLoad("test.wav", buf1); 
+	bool handle2 = audioCore->audioBufferManager->TryLoad("test.wav", buf2); 
+	LogMessage(handle1 && handle2 && buf1 == buf2  ? "SUCCESS" : "FAILED", LogCategory::CLI, LogLevel::Info);
+
+	// file not found:
+	AudioBuffer* buf3;
+	bool handle3 = audioCore->audioBufferManager->TryLoad("unknown.wav", buf3); 
+	
+	// call to audio device
+	SoundHandle h = audioCore->device->Play(buf1, 1.0f, 1.0f, false);
+	LogMessage(h > 0 ? "STUB PLAY OK" : "STUB PLAY FAIL", LogCategory::CLI, LogLevel::Info);
+
+
+
 }

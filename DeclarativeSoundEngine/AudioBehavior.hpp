@@ -14,15 +14,8 @@ this would allow to create things like volume : 0.5*t , so a sound that get's lo
 
 struct AudioBehavior {
 
-    //AudioBehavior() = default;
-
-    //AudioBehavior(AudioBehavior&&) noexcept = default;
-    //AudioBehavior& operator=(AudioBehavior&&) noexcept = default;
-
-    //AudioBehavior(const AudioBehavior&) = delete;
-    //AudioBehavior& operator=(const AudioBehavior&) = delete;
-
-    std::string id;
+    uint32_t id; // NOT SET
+    std::string name;
     std::vector<std::string> matchTags;
     std::vector<Condition>   matchConditions;
     std::unordered_map<std::string, Expression> parameters;

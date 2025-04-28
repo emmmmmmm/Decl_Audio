@@ -7,6 +7,7 @@
 #include "ValueMap.hpp"
 #include "AudioCommand.hpp"
 #include "AudioCore.hpp"
+#include "BehaviorDefinitionManager.hpp"
 
 class SoundManager {
 public:
@@ -24,19 +25,23 @@ public:
 
     void DebugPrintState();
 
+    void BufferTest();
+
     std::vector<std::string> lastEmittedSoundIds;   // for tests. in the future we might want to wait
                                                     // for the "started audio" message from audiocore?
 
-
+    BehaviorDefinitionManager* defsProvider;
 
     CommandQueue managerToCore;
     CommandQueue coreToManager;
+
+
+    std::vector<MatchDefinition> matchDefinitions;
 private:
-    std::vector<AudioBehavior> behaviors;
     std::unordered_map<std::string, TagMap> entityTags;
     std::unordered_map<std::string, ValueMap> entityValues;
 
-    int MatchScore(const AudioBehavior& behavior, const TagMap& entityMap, const TagMap& globalMap, const std::string& entityId);
+    int MatchScore(const MatchDefinition& behavior, const TagMap& entityMap, const TagMap& globalMap, const std::string& entityId);
     int TagSpecificity(const std::string& tag);
     bool TagMatches(const std::string& pattern, const std::string& actual);
    

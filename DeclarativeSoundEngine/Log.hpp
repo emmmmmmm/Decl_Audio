@@ -1,10 +1,13 @@
 #pragma once
 #include "declsound_export.hpp"
 #include <string>
+#include <string_view>
+#include <source_location>
+#include <iostream>
 
 enum class LogCategory {
     SoundManager,
-    BehaviorLoader,
+    BehaviorLoader, BehaviorDefMgr,
     CLI,
     General, 
     AudioCore
@@ -24,3 +27,6 @@ extern "C" DECLSOUND_API void LogMessageC(const char* message, int category, int
 inline void LogMessage(const std::string& message, LogCategory category, LogLevel level) {
     LogMessageC(message.c_str(), static_cast<int>(category), static_cast<int>(level));
 }
+ void LogFunctionCall(
+    const std::source_location& loc = std::source_location::current()
+);
