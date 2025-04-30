@@ -6,21 +6,23 @@
 #include "Expression.hpp"
 
 
-
-
-
 struct MatchDefinition {
-	uint32_t id;
-	std::string name;
+	uint32_t id = {};
+	std::string name = {};
 	std::vector<std::string> matchTags;
 	std::vector<Condition>   matchConditions;
 	std::unordered_map<std::string, Expression> parameters;
 };
 
 struct PlayDefinition { 
-	uint32_t id; 
-	std::unique_ptr<Node> rootNode; 
-	/* + expr functors, loops, buses*/ 
+	uint32_t id = {};
+
+	std::unique_ptr<Node> onStart;
+	std::unique_ptr<Node> onActive;
+	std::unique_ptr<Node> onEnd;
+
+
+	std::unordered_map<std::string, Expression> parameters;
 };
 
 

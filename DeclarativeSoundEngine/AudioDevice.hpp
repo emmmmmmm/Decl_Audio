@@ -1,7 +1,7 @@
 // AudioDevice.hpp
 #pragma once
-#include <cstdint>
 #include "AudioBuffer.hpp"
+#include <functional>
 
 using SoundHandle = uint32_t;
 
@@ -11,4 +11,6 @@ struct AudioDevice {
 	virtual void Stop(SoundHandle handle) = 0;
 	virtual void SetVolume(SoundHandle handle, float volume) = 0;
 	virtual void SetPitch(SoundHandle handle, float pitch) = 0;
+	virtual void SetRenderCallback(std::function<void(float*, int)> cb) = 0;
+
 };

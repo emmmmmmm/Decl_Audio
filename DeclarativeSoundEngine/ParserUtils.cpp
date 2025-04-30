@@ -83,29 +83,33 @@ std::unique_ptr<Node> ParseNode(const ASTNode& ast) {
 					childNode = pointAst.map.at("soundNode");
 				bn->blends.push_back({ at, ParseNode(childNode) });
 			}
+			// sort blendpoints (?) // think about if this is actually a good idea though, because it might create create inconsistencies!
+			// std::sort(bn->blends.begin(), bn->blends.end(),
+			// 		[](const BlendNode::Point& a, const BlendNode::Point& b)
+			// 		{ return a.at < b.at; });
 		}
 		node = std::move(bn);
 	}
 	else if (nodeType == "select") {
-		auto sn = std::make_unique<SelectNode>();
-		if (auto pIt = payload.map.find("parameter");
-			pIt != payload.map.end() && pIt->second.isScalar()) {
-			sn->parameter = pIt->second.scalar;
-		}
-		if (auto oIt = payload.map.find("options");
-			oIt != payload.map.end() && oIt->second.isMap()) {
-			for (auto& kv : oIt->second.map) {
+		auto sel = std::make_unique<SelectNode>();
+		sel->parameter = payload.map.at("parameter").scalar;
+
+		if (auto cases = payload.map.find("cases"); cases != payload.map.end()) {
+			for (auto& kv : cases->second.map) {
 				SelectNode::Option opt;
-				opt.match = kv.first;
+				opt.pattern = kv.first;
 				opt.node = ParseNode(kv.second);
-				sn->options.push_back(std::move(opt));
+				sel->options.push_back(std::move(opt));
 			}
 		}
-		node = std::move(sn);
+		if (auto def = payload.map.find("default"); def != payload.map.end())
+			sel->defaultNode = ParseNode(def->second);
+
+		node = std::move(sel);
 	}
 
 	// common params
-	if (ast.map.count("volume"))   node->volume = std::stof(ast.map.at("volume").scalar);
+	if (ast.map.count("volume"))   node->volume = Expression(ast.map.at("volume").scalar);
 	if (ast.map.count("pitch"))    node->pitch = std::stof(ast.map.at("pitch").scalar);
 	if (ast.map.count("fadeIn"))   node->fadeIn = std::stof(ast.map.at("fadeIn").scalar);
 	if (ast.map.count("fadeOut"))  node->fadeOut = std::stof(ast.map.at("fadeOut").scalar);

@@ -17,6 +17,8 @@
 #include <sstream>
 
 std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std::string& folderPath) {
+
+
 	// Step 1: parse raw ASTs
 	std::vector<RawAudioBehavior> raws;
 	for (auto& entry : std::filesystem::directory_iterator(folderPath)) {
@@ -60,6 +62,7 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 		}
 	}
 
+
 	// Debug: dump raw AST field names and values
 	
 	/*
@@ -101,6 +104,9 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 	}
 	*/
 	// Step 3: instantiate into final AudioBehavior structs
+
+	
+
 	std::vector<AudioBehavior> behaviors;
 	behaviors.reserve(raws.size());
 	for (auto& raw : raws) {
@@ -110,6 +116,34 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 		auto result = CoCreateGuid(&guid);
 		b.id = guid.Data1;
 		b.name = raw.id;
+
+
+
+		auto grab = [&](const std::string& key)->std::shared_ptr<Node> {
+			auto it = raw.root.map.find(key);
+			return (it != raw.root.map.end()) ? ParseNode(it->second) : nullptr;
+			};
+
+		b.onStart = grab("onStart");
+		b.onActive = grab("onActive");
+		b.onEnd = grab("onEnd");
+
+		// backward-compat single-node shortcut (soundName / soundNode)
+		if (!b.onActive) {
+			if (auto it = raw.root.map.find("soundNode"); it != raw.root.map.end())
+				b.onActive = ParseNode(it->second);
+			else if (auto it2 = raw.root.map.find("soundName");
+				it2 != raw.root.map.end() && it2->second.isScalar()) {
+				auto snd = std::make_unique<SoundNode>();
+				snd->sound = it2->second.scalar;
+				b.onActive = std::move(snd);
+			}
+		}
+
+
+
+
+
 		// flatten matchTags
 		if (auto it = raw.root.map.find("matchTags");
 			it != raw.root.map.end() && it->second.isSeq()) {
@@ -128,18 +162,6 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 			for (auto& kv : it->second.map)
 				b.parameters[kv.first] = parseExpression(kv.second.scalar);
 		}
-		// build sound graph
-		if (auto it = raw.root.map.find("soundNode");
-			it != raw.root.map.end()) {
-			b.rootSoundNode = ParseNode(it->second);
-		}
-		else if (auto it2 = raw.root.map.find("soundName");
-			it2 != raw.root.map.end() && it2->second.isScalar()) {
-			// Create a single SoundNode from the scalar shortcut
-			auto snd = std::make_unique<SoundNode>();
-			snd->sound = it2->second.scalar;
-			b.rootSoundNode = std::move(snd);
-		}
 
 
 		// Debug: instantiated behavior summary
@@ -151,5 +173,6 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 		behaviors.push_back(std::move(b));
 	}
 
+	std::cout << "BehaviorLoader::LoadAudioBehaviorsFromFolder - DONE" << std::endl;
 	return behaviors;
 }

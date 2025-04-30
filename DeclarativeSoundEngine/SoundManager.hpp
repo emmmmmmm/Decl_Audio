@@ -22,6 +22,8 @@ public:
     void SetValue(const std::string& entityId, const std::string& key, float value);
     void ClearValue(const std::string& entityId, const std::string& key);
     void ClearEntity(const std::string& entityId);
+    void SetBusGain(const std::string& entityId, float gain);             // literal
+    void SetBusGainExpr(const std::string& entityId, const std::string& gain); // expression
 
     void DebugPrintState();
 
@@ -40,6 +42,11 @@ public:
 private:
     std::unordered_map<std::string, TagMap> entityTags;
     std::unordered_map<std::string, ValueMap> entityValues;
+
+    std::unordered_map<std::string, std::unordered_set<uint32_t>> activeBehaviors; // entity -> playing IDs
+    std::unordered_map<std::string, ValueMap>                     lastValues;      // entity -> values pushed to core
+    void SendValueDiff(const std::string& entityId);
+    void SyncBehaviors(const std::string& entityId, const std::unordered_set<uint32_t>& desired);
 
     int MatchScore(const MatchDefinition& behavior, const TagMap& entityMap, const TagMap& globalMap, const std::string& entityId);
     int TagSpecificity(const std::string& tag);

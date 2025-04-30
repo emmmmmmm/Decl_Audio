@@ -24,6 +24,10 @@ extern "C" {
 	DECLSOUND_API void SoundManager_ClearValue(void* mgr, const char* entityId, const char* key);
 	DECLSOUND_API void SoundManager_ClearEntity(void* mgr, const char* entityId);
 
+	DECLSOUND_API void SoundManager_SetBusGain(void* mgr, const char* entityId, float gain);
+	DECLSOUND_API void SoundManager_SetBusGainExpression(void* mgr, const char* entityId, const char* gain);
+
+
 	// behavior loading
 	DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(void* mgr, const char* path);
 

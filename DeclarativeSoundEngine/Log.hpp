@@ -10,7 +10,8 @@ enum class LogCategory {
     BehaviorLoader, BehaviorDefMgr,
     CLI,
     General, 
-    AudioCore
+    AudioCore, 
+    AudioDevice
 };
 
 enum class LogLevel {

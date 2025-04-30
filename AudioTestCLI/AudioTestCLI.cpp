@@ -42,11 +42,24 @@ void RunBasicBehaviorTest() {
 	SoundManager_SetTag(mgr, "monster", "entity.monster");
 	SoundManager_SetTag(mgr, "monster", "foot.contact.left");
 
+
 	SoundManager_SetValue(mgr, "player", "velocity", 3.2f);
 	SoundManager_SetValue(mgr, "player", "fatigue", 0.8f);
 	SoundManager_SetGlobalValue(mgr, "time", 0.5f);
-	SoundManager_Update(mgr);
+
+
+
+	//SoundManager_Update(mgr);
+
+
+	auto start = std::chrono::steady_clock::now();
+	while (std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
+		SoundManager_Update(mgr);      // enqueues new commands
+		std::this_thread::sleep_for(std::chrono::milliseconds(16));
+	}
+
 	SoundManager_DebugPrintState(mgr);
+	std::cout << "after update loop" << std::endl;
 
 	SoundManager_ClearTag(mgr, "player", "foot.contact.left");
 	SoundManager_ClearTag(mgr, "player", "entity.player");
@@ -55,6 +68,7 @@ void RunBasicBehaviorTest() {
 
 	SoundManager_DebugPrintState(mgr);
 
+	//std::this_thread::sleep_for(std::chrono::seconds(3));
 
 	DestroySoundManager(mgr);
 	// thats ... not fast -,-

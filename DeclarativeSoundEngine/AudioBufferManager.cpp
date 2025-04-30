@@ -20,6 +20,7 @@ AudioBufferManager::~AudioBufferManager()
 
 bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 {
+
 	std::lock_guard<std::mutex> lock(mutex);
 	// already cached?
 	auto it = cache.find(path);
@@ -46,7 +47,7 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	if (buffer.Empty()) {
 		LogMessage("AudioBufferManager: failed to load " + path,
 			LogCategory::AudioCore, LogLevel::Warning);
-		outBuf = &buffer;
+		outBuf = nullptr;
 		return false;
 	
 
@@ -70,6 +71,9 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	lruList.push_front(path);
 	currentMemoryUsage += mem;
 	outBuf = & it->second.first;
+
+	LogMessage("AudioBufferManager: finished loading " + path,
+		LogCategory::AudioCore, LogLevel::Warning);
 	return true;
 }
 

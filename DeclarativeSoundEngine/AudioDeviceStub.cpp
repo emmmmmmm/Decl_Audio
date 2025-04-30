@@ -6,9 +6,7 @@
 #include "Log.hpp"
 
 
-SoundHandle AudioDeviceStub::Play(AudioBuffer* buffer,
-	float volume, float pitch,
-	bool loop) {
+SoundHandle AudioDeviceStub::Play(AudioBuffer* buffer,	float volume, float pitch,	bool loop) {
 	auto h = nextHandle++;
 	LogMessage("AudioDeviceStub::Play handle=" + std::to_string(h)
 		+ " vol=" + std::to_string(volume)

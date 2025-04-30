@@ -52,6 +52,18 @@ DECLSOUND_API void SoundManager_ClearEntity(void* mgr, const char* entityId)
 	static_cast<SoundManager*>(mgr)->ClearEntity(std::string(entityId));
 }
 
+DECLSOUND_API void SoundManager_SetBusGain(void* mgr, const char* entityId, float gain)
+{
+	auto manager = static_cast<SoundManager*>(mgr);
+	manager->SetBusGain(entityId, gain);
+}
+
+DECLSOUND_API void SoundManager_SetBusGainExpression(void* mgr, const char* entityId, const char* gain)
+{
+	auto manager = static_cast<SoundManager*>(mgr);
+	manager->SetBusGainExpr(entityId, gain);
+}
+
 
 DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(void* mgr, const char* path) {
 	auto manager = static_cast<SoundManager*>(mgr);

@@ -9,24 +9,41 @@ enum class CommandType {
 	StartBehavior,
 	StopBehavior,
 	ValueUpdate,
+	BusGainUpdate,
 	Log,
 	PlaySuccess,
 	RefreshDefinitions,
+	None
 };
 
 struct Command {
-	CommandType type;
-	std::string entityId, key, strValue, soundName;
-	float       value;
-	uint32_t instanceID;
-	uint32_t    behaviorId;
+	CommandType type = CommandType::None;
+	std::string entityId = {};
+	std::string key = {};
+	std::string strValue = {};
+	std::string soundName = {};
+	float       value = 0;
+	uint32_t instanceID = -1;
+	uint32_t    behaviorId = -1;
 
 	Command() = default;
 	Command(const Command&) = default;          // allow copying
 	Command& operator=(const Command&) = default;
 	Command(Command&&) = default;
 	Command& operator=(Command&&) = default;
-	
+
+	std::string GetTypeName() {
+		switch (type) {
+		case CommandType::StartBehavior: return "StartBehavior";
+		case CommandType::StopBehavior: return "StopBehavior";
+		case CommandType::ValueUpdate: return "ValueUpdate";
+		case CommandType::BusGainUpdate: return "BusGainUpdate";
+		case CommandType::RefreshDefinitions: return "RefreshDefinitions";
+
+		default: return "Unknown";
+		}
+	}
+
 };
 
 

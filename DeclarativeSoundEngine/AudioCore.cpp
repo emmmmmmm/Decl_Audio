@@ -2,136 +2,287 @@
 #include "pch.h"
 #include "AudioCore.hpp"
 #include "Log.hpp"
-#include "AudioDevice.hpp"
-#include "AudioDeviceStub.hpp"
 #include "IBehaviorDefinition.hpp"
 #include <iostream>
+#include "AudioDeviceMiniAudio.hpp"
+#include <algorithm>
+#include <array>  
+namespace {
+	Snapshot gSnapshots[kSnapCount];   // single, file-local definition
+}
+void BehaviorInstance::Update(const ValueMap& params, AudioBufferManager* bufMgr, uint8_t busIdx, float dt, uint64_t nowSamples)
+{
+	if (!onActive)
+		return;
+
+	constexpr float FADE_SEC = 0.05f;          // 50-ms fade
+	float stepFactor = (std::min)(dt / FADE_SEC, 1.0f);  // dt is control-tick
+
+	std::vector<SoundLeaf> desired;
+	CollectLeaves(*onActive, params, 1.0f, busIdx, desired, bufMgr);
+
+	// start new
+	for (auto& leaf : desired) {
+		if (!leaf.buf) continue; // failed load, skip
+		if (!HasVoice(leaf.src))
+			StartVoice(leaf, busIdx, nowSamples);
+	}
+
+	// fade-out missing
+	for (auto& v : voices)
+		if (std::none_of(desired.begin(), desired.end(),
+			[&](const SoundLeaf& l) { return l.src == v.source; }))
+			v.targetVol = 0.0f;
+
+	// 2) ramp
+	for (Voice& v : voices) {
+		float diff = v.targetVol - v.currentVol;
+		v.currentVol += diff * stepFactor;           // 0 → 1 fade-in, 1 → 0 fade-out
+	}
+	// 3) prune
+	auto endIt = std::remove_if(voices.begin(), voices.end(),
+		[&](const Voice& v)
+		{
+			bool done = !v.loop && v.playhead >= v.buffer->GetFrameCount();
+			bool silent = (v.currentVol < 0.001f && v.targetVol == 0.f);
+			return done || silent;
+		});
+	voices.erase(endIt, voices.end());
+}
+
+
+void BehaviorInstance::CollectLeaves(const Node& n,
+	const ValueMap& params,
+	float              inGain,
+	uint8_t            bus,
+	std::vector<SoundLeaf>& out,
+	AudioBufferManager* bufMgr)
+{
+	float here = inGain * n.volume.eval(params);
+
+	switch (n.type)
+	{
+	case NodeType::Sound: {
+		const SoundNode& sn = static_cast<const SoundNode&>(n);
+		AudioBuffer* buf;
+
+		if (!bufMgr->TryLoad(sn.sound, buf)) {
+
+			return;          // silent fail
+		}
+		out.push_back({ &sn, buf, here, sn.loop, bus });
+		return;
+	}
+
+	case NodeType::Layer:
+		for (auto& c : n.children)
+			CollectLeaves(*c, params, here, bus, out, bufMgr);
+		return;
+
+	case NodeType::Random: {
+		auto& rn = static_cast<const RandomNode&>(n);
+		size_t idx = rn.pickOnce();               // RandomNode remembers choice
+		CollectLeaves(*rn.children[idx], params, here, bus, out, bufMgr);
+		return;
+	}
+
+	case NodeType::Blend: {
+		const BlendNode& bn = static_cast<const BlendNode&>(n);
+		float x = params.HasValue(bn.parameter) ? params.GetValue(bn.parameter) : 0.f;
+
+		auto w = bn.weights(x);
+		if (w[0].first) CollectLeaves(*w[0].first, params, here * w[0].second, bus, out, bufMgr);
+		if (w[1].first) CollectLeaves(*w[1].first, params, here * w[1].second, bus, out, bufMgr);
+		return;
+	}
+
+	case NodeType::Select: {
+		const SelectNode& sn = static_cast<const SelectNode&>(n);
+		std::string val = params.HasValue(sn.parameter)
+			? std::to_string(int(params.GetValue(sn.parameter)))
+			: "";
+		if (const Node* child = sn.pick(val))
+			CollectLeaves(*child, params, here, bus, out, bufMgr);
+		return;
+	}
+
+	default: return;
+	}
+}
+
+
 
 AudioCore::AudioCore(IBehaviorDefinition* defsProvider, CommandQueue* fromManager, CommandQueue* toManager)
 	: defsProvider(defsProvider), inQueue(fromManager), outQueue(toManager)
 {
 	audioBufferManager = new AudioBufferManager();
-	device = std::make_unique<AudioDeviceStub>();
+	device = std::make_unique<AudioDeviceMiniaudio>(outputChannels, sampleRate, bufferFrames);
 
-	// DEBUG:
-	/*
-	Command testCommand;
-	testCommand.type = CommandType::Log;
-	testCommand.strValue = "DebugTestLogThingyFromCore";
-	outQueue->push(testCommand);
-	*/
+	// size buffers
+	size_t bufSamples = size_t(bufferFrames * outputChannels);
+
+	for (Snapshot& snap : gSnapshots)
+		for (int b = 0; b < kMaxBuses; ++b)
+			snap.bus[b].resize(bufSamples, 0.0f);
+
+
+	device->SetRenderCallback(
+		[this](float* output, int frameCount) {RenderCallback(output, frameCount); });
+
+
+
+
+	// Create Master Bus
+	buses.clear();
+	buses.push_back({ std::vector<float>(bufferFrames * outputChannels), {} }); // master
 
 }
-AudioCore::~AudioCore() {}
+AudioCore::~AudioCore() {
+	delete audioBufferManager;
+}
+
+
+
 
 void AudioCore::Update() {
 	// this function will loop indefinitely in the future! 
+	auto now = std::chrono::steady_clock::now();
+	float dt = std::chrono::duration<float>(now - lastUpdate).count();
+	lastUpdate = now;
 
+	AdvancePlayheads();
 	ProcessCommands();
-	ProcessActiveSounds();
+	ProcessActiveSounds(dt);
+	TakeSnapshot();
+}
+
+void AudioCore::AdvancePlayheads()
+{
+	uint32_t step = pendingFrames.exchange(0, std::memory_order_acquire);
+	if (step == 0) return;
+
+	for (auto& [eid, ed] : entityMap)
+		for (auto& inst : ed.instances)
+			for (auto& v : inst.voices) {
+				size_t len = v.buffer->GetFrameCount();
+				if (v.loop)
+					v.playhead = (v.playhead + step) % len;
+				else
+					v.playhead = (std::min)(v.playhead + step, len);
+			}
+}
+
+
+// build a fresh read‐only snapshot for render
+void AudioCore::TakeSnapshot()
+{
+	Snapshot& back = gSnapshots[gBuild];
+
+	/* ---- reset counters (no vector clear) ---- */
+	back.voiceCount = 0;
+	back.busCount = uint32_t(buses.size());
+
+	/* ---- bus gains ---- */
+	for (uint32_t i = 0; i < back.busCount; ++i)
+		back.busGain[i] = buses[i].volume.eval(entityMap.empty() ? ValueMap{}
+	: entityMap.begin()->second.params);
+
+	/* ---- flatten voices ---- */
+	for (auto& [eid, ed] : entityMap)
+		for (auto& inst : ed.instances)
+			for (auto& v : inst.voices) {
+				if (back.voiceCount >= kMaxVoices) continue;
+
+				back.voices[back.voiceCount++] = {
+					v.buffer,
+					v.playhead,
+					v.currentVol,
+					v.loop,
+					uint8_t(v.busIndex),v.startSample,
+				};
+			}
+
+	gFront.store(gBuild, std::memory_order_release);
+	gBuild = (gBuild + 1) % kSnapCount;
 }
 
 void AudioCore::ProcessCommands() {
-	LogMessage("ProcessCommands", LogCategory::AudioCore, LogLevel::Debug);
 	Command cmd;
 	while (inQueue->pop(cmd)) {
-		LogMessage(cmd.entityId, LogCategory::AudioCore, LogLevel::Debug);
+		LogMessage("ProcessCommands: " + cmd.GetTypeName(), LogCategory::AudioCore, LogLevel::Debug);
+
 		switch (cmd.type) {
-		case CommandType::StartBehavior:
-			HandleStartBehavior(cmd);
-			break;
-		case CommandType::StopBehavior:
-			HandleStopBehavior(cmd);
-			break;
-		case CommandType::ValueUpdate:
-			HandleValueUpdate(cmd);
-			break;
-		case CommandType::RefreshDefinitions:
-			RefreshDefinitions();
-			break;
-		default:
-			break;
+		case CommandType::StartBehavior:		HandleStartBehavior(cmd); break;
+		case CommandType::StopBehavior:			HandleStopBehavior(cmd); break;
+		case CommandType::ValueUpdate:			HandleValueUpdate(cmd); break;
+		case CommandType::RefreshDefinitions:	RefreshDefinitions(); break;
+		case CommandType::BusGainUpdate:        HandleBusGain(cmd);break;
+		default: break;
 		}
 	}
+
+	// DEBUG
+	LogMessage("DEBUG ENTITYMAP:",
+		LogCategory::AudioCore, LogLevel::Debug);
+	for (auto& [eid, ed] : entityMap) {
+		LogMessage("Entity '" + eid + "' — params:" +
+			std::to_string(ed.params.GetAllValues().size()) +
+			" instances:" + std::to_string(ed.instances.size()),
+			LogCategory::AudioCore, LogLevel::Debug);
+
+		for (auto& inst : ed.instances) {
+			LogMessage("  inst id=" + std::to_string(inst.id) +
+				" phase=" + std::to_string(int(inst.phase)) +
+				" voices=" + std::to_string(inst.voices.size()),
+				LogCategory::AudioCore, LogLevel::Debug);
+		}
+	}
+	LogMessage("-----",
+		LogCategory::AudioCore, LogLevel::Debug);
+
+
 }
 
 void AudioCore::RefreshDefinitions() {
-	LogMessage("::RefreshDefinitions", LogCategory::AudioCore, LogLevel::Debug);
 	for (auto& p : defsProvider->GetPlayDefs()) {
-		behaviorRegistry[p.id] = p.rootNode.get();
+		prototypes[p.id] = std::move(p);
 	}
 	LogMessage("Audiocore definitions refreshed!", LogCategory::AudioCore, LogLevel::Debug);
 }
+void AudioCore::HandleStartBehavior(const Command& cmd)
+{
+	LogMessage("AudioCore: StartBehavior id="
+		+ std::to_string(cmd.behaviorId),
+		LogCategory::AudioCore, LogLevel::Info);
 
-void AudioCore::HandleStartBehavior(const Command& cmd) {
-	LogMessage("AudioCore: StartBehavior called for " + cmd.soundName, LogCategory::AudioCore, LogLevel::Info);
-	// 1) Allocate a new instance
-	uint32_t iid = nextInstanceID++;
-	auto& entity = entityMap[cmd.entityId];                  // auto-create if missing
-
-	entity.instances.emplace_back();
-	BehaviorInstance& inst = entity.instances.back();
-	inst.instanceID = iid;
-	auto it = behaviorRegistry.find(cmd.behaviorId);
-	if (it == behaviorRegistry.end()) {
-		LogMessage("Unknown behavior ID " + std::to_string(cmd.behaviorId),
+	// 0) locate prototype
+	auto p = prototypes.find(cmd.behaviorId);
+	if (p == prototypes.end()) {
+		LogMessage("StartBehavior: unknown PlayDefinition id "
+			+ std::to_string(cmd.behaviorId),
 			LogCategory::AudioCore, LogLevel::Warning);
 		return;
-	}
-	auto proto = it->second;           // guaranteed non-null
-	inst.rootNode = proto->clone();       // deep‐copy for this instance
 
-	// 2) For MVP: assume the behavior has a single SoundNode leaf
-	//    and that Command.behavior points to an AudioBehavior you loaded earlier.
-
-	Node* root = inst.rootNode.get();
-	auto* leaf = FindFirstSoundNode(root);
-	if (!leaf) {
-		// no playable leaf—emit an error back to SoundManager
-		LogMessage("No playable leaf found in graph!", LogCategory::AudioCore, LogLevel::Warning);
-		return;
-	}
-	std::string soundFile = leaf->sound;    // Assuming SoundNode has a .soundName memberfloat        vol = 1; //behavior.EvaluateVolume(cmd);   // stubbed as 1.0f for now
-	float pitch = 1;                        //inst.EvaluatePitch(cmd);    // stubbed as 1.0f
-	float vol = 1;
-
-
-	// 3) Load or reuse the buffer
-	AudioBuffer* buf;
-	auto bufferloaded = audioBufferManager->TryLoad(soundFile, buf);
-	if (!bufferloaded) {
-		Command w;
-		w.type = CommandType::Log;
-		w.soundName = soundFile;
-		w.strValue = "failed to load " + soundFile;
-		outQueue->push(w);
-
-		return; // nothing to play here.
 	}
 
-	
-	// 4) Kick off playback
-	SoundHandle handle = device->Play(buf, vol, pitch, /*loop=*/false);
+	// 1) ensure entity slot
+	auto& entity = entityMap[cmd.entityId];   // auto-creates
 
-	// 5) Record the new voice
-	Voice v;
-	v.handle = handle;
-	v.currentVolume = vol;
-	v.targetVolume = vol;
-	v.currentPitch = pitch;
-	v.targetPitch = pitch;
+	// 2) build fresh instance
+	BehaviorInstance inst;
+	inst.id = p->second.id;
+	inst.phase = Phase::Start;
 
-	//v.busIndex = entityBusMap[cmd.entityId];           // lookup or allocate bus
-	inst.voices.push_back(v);
+	inst.onStart = p->second.onStart ? p->second.onStart->clone() : nullptr;
+	inst.onActive = p->second.onActive ? p->second.onActive->clone() : nullptr;
+	inst.onEnd = p->second.onEnd ? p->second.onEnd->clone() : nullptr;
 
-	// 6) (Optional) emit a success event
-	Command evt;
-	evt.type = CommandType::PlaySuccess;
-	evt.entityId = cmd.entityId;
-	evt.instanceID = iid;
-	outQueue->push(evt);
-	LogMessage("End of HandleStartBehavior()", LogCategory::AudioCore, LogLevel::Debug);
+	inst.paramExpr = p->second.parameters;    // root-level expressions
 
+	// 3) add to entity
+	entity.instances.push_back(std::move(inst));
+
+	// 4) no voice creation here; ProcessActiveSounds() will do it
 }
 
 void AudioCore::HandleStopBehavior(const Command& cmd) {
@@ -142,18 +293,59 @@ void AudioCore::HandleStopBehavior(const Command& cmd) {
 
 void AudioCore::HandleValueUpdate(const Command& cmd) {
 	LogMessage("AudioCore: ValueUpdate " + cmd.key + " = " + std::to_string(cmd.value), LogCategory::AudioCore, LogLevel::Info);
-	// TODO: actually update values for behaviors
-}
 
-void AudioCore::ProcessActiveSounds() {
-	// In the future, this will handle sound playback, fading, etc.
-	// sounds that have ended will need to clean themselfs up from activeBehaviors as well
+	entityMap[cmd.entityId].params.SetValue(cmd.key, cmd.value);
 
 }
 
+void AudioCore::ProcessActiveSounds(float dt)
+{
+	for (auto& [eid, data] : entityMap) {
+
+		for (auto inst = data.instances.begin(); inst != data.instances.end(); )
+		{
+			switch (inst->phase)
+			{
+			case Phase::Start:
+			{
+				if (inst->voices.empty() && inst->onStart) {
+
+					std::vector<SoundLeaf> tmp;
+					inst->CollectLeaves(*inst->onStart, data.params, 1.0f,
+						GetOrCreateBus(eid), tmp, audioBufferManager);
+					for (auto& leaf : tmp) inst->StartVoice(leaf, leaf.bus, globalSampleCounter);
+				}
+
+				// if (!inst->voices.empty() && AllFinished(inst->voices))
+
+				inst->phase = Phase::Active;
+				// Active voices will be created next CollectLeaves() pass
+			}
+			
+			
+			break;
+
+			case Phase::Active:
+				// voices updated/diffed by CollectLeaves() 
+				inst->Update(data.params, audioBufferManager, GetOrCreateBus(eid), dt,globalSampleCounter);
+				break;
+
+			case Phase::Ending:
+				if (AllFinished(inst->voices)) {
+					inst = data.instances.erase(inst);      // remove done instance
+					continue;                               // stay valid
+				}
+				break;
+			}
+			++inst;
+		}
+	}
+}
 
 // Helper: find the first SoundNode in a node-tree
 SoundNode* AudioCore::FindFirstSoundNode(Node* node) {
+	if (!node)
+		return nullptr;
 	if (auto* sn = dynamic_cast<SoundNode*>(node)) {
 		return sn;
 	}
@@ -163,4 +355,87 @@ SoundNode* AudioCore::FindFirstSoundNode(Node* node) {
 		}
 	}
 	return nullptr;
+}
+
+
+
+// MIXING
+
+
+int AudioCore::GetOrCreateBus(const std::string& entityId) {
+	auto it = entityBus.find(entityId);
+	if (it != entityBus.end()) return it->second;
+	// allocate new sub‐bus
+	int newIndex = (int)buses.size();
+	buses.push_back({ std::vector<float>(bufferFrames * outputChannels), {} });
+	entityBus.emplace(entityId, newIndex);
+	return newIndex;
+}
+
+void AudioCore::ClearBusBuffers() {
+	for (auto& bus : buses) {
+		std::fill(bus.buffer.begin(), bus.buffer.end(), 0.0f);
+	}
+}
+
+void AudioCore::HandleBusGain(const Command& cmd)
+{
+	int idx = GetOrCreateBus(cmd.entityId);
+	buses[idx].volume = Expression(cmd.strValue); // literal "0.8" or "distance*0.5"
+}
+
+void AudioCore::RenderCallback(float* out, int frames)
+{
+	/* ------- pull immutable snapshot ------- */
+	const Snapshot& s = gSnapshots[gFront.load(std::memory_order_acquire)];
+
+	uint64_t blockStart = globalSampleCounter;
+	int samples = frames * outputChannels;      // inside RenderCallback
+
+
+	/* ------- clear bus buffers in the snapshot ------- */
+	for (uint32_t b = 0; b < s.busCount; ++b)
+		std::fill(s.bus[b].begin(), s.bus[b].end(), 0.0f);
+
+	/* ------- mix voices ------- */
+	for (uint32_t v = 0; v < s.voiceCount; ++v)
+	{
+		const VoiceSnap& vs = s.voices[v];
+
+		const float* pcm = vs.buf->GetData();
+		int          ch = vs.buf->GetChannelCount();
+		size_t       len = vs.buf->GetFrameCount();
+
+		uint64_t basePos = blockStart - vs.startSample;
+		float* busBuf = s.bus[vs.bus].data();
+
+		for (int i = 0; i < frames; ++i) {
+			uint64_t pos = basePos + i;
+			float s0 = 0.f;
+
+			if (pos < len)               s0 = pcm[pos * ch] * vs.gain;
+			else if (vs.loop)            s0 = pcm[(pos % len) * ch] * vs.gain;
+
+			for (int c = 0; c < outputChannels; ++c)
+				busBuf[i * outputChannels + c] += s0;
+		}
+	}
+
+	/* ------- fold buses (same math, but now inside snapshot) ------- */
+	for (int b = int(s.busCount) - 1; b > 0; --b) {
+		float  gain = s.busGain[b];
+		int    parent = buses[b].parent;           // parent index hasn’t changed
+		float* src = s.bus[b].data();
+		float* dst = s.bus[parent].data();
+
+		for (int i = 0; i < samples; ++i)
+			dst[i] += src[i] * gain;
+	}
+
+	/* ------- copy master to device ------- */
+	std::memcpy(out, s.bus[0].data(), size_t(frames * outputChannels) * sizeof(float));
+
+	/* ------- advance counters ------- */
+	pendingFrames.fetch_add(frames, std::memory_order_relaxed);
+	globalSampleCounter += frames;
 }
