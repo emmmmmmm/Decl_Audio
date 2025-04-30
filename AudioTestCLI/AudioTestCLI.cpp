@@ -30,8 +30,6 @@ void AssertEmittedSound(SoundManager* mgr, const std::string& expectedSound, int
 
 void RunBasicBehaviorTest() {
 
-	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
 
 	LogMessage("=== Basic Behavior Test ===", LogCategory::CLI, LogLevel::Info);
 	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
@@ -39,9 +37,6 @@ void RunBasicBehaviorTest() {
 
 	SoundManager_SetTag(mgr, "player", "entity.player");
 	SoundManager_SetTag(mgr, "player", "foot.contact.left");
-	SoundManager_SetTag(mgr, "monster", "entity.monster");
-	SoundManager_SetTag(mgr, "monster", "foot.contact.left");
-
 
 	SoundManager_SetValue(mgr, "player", "velocity", 3.2f);
 	SoundManager_SetValue(mgr, "player", "fatigue", 0.8f);
@@ -49,17 +44,30 @@ void RunBasicBehaviorTest() {
 
 
 
-	//SoundManager_Update(mgr);
-
-
+	int count = 0;
 	auto start = std::chrono::steady_clock::now();
 	while (std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
 		SoundManager_Update(mgr);      // enqueues new commands
 		std::this_thread::sleep_for(std::chrono::milliseconds(16));
+		count++;
+
+		if(count==10)
+			SoundManager_ClearTag(mgr, "player", "foot.contact.left");
+		if (count == 50) {
+			SoundManager_SetTag(mgr, "player", "foot.contact.left");
+		}
+		if (count == 55) {
+			SoundManager_ClearTag(mgr, "player", "foot.contact.left");
+		}
+		if (count == 100) {
+			SoundManager_SetTag(mgr, "player", "foot.contact.right");
+		}
+		if (count == 105) {
+			SoundManager_ClearTag(mgr, "player", "foot.contact.right");
+		}
 	}
 
 	SoundManager_DebugPrintState(mgr);
-	std::cout << "after update loop" << std::endl;
 
 	SoundManager_ClearTag(mgr, "player", "foot.contact.left");
 	SoundManager_ClearTag(mgr, "player", "entity.player");
@@ -68,13 +76,7 @@ void RunBasicBehaviorTest() {
 
 	SoundManager_DebugPrintState(mgr);
 
-	//std::this_thread::sleep_for(std::chrono::seconds(3));
-
 	DestroySoundManager(mgr);
-	// thats ... not fast -,-
-	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-	std::cout << "Test took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms" << std::endl;
-
 }
 
 void RunValueConditionTests() {

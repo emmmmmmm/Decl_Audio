@@ -8,7 +8,7 @@
 #include <algorithm>
 #include "ValueMap.hpp"
 #include <atomic>         
-
+#include "ObjectFactory.hpp"
 
 
 class SoundManager; // forward declaration
@@ -45,6 +45,14 @@ struct Voice {
 	Voice MakeSnapShot() const {
 		return *this;
 	}
+
+	// concept from ObjectFactory
+	void reset() {
+		// e.g. reset playhead, clear buffers, zero flags…
+		playhead = {};
+		buffer = {};
+		// etc.
+	}
 };
 
 struct SoundLeaf {
@@ -63,6 +71,7 @@ enum class Phase { Start, Active, Ending };
 struct BehaviorInstance {
 	uint32_t                    id = {};
 	Phase                       phase{ Phase::Start };
+
 	std::unique_ptr<Node> onStart;
 	std::unique_ptr<Node> onActive;
 	std::unique_ptr<Node> onEnd;
@@ -71,8 +80,8 @@ struct BehaviorInstance {
 
 	std::unordered_map<std::string, Expression> paramExpr;
 
-	
-	
+
+
 
 	static void CollectLeaves(const Node&, const ValueMap&, float, uint8_t,
 		std::vector<SoundLeaf>&, AudioBufferManager*);
@@ -84,7 +93,7 @@ struct BehaviorInstance {
 			[&](const Voice& v) { return v.source == src; });
 	};
 
-	void StartVoice(const SoundLeaf& leaf, int busIdx , uint64_t currentSample)
+	void StartVoice(const SoundLeaf& leaf, int busIdx, uint64_t currentSample)
 	{
 		Voice v;
 		v.buffer = leaf.buf;
@@ -99,6 +108,19 @@ struct BehaviorInstance {
 
 	void Update(const ValueMap& params, AudioBufferManager* bufMgr, uint8_t busIdx, float dt, uint64_t nowSamples);
 
+	void reset() {
+		// e.g. reset playhead, clear buffers, zero flags…
+		id = {};
+		phase = Phase::Start;
+		voices = {};
+		paramExpr = {};
+		onStart = {};
+		onActive = {};
+		onEnd = {};
+
+
+		// etc.
+	}
 };
 
 struct VoiceSnap {
@@ -108,7 +130,7 @@ struct VoiceSnap {
 	bool         loop;
 	uint8_t      bus;
 
-	uint64_t startSample;
+	uint64_t startSample = {};
 
 };
 
@@ -127,8 +149,8 @@ struct Snapshot {
 
 
 struct EntityData {
-	ValueMap                 params;
-	std::vector<BehaviorInstance>         instances;
+	ValueMap params;
+	std::vector<BehaviorInstance*> instances;
 };
 
 struct Bus {
@@ -173,20 +195,20 @@ class AudioCore {
 
 
 	/* ----------- engine-wide storage ----------- */
-	//static Snapshot        gSnapshots[kSnapCount];				// never freed
-	inline static std::atomic<int>gFront{ 0 };                 // index the callback sees
+	inline static std::atomic<int>gFront{ 0 };                // index the callback sees
 	inline static int             gBuild = 1;                 // control fills here
 
 	std::atomic<uint32_t>  pendingFrames{ 0 };
 
 	std::chrono::steady_clock::time_point lastUpdate;
 
-	 uint64_t globalSampleCounter = 0;
+	uint64_t globalSampleCounter = 0;
 
 public:
 	AudioBufferManager* audioBufferManager;
 	std::unique_ptr<AudioDevice> device;
-	uint64_t GetGlobalSampleCounter() { return globalSampleCounter; }
+	ObjectFactory<Voice> voiceFactory{ 200, 50 }; // TBD.
+	ObjectFactory<BehaviorInstance> behaviorFactory{ 100, 10 };
 
 public:
 	AudioCore(IBehaviorDefinition* defsProvider, CommandQueue* fromManager, CommandQueue* toManager);

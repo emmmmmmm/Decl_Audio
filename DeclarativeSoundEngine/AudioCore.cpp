@@ -163,7 +163,7 @@ void AudioCore::AdvancePlayheads()
 
 	for (auto& [eid, ed] : entityMap)
 		for (auto& inst : ed.instances)
-			for (auto& v : inst.voices) {
+			for (auto& v : inst->voices) {
 				size_t len = v.buffer->GetFrameCount();
 				if (v.loop)
 					v.playhead = (v.playhead + step) % len;
@@ -190,7 +190,7 @@ void AudioCore::TakeSnapshot()
 	/* ---- flatten voices ---- */
 	for (auto& [eid, ed] : entityMap)
 		for (auto& inst : ed.instances)
-			for (auto& v : inst.voices) {
+			for (auto& v : inst->voices) {
 				if (back.voiceCount >= kMaxVoices) continue;
 
 				back.voices[back.voiceCount++] = {
@@ -222,6 +222,7 @@ void AudioCore::ProcessCommands() {
 	}
 
 	// DEBUG
+	/*
 	LogMessage("DEBUG ENTITYMAP:",
 		LogCategory::AudioCore, LogLevel::Debug);
 	for (auto& [eid, ed] : entityMap) {
@@ -231,16 +232,16 @@ void AudioCore::ProcessCommands() {
 			LogCategory::AudioCore, LogLevel::Debug);
 
 		for (auto& inst : ed.instances) {
-			LogMessage("  inst id=" + std::to_string(inst.id) +
-				" phase=" + std::to_string(int(inst.phase)) +
-				" voices=" + std::to_string(inst.voices.size()),
+			LogMessage("  inst id=" + std::to_string(inst->id) +
+				" phase=" + std::to_string(int(inst->phase)) +
+				" voices=" + std::to_string(inst->voices.size()),
 				LogCategory::AudioCore, LogLevel::Debug);
 		}
 	}
 	LogMessage("-----",
 		LogCategory::AudioCore, LogLevel::Debug);
 
-
+		*/
 }
 
 void AudioCore::RefreshDefinitions() {
@@ -269,15 +270,16 @@ void AudioCore::HandleStartBehavior(const Command& cmd)
 	auto& entity = entityMap[cmd.entityId];   // auto-creates
 
 	// 2) build fresh instance
-	BehaviorInstance inst;
-	inst.id = p->second.id;
-	inst.phase = Phase::Start;
+	auto inst = behaviorFactory.create();
 
-	inst.onStart = p->second.onStart ? p->second.onStart->clone() : nullptr;
-	inst.onActive = p->second.onActive ? p->second.onActive->clone() : nullptr;
-	inst.onEnd = p->second.onEnd ? p->second.onEnd->clone() : nullptr;
+	inst->id = p->second.id;
+	inst->phase = Phase::Start;
 
-	inst.paramExpr = p->second.parameters;    // root-level expressions
+	inst->onStart = p->second.onStart ? p->second.onStart->clone() : nullptr;
+	inst->onActive = p->second.onActive ? p->second.onActive->clone() : nullptr;
+	inst->onEnd = p->second.onEnd ? p->second.onEnd->clone() : nullptr;
+
+	inst->paramExpr = p->second.parameters;    // root-level expressions
 
 	// 3) add to entity
 	entity.instances.push_back(std::move(inst));
@@ -286,6 +288,14 @@ void AudioCore::HandleStartBehavior(const Command& cmd)
 }
 
 void AudioCore::HandleStopBehavior(const Command& cmd) {
+	// TODO: Find a smarter way...^^
+	for (auto& inst : entityMap[cmd.entityId].instances) {
+		if (inst->id == cmd.behaviorId) {
+			inst->phase = Phase::Ending;
+		}
+	}
+
+
 	LogMessage("AudioCore: StopBehavior called for " + cmd.soundName, LogCategory::AudioCore, LogLevel::Info);
 	// todo: stop sound, cleanup from activebehaviors
 }
@@ -300,10 +310,12 @@ void AudioCore::HandleValueUpdate(const Command& cmd) {
 
 void AudioCore::ProcessActiveSounds(float dt)
 {
+	std::vector<BehaviorInstance*> sheduledDeletion;
 	for (auto& [eid, data] : entityMap) {
 
-		for (auto inst = data.instances.begin(); inst != data.instances.end(); )
+		for (auto instPtr = data.instances.begin(); instPtr != data.instances.end(); )
 		{
+			auto inst = *instPtr; // DOES THIS MAKE SENSE?
 			switch (inst->phase)
 			{
 			case Phase::Start:
@@ -320,24 +332,38 @@ void AudioCore::ProcessActiveSounds(float dt)
 
 				inst->phase = Phase::Active;
 				// Active voices will be created next CollectLeaves() pass
+
+
 			}
-			
-			
+
+
 			break;
 
 			case Phase::Active:
 				// voices updated/diffed by CollectLeaves() 
-				inst->Update(data.params, audioBufferManager, GetOrCreateBus(eid), dt,globalSampleCounter);
+				inst->Update(data.params, audioBufferManager, GetOrCreateBus(eid), dt, globalSampleCounter);
+
+				// if active is oneshot, or no active sounds are assigned
+				// TODO: is this sufficient?
+				if (AllFinished(inst->voices))
+					inst->phase = Phase::Ending;
+
 				break;
 
 			case Phase::Ending:
+				
 				if (AllFinished(inst->voices)) {
-					inst = data.instances.erase(inst);      // remove done instance
-					continue;                               // stay valid
+
+					sheduledDeletion.push_back(inst);
+					instPtr = data.instances.erase(instPtr);     // remove instance from entity when done
+
+					behaviorFactory.destroy(inst);				// return instance to factory
+					LogMessage("BehaviorInstance Removed", LogCategory::AudioCore, LogLevel::Debug);
+					continue;									// we removed an entry, so don't increment
 				}
 				break;
 			}
-			++inst;
+			++instPtr;
 		}
 	}
 }

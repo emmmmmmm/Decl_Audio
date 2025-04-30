@@ -4,6 +4,7 @@
 #include <sstream>
 #include <regex>
 #include "AudioDevice.hpp"
+#include <string>
 
 SoundManager::SoundManager() : defsProvider(new BehaviorDefinitionManager())   
 {
@@ -23,8 +24,6 @@ SoundManager::~SoundManager()
 
 void SoundManager::AddBehavior(AudioBehavior& behavior) {
 	LogMessage("::Addbehavior is obsolete!!", LogCategory::SoundManager, LogLevel::Warning);
-	//behaviors.emplace_back(behavior);
-	//LogMessage("Behavior added: " + behavior.name, LogCategory::SoundManager, LogLevel::Trace);
 }
 
 void SoundManager::SetTag(const std::string& entityId, const std::string& tag) {
@@ -33,15 +32,21 @@ void SoundManager::SetTag(const std::string& entityId, const std::string& tag) {
 }
 
 void SoundManager::ClearTag(const std::string& entityId, const std::string& tag) {
+	LogMessage("tag removed: " + tag + " (entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
+
 	entityTags[entityId].RemoveTag(tag);
 }
 
 void SoundManager::SetValue(const std::string& entityId, const std::string& key, float value) {
 	entityValues[entityId].SetValue(key, value);
+	LogMessage("set value: " + std::to_string(value) + " key: " + key+ "(entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
+
 }
 
 void SoundManager::ClearValue(const std::string& entityId, const std::string& key) {
 	entityValues[entityId].ClearValue(key);
+	LogMessage("clear Value: " + key + " (entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
+
 }
 
 void SoundManager::ClearEntity(const std::string& entityId) {
@@ -144,13 +149,14 @@ void SoundManager::SyncBehaviors(const std::string& entityId,
 
 	// start new
 	for (uint32_t id : desired)
-		if (!active.contains(id)) {
+		if (!active.contains(id)) { 
 			Command c;
 			c.type = CommandType::StartBehavior;
 			c.entityId = entityId;
 			c.behaviorId = id;
 			managerToCore.push(c);
 		}
+		
 
 	// stop obsolete
 	for (uint32_t id : active)
@@ -160,6 +166,7 @@ void SoundManager::SyncBehaviors(const std::string& entityId,
 			c.entityId = entityId;
 			c.behaviorId = id;
 			managerToCore.push(c);
+			LogMessage("removed behavior", LogCategory::SoundManager, LogLevel::Debug);
 		}
 
 	active = desired;   // snapshot for next frame
@@ -172,7 +179,7 @@ void SoundManager::Update()
 	const TagMap& globalTags = entityTags["global"];
 
 	for (auto& [entityId, tags] : entityTags) {
-		// --- pick best match (keep algorithm you already have) ---
+		// --- pick best match  ---
 		int bestScore = -1;
 		const MatchDefinition* best = nullptr;
 
