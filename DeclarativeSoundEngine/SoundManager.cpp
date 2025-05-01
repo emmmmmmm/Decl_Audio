@@ -237,28 +237,3 @@ void SoundManager::DebugPrintState() {
 	}
 }
 
-void SoundManager::BufferTest()
-{
-
-	LogMessage("SoundManager::BufferTest()", LogCategory::CLI, LogLevel::Info);
-
-
-	return;
-	// repeat load of same file:
-	AudioBuffer* buf1;
-	AudioBuffer* buf2;
-	bool handle1 = audioCore->audioBufferManager->TryLoad("test.wav", buf1); 
-	bool handle2 = audioCore->audioBufferManager->TryLoad("test.wav", buf2); 
-	LogMessage(handle1 && handle2 && buf1 == buf2  ? "SUCCESS" : "FAILED", LogCategory::CLI, LogLevel::Info);
-
-	// file not found:
-	AudioBuffer* buf3;
-	bool handle3 = audioCore->audioBufferManager->TryLoad("unknown.wav", buf3); 
-	
-	// call to audio device
-	SoundHandle h = audioCore->device->Play(buf1, 1.0f, 1.0f, false);
-	LogMessage(h > 0 ? "STUB PLAY OK" : "STUB PLAY FAIL", LogCategory::CLI, LogLevel::Info);
-
-
-
-}

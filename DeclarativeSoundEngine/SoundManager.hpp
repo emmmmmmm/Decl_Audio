@@ -28,7 +28,6 @@ public:
 
     void DebugPrintState();
 
-    void BufferTest();
 
     std::vector<std::string> lastEmittedSoundIds;   // for tests. in the future we might want to wait
                                                     // for the "started audio" message from audiocore?

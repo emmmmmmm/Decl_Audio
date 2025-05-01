@@ -134,13 +134,7 @@ void RunNoMatchTest() {
 
 	DestroySoundManager(mgr);
 }
-void RunBufferTest() {
 
-	LogMessage("=== Buffer Test ===", LogCategory::CLI, LogLevel::Info);
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());	
-	SoundManager_BufferTest(mgr);
-	DestroySoundManager(mgr);
-}
 
 int main() {
 	RunBasicBehaviorTest();
@@ -148,8 +142,6 @@ int main() {
 	//RunInvalidTagTest();
 	//RunWildcardMatchingTest();
 	//RunNoMatchTest();
-
-	RunBufferTest();
 
 	return 0;
 }

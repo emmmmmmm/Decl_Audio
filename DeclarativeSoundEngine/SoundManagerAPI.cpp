@@ -18,7 +18,6 @@ DECLSOUND_API void SoundManager_Update(void* mgr) {
 	static_cast<SoundManager*>(mgr)->Update();
 }
 
-
 DECLSOUND_API void SoundManager_SetGlobalTag(void* mgr, const char* tag) {
 	static_cast<SoundManager*>(mgr)->SetTag("global", std::string(tag));
 }
@@ -28,7 +27,6 @@ DECLSOUND_API void SoundManager_ClearGlobalTag(void* mgr, const char* tag) {
 DECLSOUND_API void SoundManager_SetGlobalValue(void* mgr, const char* key, float value) {
 	static_cast<SoundManager*>(mgr)->SetValue("global", std::string(key), value);
 }
-
 
 DECLSOUND_API void SoundManager_SetTag(void* mgr, const char* entityId, const char* tag) {
 	static_cast<SoundManager*>(mgr)->SetTag(std::string(entityId), std::string(tag));
@@ -101,10 +99,5 @@ DECLSOUND_API int SoundManager_GetLastEmitCount(void* mgr)
 DECLSOUND_API const char* SoundManager_GetLastEmitName(void* mgr, int index)
 {
 	return static_cast<SoundManager*>(mgr)->lastEmittedSoundIds[index].c_str();
-}
-
-DECLSOUND_API void SoundManager_BufferTest(void* mgr)
-{
-	return  static_cast<SoundManager*>(mgr)->BufferTest();
 }
 
