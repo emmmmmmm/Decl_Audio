@@ -36,6 +36,11 @@ DECLSOUND_API void SoundManager_ClearTag(void* mgr, const char* entityId, const 
 	static_cast<SoundManager*>(mgr)->ClearTag(std::string(entityId), std::string(tag));
 }
 
+void SoundManager_SetTransientTag(void* mgr, const char* entityId, const char* tag)
+{
+	static_cast<SoundManager*>(mgr)->SetTransientTag(std::string(entityId), std::string(tag));
+}
+
 DECLSOUND_API void SoundManager_SetValue(void* mgr, const char* entityId, const char* key, float value) {
 	static_cast<SoundManager*>(mgr)->SetValue(std::string(entityId), std::string(key), value);
 }

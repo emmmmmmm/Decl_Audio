@@ -39,12 +39,14 @@ void BehaviorDefinitionManager::LoadFilesFromFolder(const std::string& path)
 		// 2) Build PlayDefinition
 		PlayDefinition pd;
 		pd.id = b.id;
+		pd.name = b.name;
 		if (b.onStart)
 			pd.onStart = b.onStart->clone();
 		if (b.onActive)
 			pd.onActive = b.onActive->clone();
 		if (b.onEnd) 
 			pd.onEnd = b.onEnd->clone();
+
 
 		playdefs.push_back(std::move(pd));
 

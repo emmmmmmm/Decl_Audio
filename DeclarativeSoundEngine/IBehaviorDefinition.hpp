@@ -16,6 +16,7 @@ struct MatchDefinition {
 
 struct PlayDefinition { 
 	uint32_t id = {};
+	std::string name = { };
 
 	std::unique_ptr<Node> onStart;
 	std::unique_ptr<Node> onActive;

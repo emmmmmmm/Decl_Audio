@@ -24,4 +24,17 @@ public:
         head.store((h + 1) % N, std::memory_order_release);
         return true;
     }
+    size_t Length() const noexcept {
+        // grab both atomically
+        size_t h = head.load(std::memory_order_acquire);
+        size_t t = tail.load(std::memory_order_acquire);
+
+        if (t >= h) {
+            return t - h;
+        }
+        else {
+            // wrapped around
+            return (N - h) + t;
+        }
+    }
 };

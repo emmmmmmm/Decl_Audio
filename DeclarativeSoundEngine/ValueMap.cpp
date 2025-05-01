@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "ValueMap.hpp"
+#include <iostream>
 
 void ValueMap::SetValue(const std::string& key, float value) {
 	values[key] = value;

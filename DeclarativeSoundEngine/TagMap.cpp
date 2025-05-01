@@ -1,18 +1,31 @@
+// TagMap.cpp
 #include "pch.h"
 #include "TagMap.hpp"
 
-void TagMap::AddTag(const std::string& tag) {
-	tags.insert(tag);
+void TagMap::AddTag(const std::string& tag, bool transient) {
+    if (transient)
+        _transient.insert(tag);
+    else
+        _persistent.insert(tag);
 }
 
 void TagMap::RemoveTag(const std::string& tag) {
-	tags.erase(tag);
+    _persistent.erase(tag);
+    _transient.erase(tag);
 }
 
 bool TagMap::HasTag(const std::string& tag) const {
-	return tags.find(tag) != tags.end();
+    return _persistent.count(tag) || _transient.count(tag);
 }
 
 std::vector<std::string> TagMap::GetAllTags() const {
-	return std::vector<std::string>(tags.begin(), tags.end());
+    std::vector<std::string> out;
+    out.reserve(_persistent.size() + _transient.size());
+    for (auto& t : _persistent) out.push_back(t);
+    for (auto& t : _transient) out.push_back(t);
+    return out;
+}
+
+void TagMap::ClearTransient() {
+    _transient.clear();
 }

@@ -6,7 +6,7 @@
 #include "AudioDevice.hpp"
 #include <string>
 
-SoundManager::SoundManager() : defsProvider(new BehaviorDefinitionManager())   
+SoundManager::SoundManager() : defsProvider(new BehaviorDefinitionManager())
 {
 	audioCore = new AudioCore(defsProvider, &managerToCore, &coreToManager);
 	// todo: detach audio core as separate thread
@@ -16,7 +16,7 @@ SoundManager::SoundManager() : defsProvider(new BehaviorDefinitionManager())
 SoundManager::~SoundManager()
 {
 	delete audioCore;	// that wont work if i don't keep a ref to audiocore later... 
-						// it'd kind of have to clean itself up?^^
+	// it'd kind of have to clean itself up?^^
 
 	delete defsProvider;
 
@@ -37,9 +37,15 @@ void SoundManager::ClearTag(const std::string& entityId, const std::string& tag)
 	entityTags[entityId].RemoveTag(tag);
 }
 
+void SoundManager::SetTransientTag(const std::string& entityId, const std::string& tag)
+{
+	entityTags[entityId].AddTag(tag, true);
+	LogMessage("Transient Tag added: " + tag + " (entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
+}
+
 void SoundManager::SetValue(const std::string& entityId, const std::string& key, float value) {
 	entityValues[entityId].SetValue(key, value);
-	LogMessage("set value: " + std::to_string(value) + " key: " + key+ "(entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
+	LogMessage("set value: " + std::to_string(value) + " key: " + key + "(entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
 
 }
 
@@ -158,14 +164,19 @@ void SoundManager::SyncBehaviors(const std::string& entityId,
 
 	// start new
 	for (uint32_t id : desired)
-		if (!active.contains(id)) { 
+		if (!active.contains(id)) {
 			Command c;
 			c.type = CommandType::StartBehavior;
 			c.entityId = entityId;
 			c.behaviorId = id;
 			managerToCore.push(c);
+
+			// TODO - this no longer works as expected. ideally we would get a 
+			// "Behavior active" and "Behavior stopped" message from audiocore, 
+			// to make sure behaviors have actually started.
+			lastEmittedSoundIds.push_back(std::to_string(id));
 		}
-		
+
 
 	// stop obsolete
 	for (uint32_t id : active)
@@ -183,27 +194,65 @@ void SoundManager::SyncBehaviors(const std::string& entityId,
 
 
 
+
+void SoundManager::SyncBehaviorsForEntity(
+	const std::string& entityId,
+	const TagMap& tags,
+	const TagMap& globalTags)
+{
+	auto& data = activeBehaviors[entityId];
+
+	// 1) Gather all matching definitions
+	std::unordered_set<uint32_t> desired;
+	for (const auto& md : matchDefinitions) {
+		if (MatchScore(md, tags, globalTags, entityId) >= 0) {
+			desired.insert(md.id);
+		}
+	}
+
+	// 2) Start newly desired behaviors
+	for (auto id : desired) {
+		if (!data.count(id)) {
+			
+			Command c;
+			c.type = CommandType::StartBehavior;
+			c.entityId = entityId;
+			c.behaviorId = id;
+			managerToCore.push(c);
+			data.insert(id);
+		}
+	}
+
+	// 3) Stop behaviors no longer desired
+	std::vector<uint32_t> toStop;
+	for (auto id : data) {
+		if (!desired.count(id)) {
+			toStop.push_back(id);
+		}
+	}
+	for (auto id : toStop) {
+		Command c;
+		c.type = CommandType::StopBehavior;
+		c.entityId = entityId;
+		c.behaviorId = id;
+		managerToCore.push(c);
+		data.erase(id);
+	}
+}
+
+
 void SoundManager::Update()
 {
+
 	const TagMap& globalTags = entityTags["global"];
 
 	for (auto& [entityId, tags] : entityTags) {
-		// --- pick best match  ---
-		int bestScore = -1;
-		const MatchDefinition* best = nullptr;
-
-		for (const auto& md : matchDefinitions) {
-			int score = MatchScore(md, tags, globalTags, entityId);
-			if (score > bestScore) { bestScore = score; best = &md; }
-		}
-
-		std::unordered_set<uint32_t> desired;
-		if (best) desired.insert(best->id);     // for now single-match
-
-		SyncBehaviors(entityId, desired);
+		SyncBehaviorsForEntity(entityId, tags, globalTags);
 		SendValueDiff(entityId);
-	}
 
+		tags.ClearTransient();
+	}
+	
 	audioCore->Update(); // TODO: remove once audiocore gets detached into it's own thread!
 
 	ProcessCoreResponses();

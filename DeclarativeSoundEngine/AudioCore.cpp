@@ -154,6 +154,7 @@ void AudioCore::Update() {
 	ProcessCommands();
 	ProcessActiveSounds(dt);
 	TakeSnapshot();
+
 }
 
 void AudioCore::AdvancePlayheads()
@@ -204,16 +205,19 @@ void AudioCore::TakeSnapshot()
 
 	gFront.store(gBuild, std::memory_order_release);
 	gBuild = (gBuild + 1) % kSnapCount;
+
+
+	//LogMessage("Created Snapshot", LogCategory::AudioCore, LogLevel::Debug);
 }
 
 void AudioCore::ProcessCommands() {
 	Command cmd;
 	while (inQueue->pop(cmd)) {
-		LogMessage("ProcessCommands: " + cmd.GetTypeName(), LogCategory::AudioCore, LogLevel::Debug);
+		LogMessage("ProcessCommands: cmd: " + cmd.GetTypeName() + "  (queue length : " + std::to_string(inQueue->Length()) + ")", LogCategory::AudioCore, LogLevel::Debug);
 
 		switch (cmd.type) {
-		case CommandType::StartBehavior:		HandleStartBehavior(cmd); break;
 		case CommandType::StopBehavior:			HandleStopBehavior(cmd); break;
+		case CommandType::StartBehavior:		HandleStartBehavior(cmd); break;
 		case CommandType::ValueUpdate:			HandleValueUpdate(cmd); break;
 		case CommandType::RefreshDefinitions:	RefreshDefinitions(); break;
 		case CommandType::BusGainUpdate:        HandleBusGain(cmd);break;
@@ -254,9 +258,8 @@ void AudioCore::RefreshDefinitions() {
 
 void AudioCore::HandleStartBehavior(const Command& cmd)
 {
-	LogMessage("AudioCore: StartBehavior id="
-		+ std::to_string(cmd.behaviorId),
-		LogCategory::AudioCore, LogLevel::Info);
+
+
 
 	// 0) locate prototype
 	auto p = prototypes.find(cmd.behaviorId);
@@ -267,6 +270,10 @@ void AudioCore::HandleStartBehavior(const Command& cmd)
 		return;
 
 	}
+
+	LogMessage("AudioCore: StartBehavior id=" + (p->second.name),
+		LogCategory::AudioCore, LogLevel::Info);
+
 
 	// 1) ensure entity slot
 	auto& entity = entityMap[cmd.entityId];   // auto-creates
@@ -288,9 +295,32 @@ void AudioCore::HandleStartBehavior(const Command& cmd)
 
 	// 4) no voice creation here; ProcessActiveSounds() will do it
 }
+PlayDefinition* AudioCore::GetPrototype(uint32_t behaviorId) {
+	// 0) locate prototype
+	auto p = prototypes.find(behaviorId);
+	if (p == prototypes.end()) {
+		LogMessage("StartBehavior: unknown PlayDefinition id "
+			+ std::to_string(behaviorId),
+			LogCategory::AudioCore, LogLevel::Warning);
+		return nullptr;
+
+	}
+
+	return &p->second;
+}
+std::string AudioCore::GetBehaviorName(uint32_t behaviorId) {
+	auto pd = GetPrototype(behaviorId);
+
+	if (pd)return pd->name;
+	return "unknown PlayDefinition for " + std::to_string(behaviorId);
+}
+
 
 void AudioCore::HandleStopBehavior(const Command& cmd) {
-	// TODO: Find a smarter way...^^
+
+
+	LogMessage("AudioCore: StopBehavior called for " + GetBehaviorName(cmd.behaviorId), LogCategory::AudioCore, LogLevel::Info);
+
 	for (auto& inst : entityMap[cmd.entityId].instances) {
 		if (inst->id == cmd.behaviorId) {
 			inst->phase = Phase::Ending;
@@ -298,14 +328,15 @@ void AudioCore::HandleStopBehavior(const Command& cmd) {
 	}
 
 
-	LogMessage("AudioCore: StopBehavior called for " + cmd.soundName, LogCategory::AudioCore, LogLevel::Info);
+
 }
 
 
 void AudioCore::HandleValueUpdate(const Command& cmd) {
 	LogMessage("AudioCore: ValueUpdate " + cmd.key + " = " + std::to_string(cmd.value), LogCategory::AudioCore, LogLevel::Info);
 
-	entityMap[cmd.entityId].params.SetValue(cmd.key, cmd.value);
+	auto& entity = entityMap[cmd.entityId];
+	entity.params.SetValue(cmd.key, cmd.value);
 
 }
 
@@ -319,7 +350,6 @@ void AudioCore::ProcessActiveSounds(float dt)
 {
 	std::vector<BehaviorInstance*> sheduledDeletion;
 	for (auto& [eid, data] : entityMap) {
-
 		for (auto instPtr = data.instances.begin(); instPtr != data.instances.end(); )
 		{
 			auto inst = *instPtr; // DOES THIS MAKE SENSE?
@@ -359,14 +389,15 @@ void AudioCore::ProcessActiveSounds(float dt)
 				// - stop all sounds that are still playing
 				// - start events from onEnd
 				// - only after that, wait for allfinished
-						
+
 				if (AllFinished(inst->voices)) {
 
+					LogMessage("BehaviorInstance Removed:  eid: " + eid + " / instance: " + GetBehaviorName(inst->id) //std::to_string(inst->id)
+						, LogCategory::AudioCore, LogLevel::Debug);
 					sheduledDeletion.push_back(inst);
 					instPtr = data.instances.erase(instPtr);     // remove instance from entity when done
 
 					behaviorFactory.destroy(inst);				// return instance to factory
-					LogMessage("BehaviorInstance Removed", LogCategory::AudioCore, LogLevel::Debug);
 					continue;									// we removed an entry, so don't increment
 				}
 				break;

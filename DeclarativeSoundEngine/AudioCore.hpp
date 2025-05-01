@@ -225,6 +225,8 @@ private:
 	void DebugDumpEntityMap();
 	void RefreshDefinitions();
 	void HandleStartBehavior(const Command& cmd);
+	PlayDefinition* GetPrototype(uint32_t behaviorId);
+	std::string GetBehaviorName(uint32_t behaviorId);
 	void HandleStopBehavior(const Command& cmd);
 	void HandleValueUpdate(const Command& cmd);
 	void SetAssetPath(const Command& cmd);
