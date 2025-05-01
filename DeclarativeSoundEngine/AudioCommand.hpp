@@ -13,6 +13,7 @@ enum class CommandType {
 	Log,
 	PlaySuccess,
 	RefreshDefinitions,
+	AssetPath,
 	None
 };
 
@@ -39,7 +40,8 @@ struct Command {
 		case CommandType::ValueUpdate: return "ValueUpdate";
 		case CommandType::BusGainUpdate: return "BusGainUpdate";
 		case CommandType::RefreshDefinitions: return "RefreshDefinitions";
-
+		case CommandType::AssetPath: return "AssetPath";
+		case CommandType::Log: return "Log";
 		default: return "Unknown";
 		}
 	}

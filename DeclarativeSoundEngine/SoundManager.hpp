@@ -24,6 +24,7 @@ public:
     void ClearEntity(const std::string& entityId);
     void SetBusGain(const std::string& entityId, float gain);             // literal
     void SetBusGainExpr(const std::string& entityId, const std::string& gain); // expression
+    void SetAssetPath(const std::string& path);
 
     void DebugPrintState();
 
@@ -37,9 +38,9 @@ public:
     CommandQueue managerToCore;
     CommandQueue coreToManager;
 
-
     std::vector<MatchDefinition> matchDefinitions;
 private:
+    std::string assetpath{};
     std::unordered_map<std::string, TagMap> entityTags;
     std::unordered_map<std::string, ValueMap> entityValues;
 

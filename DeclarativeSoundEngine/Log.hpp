@@ -11,7 +11,8 @@ enum class LogCategory {
     CLI,
     General, 
     AudioCore, 
-    AudioDevice
+    AudioDevice,
+    AudioBuffer,
 };
 
 enum class LogLevel {

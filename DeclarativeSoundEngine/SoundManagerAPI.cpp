@@ -64,6 +64,12 @@ DECLSOUND_API void SoundManager_SetBusGainExpression(void* mgr, const char* enti
 	manager->SetBusGainExpr(entityId, gain);
 }
 
+DECLSOUND_API void SoundManager_SetAssetPath(void* mgr, const char* path)
+{
+	auto manager = static_cast<SoundManager*>(mgr);
+	manager->SetAssetPath(path);
+}
+
 
 DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(void* mgr, const char* path) {
 	auto manager = static_cast<SoundManager*>(mgr);
@@ -79,9 +85,9 @@ DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(void* mgr, const char* pat
 	Command cmd;
 	cmd.type = CommandType::RefreshDefinitions;
 	manager->managerToCore.push(cmd);
-	
-
 }
+
+
 
 DECLSOUND_API void SoundManager_DebugPrintState(void* mgr) {
 	static_cast<SoundManager*>(mgr)->DebugPrintState();

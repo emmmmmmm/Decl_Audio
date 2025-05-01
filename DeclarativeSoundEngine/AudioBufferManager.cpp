@@ -20,6 +20,8 @@ AudioBufferManager::~AudioBufferManager()
 
 bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 {
+	// TODO: Combine path with assetpath, use absolute path in AudioBuffer!
+
 
 	std::lock_guard<std::mutex> lock(mutex);
 	// already cached?
@@ -33,7 +35,7 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 		outBuf = &it->second.first;
 
 		LogMessage("AudioBufferManager: file aready loaded: " + path,
-			LogCategory::AudioCore, LogLevel::Debug);
+			LogCategory::AudioBuffer, LogLevel::Debug);
 
 		return true;
 	}
@@ -46,7 +48,7 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 
 	if (buffer.Empty()) {
 		LogMessage("AudioBufferManager: failed to load " + path,
-			LogCategory::AudioCore, LogLevel::Warning);
+			LogCategory::AudioBuffer, LogLevel::Warning);
 		outBuf = nullptr;
 		return false;
 	
@@ -73,7 +75,7 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	outBuf = & it->second.first;
 
 	LogMessage("AudioBufferManager: finished loading " + path,
-		LogCategory::AudioCore, LogLevel::Warning);
+		LogCategory::AudioBuffer, LogLevel::Warning);
 	return true;
 }
 
@@ -101,4 +103,10 @@ size_t AudioBufferManager::GetMemoryUsage()
 {
 	std::lock_guard<std::mutex> lock(mutex);
 	return currentMemoryUsage;
+}
+
+void AudioBufferManager::SetAssetpath(std::string& path)
+{
+	assetPath = path;
+	LogMessage("updated path to assets: " + assetPath, LogCategory::AudioBuffer, LogLevel::Debug);
 }

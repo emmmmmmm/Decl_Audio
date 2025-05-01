@@ -32,9 +32,12 @@ void RunBasicBehaviorTest() {
 
 
 	LogMessage("=== Basic Behavior Test ===", LogCategory::CLI, LogLevel::Info);
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
-	SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
 
+
+	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
+	SoundManager_SetAssetPath(mgr, "C:/Users/audioUser/Test/");
+
+	SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
 	SoundManager_SetTag(mgr, "player", "entity.player");
 	SoundManager_SetTag(mgr, "player", "foot.contact.left");
 

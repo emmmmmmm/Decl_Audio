@@ -13,7 +13,8 @@
 
 class SoundManager; // forward declaration
 
-/* -------- constants you already know -------- */
+// TODO: maxvoices and maxbusses should be set in audiocore ctr! (and passed from soundmanager via Init cmd)
+
 constexpr int  kMaxVoices = 256;                 // worst-case active voices
 constexpr int  kMaxBuses = 16;                  // master + sub-buses
 constexpr int  kSnapCount = 3;                   // triple-buffer
@@ -221,16 +222,20 @@ private:
 	// methods
 	void TakeSnapshot();
 	void ProcessCommands();
+	void DebugDumpEntityMap();
 	void RefreshDefinitions();
 	void HandleStartBehavior(const Command& cmd);
 	void HandleStopBehavior(const Command& cmd);
 	void HandleValueUpdate(const Command& cmd);
+	void SetAssetPath(const Command& cmd);
 	void ProcessActiveSounds(float dt);
 	SoundNode* FindFirstSoundNode(Node* node);
 	void RenderCallback(float* output, int nFrames);
 	int  GetOrCreateBus(const std::string&);
 	void ClearBusBuffers();
 	void HandleBusGain(const Command& cmd);
+
+
 
 	/*Utility*/
 	static inline bool VoiceFinished(const Voice& v)

@@ -65,7 +65,16 @@ void SoundManager::SetBusGainExpr(const std::string& entityId, const std::string
 {
 	LogMessage("SetBusGainExpr: " + entityId + " gain: " + gain, LogCategory::SoundManager, LogLevel::Debug);
 	LogMessage("SetBusGainExpr: NOT IMPLEMENTED", LogCategory::SoundManager, LogLevel::Warning);
+}
 
+void SoundManager::SetAssetPath(const std::string& path)
+{
+	assetpath = path;
+	// we need to pass this along to audiocore if it changes!
+	Command c;
+	c.type = CommandType::AssetPath;
+	c.strValue = assetpath;
+	managerToCore.push(c);
 }
 
 int SoundManager::TagSpecificity(const std::string& tag) {
@@ -199,53 +208,6 @@ void SoundManager::Update()
 
 	ProcessCoreResponses();
 }
-
-
-/*
-void SoundManager::Update() {
-	LogFunctionCall();
-	lastEmittedSoundIds.clear();
-	const TagMap& globalMap = entityTags["global"];
-
-	for (const auto& [entityId, tagMap] : entityTags) {
-		int bestScore = -1;
-		const MatchDefinition* best = nullptr;
-
-		for (const auto& md : matchDefinitions) {
-			int score = MatchScore(md, tagMap, globalMap, entityId);
-			if (score > bestScore) {
-				bestScore = score;
-				best = &md;
-			}
-		}
-
-		if (best) {
-
-			// TODO: Soundmanager needs to keep track of spawned behaviors, 
-			// otherwise it will spam spawn events every Update as long as the 
-			// triggercondition is true!
-
-
-			//LogMessage("Entity " + entityId + " matched behavior: " + best->id + " -> PlaySound: " + best->soundName, LogCategory::SoundManager, LogLevel::Info);
-
-			Command cmd;
-			cmd.type = CommandType::StartBehavior;
-			cmd.entityId = entityId;
-			cmd.soundName = best->name;
-			cmd.behaviorId = best->id;
-			managerToCore.push(cmd);
-			LogMessage("Update: Added Command to Queue: "+best->name, LogCategory::SoundManager, LogLevel::Info);
-
-
-			lastEmittedSoundIds.push_back(cmd.soundName);
-		}
-	}
-	audioCore->Update(); // TODO: remove once audiocore gets detached into it's own thread!
-	
-	ProcessCoreResponses();
-}
-*/
-
 
 void SoundManager::ProcessCoreResponses() {
 	// logs, callbacks, etc

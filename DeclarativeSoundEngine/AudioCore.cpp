@@ -217,12 +217,15 @@ void AudioCore::ProcessCommands() {
 		case CommandType::ValueUpdate:			HandleValueUpdate(cmd); break;
 		case CommandType::RefreshDefinitions:	RefreshDefinitions(); break;
 		case CommandType::BusGainUpdate:        HandleBusGain(cmd);break;
+		case CommandType::AssetPath:			SetAssetPath(cmd);break;
 		default: break;
 		}
 	}
 
-	// DEBUG
-	/*
+
+}
+
+void AudioCore::DebugDumpEntityMap() {
 	LogMessage("DEBUG ENTITYMAP:",
 		LogCategory::AudioCore, LogLevel::Debug);
 	for (auto& [eid, ed] : entityMap) {
@@ -238,10 +241,7 @@ void AudioCore::ProcessCommands() {
 				LogCategory::AudioCore, LogLevel::Debug);
 		}
 	}
-	LogMessage("-----",
-		LogCategory::AudioCore, LogLevel::Debug);
-
-		*/
+	LogMessage("-----", LogCategory::AudioCore, LogLevel::Debug);
 }
 
 void AudioCore::RefreshDefinitions() {
@@ -250,6 +250,8 @@ void AudioCore::RefreshDefinitions() {
 	}
 	LogMessage("Audiocore definitions refreshed!", LogCategory::AudioCore, LogLevel::Debug);
 }
+
+
 void AudioCore::HandleStartBehavior(const Command& cmd)
 {
 	LogMessage("AudioCore: StartBehavior id="
@@ -297,7 +299,6 @@ void AudioCore::HandleStopBehavior(const Command& cmd) {
 
 
 	LogMessage("AudioCore: StopBehavior called for " + cmd.soundName, LogCategory::AudioCore, LogLevel::Info);
-	// todo: stop sound, cleanup from activebehaviors
 }
 
 
@@ -306,6 +307,12 @@ void AudioCore::HandleValueUpdate(const Command& cmd) {
 
 	entityMap[cmd.entityId].params.SetValue(cmd.key, cmd.value);
 
+}
+
+void AudioCore::SetAssetPath(const Command& cmd)
+{
+	auto path = cmd.strValue;
+	audioBufferManager->SetAssetpath(path);
 }
 
 void AudioCore::ProcessActiveSounds(float dt)
@@ -333,10 +340,7 @@ void AudioCore::ProcessActiveSounds(float dt)
 				inst->phase = Phase::Active;
 				// Active voices will be created next CollectLeaves() pass
 
-
 			}
-
-
 			break;
 
 			case Phase::Active:
@@ -351,7 +355,11 @@ void AudioCore::ProcessActiveSounds(float dt)
 				break;
 
 			case Phase::Ending:
-				
+				// TODO:	
+				// - stop all sounds that are still playing
+				// - start events from onEnd
+				// - only after that, wait for allfinished
+						
 				if (AllFinished(inst->voices)) {
 
 					sheduledDeletion.push_back(inst);
