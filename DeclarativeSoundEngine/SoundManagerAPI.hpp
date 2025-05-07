@@ -2,12 +2,39 @@
 
 #include "declsound_export.hpp"
 #include "AudioBehavior.hpp"
+#include "Log.hpp"
 class SoundManager;
+
+
 
 extern "C" {
 	
-	DECLSOUND_API void* CreateSoundManager();
+	enum AudioBackend : int {
+		Miniaudio = 0,
+		Unity = 1
+	};
+
+	struct AudioConfig {
+		AudioBackend backend;
+		uint32_t     sampleRate;
+		uint32_t     bufferFrames;
+		uint32_t     channels;
+		//char* behaviorPath;
+		//char* audioPath;
+	};
+
+
+
+	DECLSOUND_API void* CreateSoundManager(AudioConfig* cfg);
 	DECLSOUND_API void DestroySoundManager(void* mgr);
+	DECLSOUND_API void SoundManager_Init(
+		void* mgr,
+		const char* assetPath,
+		const char** behaviorFolders,
+		int folderCount,
+		const char** globalKeys,
+		const float* globalValues,
+		int globalCount);
 	DECLSOUND_API void SoundManager_Update(void* mgr);
 
 	// global tags and values
@@ -34,6 +61,8 @@ extern "C" {
 	DECLSOUND_API void SoundManager_DebugPrintState(void* mgr);
 	DECLSOUND_API int SoundManager_GetLastEmitCount(void* mgr);
 	DECLSOUND_API const char* SoundManager_GetLastEmitName(void* mgr, int index);
+
+	DECLSOUND_API void SoundAPI_SetLogCallback(LogCallbackFn cb);
 
 
 }

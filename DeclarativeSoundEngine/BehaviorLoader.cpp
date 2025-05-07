@@ -15,12 +15,23 @@
 #include <objbase.h>
 #include <iostream>
 #include <sstream>
+#include <filesystem>
 
 std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std::string& folderPath) {
 
 
 	// Step 1: parse raw ASTs
 	std::vector<RawAudioBehavior> raws;
+
+
+	std::filesystem::path p{ folderPath };
+	if (!std::filesystem::exists(p) || !std::filesystem::is_directory(p)) {
+		LogMessage("Behavior folder not found or not a directory: " + folderPath,
+			LogCategory::BehaviorLoader, LogLevel::Warning);
+		return {};  // empty vector;
+	}
+
+
 	for (auto& entry : std::filesystem::directory_iterator(folderPath)) {
 		if (!entry.is_regular_file()) continue;
 		auto path = entry.path();

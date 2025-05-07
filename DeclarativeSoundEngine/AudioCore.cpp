@@ -112,14 +112,22 @@ void BehaviorInstance::CollectLeaves(const Node& n,
 
 
 
-AudioCore::AudioCore(IBehaviorDefinition* defsProvider, CommandQueue* fromManager, CommandQueue* toManager)
-	: defsProvider(defsProvider), inQueue(fromManager), outQueue(toManager)
+AudioCore::AudioCore(
+	IBehaviorDefinition* defsProvider, 
+	CommandQueue* fromManager, 
+	CommandQueue* toManager,
+	std::unique_ptr<AudioDevice> audioDevice,
+	AudioConfig* cfg)
+	: defsProvider(defsProvider), inQueue(fromManager), outQueue(toManager), device(std::move(audioDevice))
 {
+	deviceCfg = cfg;
+
 	audioBufferManager = new AudioBufferManager();
-	device = std::make_unique<AudioDeviceMiniaudio>(outputChannels, sampleRate, bufferFrames);
+
+	//device = std::move(audioDevice); //std::make_unique<AudioDeviceMiniaudio>(outputChannels, sampleRate, bufferFrames);
 
 	// size buffers
-	size_t bufSamples = size_t(bufferFrames * outputChannels);
+	size_t bufSamples = size_t(deviceCfg->bufferFrames * deviceCfg->channels);
 
 	for (Snapshot& snap : gSnapshots)
 		for (int b = 0; b < kMaxBuses; ++b)
@@ -134,10 +142,11 @@ AudioCore::AudioCore(IBehaviorDefinition* defsProvider, CommandQueue* fromManage
 
 	// Create Master Bus
 	buses.clear();
-	buses.push_back({ std::vector<float>(bufferFrames * outputChannels), {} }); // master
+	buses.push_back({ std::vector<float>(deviceCfg->bufferFrames * deviceCfg->channels), {} }); // master
 
 }
 AudioCore::~AudioCore() {
+	LogMessage("~AudioCore", LogCategory::AudioCore, LogLevel::Debug);
 	delete audioBufferManager;
 }
 
@@ -184,9 +193,12 @@ void AudioCore::TakeSnapshot()
 	back.busCount = uint32_t(buses.size());
 
 	/* ---- bus gains ---- */
-	for (uint32_t i = 0; i < back.busCount; ++i)
-		back.busGain[i] = buses[i].volume.eval(entityMap.empty() ? ValueMap{}
-	: entityMap.begin()->second.params);
+	
+	for (uint32_t i = 0; i < back.busCount; ++i) {
+		back.busGain[i] = buses[i].volume.eval(entityMap.empty() ? ValueMap{} : entityMap.begin()->second.params);
+		back.busParent.resize(back.busCount); // maybe fixed size in the future (some max bus count)
+		back.busParent[i] = buses[i].parent;
+	}
 
 	/* ---- flatten voices ---- */
 	for (auto& [eid, ed] : entityMap)
@@ -432,7 +444,7 @@ int AudioCore::GetOrCreateBus(const std::string& entityId) {
 	if (it != entityBus.end()) return it->second;
 	// allocate new sub‐bus
 	int newIndex = (int)buses.size();
-	buses.push_back({ std::vector<float>(bufferFrames * outputChannels), {} });
+	buses.push_back({ std::vector<float>(deviceCfg->bufferFrames * deviceCfg->channels), {} });
 	entityBus.emplace(entityId, newIndex);
 	return newIndex;
 }
@@ -455,7 +467,7 @@ void AudioCore::RenderCallback(float* out, int frames)
 	const Snapshot& s = gSnapshots[gFront.load(std::memory_order_acquire)];
 
 	uint64_t blockStart = globalSampleCounter;
-	int samples = frames * outputChannels;      // inside RenderCallback
+	int samples = frames *  deviceCfg->channels;      // inside RenderCallback
 
 
 	/* ------- clear bus buffers in the snapshot ------- */
@@ -481,15 +493,16 @@ void AudioCore::RenderCallback(float* out, int frames)
 			if (pos < len)               s0 = pcm[pos * ch] * vs.gain;
 			else if (vs.loop)            s0 = pcm[(pos % len) * ch] * vs.gain;
 
-			for (int c = 0; c < outputChannels; ++c)
-				busBuf[i * outputChannels + c] += s0;
+			for (int c = 0; c <  deviceCfg->channels; ++c)
+				busBuf[i *  deviceCfg->channels + c] += s0;
 		}
 	}
 
 	/* ------- fold buses (same math, but now inside snapshot) ------- */
 	for (int b = int(s.busCount) - 1; b > 0; --b) {
-		float  gain = s.busGain[b];
-		int    parent = buses[b].parent;           // parent index hasn’t changed
+		float gain = s.busGain[b];
+		//int    parent = buses[b].parent;           // parent index hasn’t changed
+		int parent = parent = s.busParent[b];
 		float* src = s.bus[b].data();
 		float* dst = s.bus[parent].data();
 
@@ -498,7 +511,7 @@ void AudioCore::RenderCallback(float* out, int frames)
 	}
 
 	/* ------- copy master to device ------- */
-	std::memcpy(out, s.bus[0].data(), size_t(frames * outputChannels) * sizeof(float));
+	std::memcpy(out, s.bus[0].data(), size_t(frames *  deviceCfg->channels) * sizeof(float));
 
 	/* ------- advance counters ------- */
 	pendingFrames.fetch_add(frames, std::memory_order_relaxed);

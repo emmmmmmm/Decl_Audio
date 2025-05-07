@@ -5,22 +5,41 @@
 #include <regex>
 #include "AudioDevice.hpp"
 #include <string>
+#include "SoundManagerAPI.hpp"
 
-SoundManager::SoundManager() : defsProvider(new BehaviorDefinitionManager())
+
+#include "AudioDeviceMiniAudio.hpp"
+#include "AudioDeviceUnity.hpp"
+
+SoundManager::SoundManager(AudioConfig* cfg)
 {
-	audioCore = new AudioCore(defsProvider, &managerToCore, &coreToManager);
-	// todo: detach audio core as separate thread
+	defsProvider = new BehaviorDefinitionManager();
 
+	std::unique_ptr<AudioDevice> dev;    // pointer to the base
+	if (cfg->backend == Miniaudio)
+		dev = std::make_unique<AudioDeviceMiniaudio>(cfg->channels, cfg->sampleRate, cfg->bufferFrames);
+
+	if (cfg->backend == Unity)
+		dev = std::make_unique<AudioDeviceUnity>(cfg->channels, cfg->sampleRate, cfg->bufferFrames);
+
+
+
+	audioCore = new AudioCore(defsProvider, &managerToCore, &coreToManager, std::move(dev), cfg);
+	// todo: detach audio core as separate thread
 }
+
+
 
 SoundManager::~SoundManager()
 {
+	LogMessage("~SoundManager", LogCategory::SoundManager, LogLevel::Debug);
 	delete audioCore;	// that wont work if i don't keep a ref to audiocore later... 
 	// it'd kind of have to clean itself up?^^
 
 	delete defsProvider;
 
 }
+
 
 void SoundManager::AddBehavior(AudioBehavior& behavior) {
 	LogMessage("::Addbehavior is obsolete!!", LogCategory::SoundManager, LogLevel::Warning);
@@ -77,6 +96,8 @@ void SoundManager::SetAssetPath(const std::string& path)
 {
 	assetpath = path;
 	// we need to pass this along to audiocore if it changes!
+	// aaactually: audiocore doesn't really care I think!
+	// but maybe it does.
 	Command c;
 	c.type = CommandType::AssetPath;
 	c.strValue = assetpath;
@@ -157,8 +178,9 @@ void SoundManager::SendValueDiff(const std::string& entityId)
 		}
 	}
 }
-void SoundManager::SyncBehaviors(const std::string& entityId,
-	const std::unordered_set<uint32_t>& desired)
+
+// UNUSUED?
+void SoundManager::SyncBehaviors(const std::string& entityId, const std::unordered_set<uint32_t>& desired)
 {
 	auto& active = activeBehaviors[entityId];
 
@@ -170,6 +192,8 @@ void SoundManager::SyncBehaviors(const std::string& entityId,
 			c.entityId = entityId;
 			c.behaviorId = id;
 			managerToCore.push(c);
+
+
 
 			// TODO - this no longer works as expected. ideally we would get a 
 			// "Behavior active" and "Behavior stopped" message from audiocore, 
@@ -195,10 +219,7 @@ void SoundManager::SyncBehaviors(const std::string& entityId,
 
 
 
-void SoundManager::SyncBehaviorsForEntity(
-	const std::string& entityId,
-	const TagMap& tags,
-	const TagMap& globalTags)
+void SoundManager::SyncBehaviorsForEntity(const std::string& entityId, const TagMap& tags, const TagMap& globalTags)
 {
 	auto& data = activeBehaviors[entityId];
 
@@ -213,7 +234,7 @@ void SoundManager::SyncBehaviorsForEntity(
 	// 2) Start newly desired behaviors
 	for (auto id : desired) {
 		if (!data.count(id)) {
-			
+
 			Command c;
 			c.type = CommandType::StartBehavior;
 			c.entityId = entityId;
@@ -244,18 +265,18 @@ void SoundManager::SyncBehaviorsForEntity(
 void SoundManager::Update()
 {
 
+
 	const TagMap& globalTags = entityTags["global"];
 
 	for (auto& [entityId, tags] : entityTags) {
 		SyncBehaviorsForEntity(entityId, tags, globalTags);
 		SendValueDiff(entityId);
-
 		tags.ClearTransient();
 	}
-	
+
 	audioCore->Update(); // TODO: remove once audiocore gets detached into it's own thread!
 
-	ProcessCoreResponses();
+	ProcessCoreResponses(); // for later I guess
 }
 
 void SoundManager::ProcessCoreResponses() {
