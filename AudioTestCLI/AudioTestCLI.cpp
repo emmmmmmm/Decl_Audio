@@ -40,10 +40,16 @@ void RunBasicBehaviorTest() {
 
 	LogMessage("=== Basic Behavior Test ===", LogCategory::CLI, LogLevel::Info);
 
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
-	SoundManager_SetAssetPath(mgr, "C:/Users/audioUser/Test/");
+	AudioConfig cfg;
+	cfg.bufferFrames = 512;
+	cfg.channels = 1;
+	cfg.sampleRate = 44100;
+	cfg.backend = AudioBackend::Miniaudio;
+	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
 
+	SoundManager_SetAssetPath(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/");
 	SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
+
 	SoundManager_SetTag(mgr, "player", "entity.player");
 	SoundManager_SetTag(mgr, "player", "foot.contact.left");
 
@@ -92,7 +98,6 @@ void RunBasicBehaviorTest() {
 }
 
 
-
 std::queue<std::function<void()>> gCommands;
 std::mutex                  gCmdMutex;
 
@@ -110,8 +115,14 @@ void ProcessCommands(SoundManager* mgr) {
 }
 
 void RunInteractiveTest() {
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
-	SoundManager_SetAssetPath(mgr, "C:/Users/audioUser/Test/");
+
+	AudioConfig cfg;
+	cfg.bufferFrames = 512;
+	cfg.channels = 1;
+	cfg.sampleRate = 44100;
+	cfg.backend = AudioBackend::Miniaudio;
+	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
+	SoundManager_SetAssetPath(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/");
 	SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
 
 	std::atomic<bool> running{ true };
@@ -167,6 +178,7 @@ void RunInteractiveTest() {
 					"  clear <entity> <tag>\n"
 					"  transient <entity> <tag>\n"
 					"  value <entity> <key> <float>\n"
+					"  log\n"
 					"  exit\n";
 			}
 		}
@@ -194,7 +206,14 @@ void RunInteractiveTest() {
 
 void RunValueConditionTests() {
 	LogMessage("=== Value Condition Tests ===", LogCategory::CLI, LogLevel::Info);
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
+
+	AudioConfig cfg;
+	cfg.bufferFrames = 512;
+	cfg.channels = 2;
+	cfg.sampleRate = 44100;
+	cfg.backend = AudioBackend::Miniaudio;
+
+	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
 	SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
 	SoundManager_SetTag(mgr, "player", "entity.player");
 
@@ -219,7 +238,12 @@ void RunValueConditionTests() {
 
 void RunInvalidTagTest() {
 	LogMessage("=== Invalid Tag Test ===", LogCategory::CLI, LogLevel::Info);
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
+	AudioConfig cfg;
+	cfg.bufferFrames = 512;
+	cfg.channels = 2;
+	cfg.sampleRate = 44100;
+	cfg.backend = AudioBackend::Miniaudio;
+	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
 	SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
 	SoundManager_SetTag(mgr, "ghost", "nonexistent.tag");
 	SoundManager_SetTag(mgr, "ghost", "nonexistent2..tag");
@@ -229,7 +253,12 @@ void RunInvalidTagTest() {
 
 void RunWildcardMatchingTest() {
 	LogMessage("=== Wildcard Matching Test ===", LogCategory::CLI, LogLevel::Info);
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
+	AudioConfig cfg;
+	cfg.bufferFrames = 512;
+	cfg.channels = 2;
+	cfg.sampleRate = 44100;
+	cfg.backend = AudioBackend::Miniaudio;
+	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
 	SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
 	SoundManager_SetTag(mgr, "npc", "entity.npc.guard");
 	SoundManager_SetTag(mgr, "npc", "foot.contact.left");
@@ -239,7 +268,12 @@ void RunWildcardMatchingTest() {
 
 void RunNoMatchTest() {
 	LogMessage("=== No Match Test ===", LogCategory::CLI, LogLevel::Info);
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager());
+	AudioConfig cfg;
+	cfg.bufferFrames = 512;
+	cfg.channels = 2;
+	cfg.sampleRate = 44100;
+	cfg.backend = AudioBackend::Miniaudio;
+	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
 	SoundManager_LoadBehaviorsFromFile(mgr, "./behaviors");
 	SoundManager_SetTag(mgr, "thing", "something.unknown");
 	SoundManager_Update(mgr);
@@ -252,11 +286,11 @@ int main() {
 
 	RunInteractiveTest(); // <- this. is. so. cool! xD
 
-	RunBasicBehaviorTest();
-	RunValueConditionTests();
-	RunInvalidTagTest();
-	RunWildcardMatchingTest();
-	RunNoMatchTest();
+	//RunBasicBehaviorTest();
+	//RunValueConditionTests();
+	//RunInvalidTagTest();
+	//RunWildcardMatchingTest();
+	//RunNoMatchTest();
 
 	return 0;
 }

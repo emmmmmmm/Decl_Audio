@@ -11,11 +11,11 @@ public:
     AudioDeviceMiniaudio(int channels, int sampleRate, int bufferFrames);
     ~AudioDeviceMiniaudio();
 
-    SoundHandle Play(AudioBuffer* buf, float volume, float pitch, bool loop) override;
-    void Stop(SoundHandle handle)                   override;
-    void SetVolume(SoundHandle, float)              override;
-    void SetPitch(SoundHandle, float)              override;
-    void SetRenderCallback(std::function<void(float*, int)> cb) override;
+    SoundHandle Play(AudioBuffer* buf, float volume, float pitch, bool loop)    override;
+    void Stop(SoundHandle handle)                                               override;
+    void SetVolume(SoundHandle, float)                                          override;
+    void SetPitch(SoundHandle, float)                                           override;
+    void SetRenderCallback(std::function<void(float*, int)> cb)                 override;
 
 private:
     ma_engine engine_{};

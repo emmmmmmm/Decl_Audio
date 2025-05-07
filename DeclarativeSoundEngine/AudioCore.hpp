@@ -1,4 +1,6 @@
 ﻿//AudioCore.hpp
+
+
 #pragma once
 #include "AudioCommand.hpp"
 #include "AudioBehavior.hpp"
@@ -9,6 +11,7 @@
 #include "ValueMap.hpp"
 #include <atomic>         
 #include "ObjectFactory.hpp"
+#include "SoundManagerAPI.hpp"
 
 
 class SoundManager; // forward declaration
@@ -143,7 +146,8 @@ struct Snapshot {
 	VoiceSnap     voices[kMaxVoices];
 
 	uint32_t      busCount = 1;                  // at least master
-	float         busGain[kMaxBuses];
+	float         busGain[kMaxBuses]{};
+	std::vector<int> busParent{};
 
 	mutable std::vector<float> bus[kMaxBuses];  // resised once in ctor
 };
@@ -168,10 +172,7 @@ struct Bus {
 
 class AudioCore {
 	// config
-	int bufferFrames = 1024;
-	int outputChannels = 2;
-	int sampleRate = 44100;
-	int bitDepth = 16;
+	
 	std::vector<Voice> voiceBuffer;
 	std::mutex voiceBufferMtx;
 
@@ -204,7 +205,7 @@ class AudioCore {
 	std::chrono::steady_clock::time_point lastUpdate;
 
 	uint64_t globalSampleCounter = 0;
-
+	AudioConfig* deviceCfg;
 public:
 	AudioBufferManager* audioBufferManager;
 	std::unique_ptr<AudioDevice> device;
@@ -212,7 +213,12 @@ public:
 	ObjectFactory<BehaviorInstance> behaviorFactory{ 100, 10 };
 
 public:
-	AudioCore(IBehaviorDefinition* defsProvider, CommandQueue* fromManager, CommandQueue* toManager);
+	AudioCore(
+		IBehaviorDefinition* defsProvider, 
+		CommandQueue* fromManager,
+		CommandQueue* toManager, 
+		std::unique_ptr<AudioDevice> audioDevice,
+		AudioConfig* deviceCfg);
 
 	~AudioCore();
 

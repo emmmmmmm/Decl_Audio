@@ -6,12 +6,64 @@
 #include <iostream>
 
 
-DECLSOUND_API void* CreateSoundManager() {
-	return new SoundManager();
+
+static AudioConfig g_config;
+//static SoundManager* g_SM = nullptr; // this is such a mess currently, either I go with the singleton, or without it - DECIDE! // TODO
+
+DECLSOUND_API void* CreateSoundManager(AudioConfig* cfg) {
+
+
+	if (!cfg) {
+		// throw exception?
+		return nullptr;
+	}
+
+	g_config = *cfg;
+	auto mgr = new SoundManager(&g_config);
+
+	return mgr;
+}
+
+
+DECLSOUND_API void SoundManager_Init(
+	void* mgr,
+	const char* assetPath,
+	const char** behaviorFolders,
+	int folderCount,
+	const char** globalKeys,
+	const float* globalValues,
+	int globalCount) {
+
+	//if (!g_SM)
+
+		SoundManager* soundManager = static_cast<SoundManager*>(mgr);
+
+
+		// might be unneccessary if we move assetpaths to new Cfg file!
+		soundManager->SetAssetPath(assetPath);
+		//g_SM = soundManager;
+	
+
+	for (int i = 0; i < folderCount; ++i) {
+		SoundManager_LoadBehaviorsFromFile(soundManager, behaviorFolders[i]);
+	}
+
+
+	// set global values
+	for (int i = 0; i < globalCount; ++i) {
+		const char* key = globalKeys[i];
+		float       val = globalValues[i];
+		soundManager->SetValue("global", key, val);
+	}
+
 }
 
 DECLSOUND_API void DestroySoundManager(void* mgr) {
+
+	LogMessage("Destroy Sound Manager", LogCategory::SoundManager, LogLevel::Debug);
 	delete static_cast<SoundManager*>(mgr);
+	//g_SM = nullptr;
+
 }
 
 DECLSOUND_API void SoundManager_Update(void* mgr) {
@@ -78,12 +130,12 @@ DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(void* mgr, const char* pat
 	auto manager = static_cast<SoundManager*>(mgr);
 	// load audio definitions from files
 	manager->defsProvider->LoadFilesFromFolder(path);
-	std::cout << "SoundManager_LoadBehaviorsFromFile: Files Loaded" << std::endl;
-	
+	LogMessage("LoadBehaviorsFromFile: Files Loaded", LogCategory::CLI, LogLevel::Debug);
+
 	// set match definitions
 	manager->matchDefinitions = manager->defsProvider->GetMatchDefs();
-	std::cout << "SoundManager_LoadBehaviorsFromFile: GetMatchDefs() done" << std::endl;
-	
+	LogMessage("LoadBehaviorsFromFile: GetMatchDefs() done", LogCategory::CLI, LogLevel::Debug);
+
 	// set play definitions:
 	Command cmd;
 	cmd.type = CommandType::RefreshDefinitions;

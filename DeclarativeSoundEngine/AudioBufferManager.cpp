@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <iostream>
 #include "Log.hpp"
+#include <filesystem>
 
 AudioBufferManager::AudioBufferManager()
 {
@@ -12,6 +13,8 @@ AudioBufferManager::AudioBufferManager()
 
 AudioBufferManager::~AudioBufferManager()
 {
+	LogMessage("~AudioBufferManager", LogCategory::AudioBuffer, LogLevel::Debug);
+
 	// Cleanup all buffers
 	std::lock_guard<std::mutex> lock(mutex);
 	cache.clear();
@@ -42,7 +45,15 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 
 
 	// Load new buffer
-	AudioBuffer buffer(path);
+	namespace fs = std::filesystem;
+	fs::path assetDir{ assetPath };
+	fs::path fileName{ path };
+
+	// join them:
+	fs::path fullPath = assetDir / fileName;
+
+	std::string fullStr = fullPath.string(); 
+	AudioBuffer buffer(fullStr);
 
 	
 

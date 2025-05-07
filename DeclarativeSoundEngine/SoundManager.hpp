@@ -9,9 +9,14 @@
 #include "AudioCore.hpp"
 #include "BehaviorDefinitionManager.hpp"
 
+#include "SoundManagerAPI.hpp"
+
+
+
+
 class SoundManager {
 public:
-	SoundManager();
+	SoundManager(AudioConfig* cfg);
 	~SoundManager();
 
 	void Update();
