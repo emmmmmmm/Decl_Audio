@@ -153,14 +153,3 @@ DECLSOUND_API void SoundManager_LoadBehaviorsFromFile(void* mgr, const char* pat
 DECLSOUND_API void SoundManager_DebugPrintState(void* mgr) {
 	static_cast<SoundManager*>(mgr)->DebugPrintState();
 }
-
-DECLSOUND_API int SoundManager_GetLastEmitCount(void* mgr)
-{
-	return (int) static_cast<SoundManager*>(mgr)->lastEmittedSoundIds.size();
-}
-
-DECLSOUND_API const char* SoundManager_GetLastEmitName(void* mgr, int index)
-{
-	return static_cast<SoundManager*>(mgr)->lastEmittedSoundIds[index].c_str();
-}
-

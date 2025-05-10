@@ -233,7 +233,7 @@ void AudioCore::TakeSnapshot()
 				bool isSpatial = ed.params.TryGetValue("position", srcPos);
 				float att = 1.f;
 				float panL = 1.f, panR = 1.f;
-				std::vector<float> spatialGain;
+				std::vector<float> pan;
 				if (isSpatial) {
 
 					float dx = srcPos.x - listenerPos.x;
@@ -248,12 +248,12 @@ void AudioCore::TakeSnapshot()
 					float az = std::atan2(dx, dz);
 					panL = std::clamp(0.5f - az / float(M_PI), 0.f, 1.f);
 					panR = 1.f - panL;
-					spatialGain.push_back(panL); // TODO: MULTICHANNEL
-					spatialGain.push_back(panR);
+					pan.push_back(panL); // TODO: MULTICHANNEL
+					pan.push_back(panR);
 				}
 				else {
-					spatialGain.push_back(1); // TODO: MULTICHANNEL
-					spatialGain.push_back(1);
+					pan.push_back(1); // TODO: MULTICHANNEL
+					pan.push_back(1);
 				}
 
 				back.voices[back.voiceCount++] = {
@@ -263,7 +263,7 @@ void AudioCore::TakeSnapshot()
 					v.loop,
 					uint8_t(v.busIndex),
 					v.startSample,
-					spatialGain
+					pan
 				};
 			}
 		}
@@ -561,7 +561,7 @@ void AudioCore::RenderCallback(float* out, int frames)
 			else if (vs.loop)            s0 = pcm[(pos % len) * ch] * vs.gain;
 
 			for (int c = 0; c < deviceCfg->channels; ++c)
-				busBuf[i * deviceCfg->channels + c] += s0 * vs.channelGain[c];
+				busBuf[i * deviceCfg->channels + c] += s0 * vs.pan[c]; // TODO: ChannelMatrix
 		}
 	}
 

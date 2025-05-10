@@ -62,9 +62,7 @@ extern "C" {
 
 	// debug, tests, etc
 	DECLSOUND_API void SoundManager_DebugPrintState(void* mgr);
-	DECLSOUND_API int SoundManager_GetLastEmitCount(void* mgr);
-	DECLSOUND_API const char* SoundManager_GetLastEmitName(void* mgr, int index);
-
+	
 	DECLSOUND_API void SoundAPI_SetLogCallback(LogCallbackFn cb);
 
 

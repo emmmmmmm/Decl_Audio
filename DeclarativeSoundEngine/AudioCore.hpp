@@ -136,7 +136,7 @@ struct VoiceSnap {
 
 	uint64_t startSample = {};
 	// Spatialization
-	std::vector<float> channelGain={};
+	std::vector<float> pan ={};
 };
 
 

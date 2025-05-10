@@ -215,13 +215,6 @@ void SoundManager::SyncBehaviors(const std::string& entityId, const std::unorder
 			c.entityId = entityId;
 			c.behaviorId = id;
 			managerToCore.push(c);
-
-
-
-			// TODO - this no longer works as expected. ideally we would get a 
-			// "Behavior active" and "Behavior stopped" message from audiocore, 
-			// to make sure behaviors have actually started.
-			lastEmittedSoundIds.push_back(std::to_string(id));
 		}
 
 
