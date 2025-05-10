@@ -1,16 +1,29 @@
 #pragma once
 #include <unordered_map>
 #include <string>
+#include <variant>
+#include "Vec3.hpp"
+
+
+
+using Value = std::variant<float, std::string, Vec3>;
+
 
 class ValueMap {
 public:
 	void SetValue(const std::string& key, float value);
+	void SetValue(const std::string& key, const std::string& value);
+	void SetValue(const std::string& key, const Vec3& value);
+	void SetValue(const std::string& key, const Value& value);
 	bool HasValue(const std::string& key) const;
-	float GetValue(const std::string& key, float defaultValue = 0.0f) const;
+
+	bool TryGetValue(const std::string& key, float& out) const;
+	bool TryGetValue(const std::string& key, std::string& out) const;
+	bool TryGetValue(const std::string& key, Vec3& out) const;
+	
 	void ClearValue(const std::string& key);
 
-	std::vector<std::pair<std::string, float>> GetAllValues() const;
+	std::unordered_map<std::string, Value> GetAllValues() const;
 
-private:
-	std::unordered_map<std::string, float> values;
+	std::unordered_map<std::string, Value> values;
 };

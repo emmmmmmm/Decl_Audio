@@ -14,6 +14,8 @@ enum class CommandType {
 	PlaySuccess,
 	RefreshDefinitions,
 	AssetPath,
+	SetListener,
+	RemoveListener,
 	None
 };
 
@@ -21,9 +23,12 @@ struct Command {
 	CommandType type = CommandType::None;
 	std::string entityId = {};
 	std::string key = {};
-	std::string strValue = {};
+	
 	std::string soundName = {};
-	float       value = 0;
+	//float       value = 0;
+	// //std::string strValue = {};
+	Value value;
+
 	uint32_t instanceID = -1;
 	uint32_t    behaviorId = -1;
 
@@ -42,6 +47,9 @@ struct Command {
 		case CommandType::RefreshDefinitions: return "RefreshDefinitions";
 		case CommandType::AssetPath: return "AssetPath";
 		case CommandType::Log: return "Log";
+		case CommandType::PlaySuccess: return "PlaySuccess";
+		case CommandType::SetListener: return "SetListener";
+		case CommandType::RemoveListener: return "RemoveListener";
 		default: return "Unknown";
 		}
 	}

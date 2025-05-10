@@ -31,7 +31,7 @@ public:
 	void SetBusGain(const std::string& entityId, float gain);             // literal
 	void SetBusGainExpr(const std::string& entityId, const std::string& gain); // expression
 	void SetAssetPath(const std::string& path);
-
+	void SetEntityPosition(const std::string& entityName, float x, float y, float z);
 	void DebugPrintState();
 
 

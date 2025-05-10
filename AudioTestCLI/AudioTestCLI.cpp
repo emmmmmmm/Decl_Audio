@@ -66,7 +66,7 @@ void RunBasicBehaviorTest() {
 		std::this_thread::sleep_for(std::chrono::milliseconds(16));
 		count++;
 
-		if(count==10)
+		if (count == 10)
 			SoundManager_ClearTag(mgr, "player", "foot.contact.left");
 
 		if (count == 50) {
@@ -118,7 +118,7 @@ void RunInteractiveTest() {
 
 	AudioConfig cfg;
 	cfg.bufferFrames = 512;
-	cfg.channels = 1;
+	cfg.channels = 2;
 	cfg.sampleRate = 44100;
 	cfg.backend = AudioBackend::Miniaudio;
 	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
@@ -127,11 +127,23 @@ void RunInteractiveTest() {
 
 	std::atomic<bool> running{ true };
 
+
+
+	SoundManager_SetTag(mgr, "l", "listener");
+	SoundManager_SetPosition(mgr, "l", 0, 0, 0);
+	SoundManager_SetTag(mgr, "a", "entity.player");
+	SoundManager_SetPosition(mgr, "a", -5, 0, 0);
+	SoundManager_SetGlobalTag(mgr, "gamestate.ready");
+	SoundManager_SetGlobalValue(mgr, "difficulty", 1);
+
+		
+
+
 	// Input thread: blocks on getline, parses lines, enqueues actions
 	std::thread inputThread([&]() {
 		std::string line;
 		while (running && std::getline(std::cin, line)) {
-		
+
 
 			std::istringstream iss(line);
 			std::string cmd; iss >> cmd;
@@ -167,6 +179,14 @@ void RunInteractiveTest() {
 					SoundManager_SetValue(mgr, entity.c_str(), key.c_str(), v);
 					});
 			}
+			else if (cmd == "pos") {
+				std::string entity; float x, y, z;
+				iss >> entity >> x >> y >> z;
+				EnqueueCommand([=]() {
+					SoundManager_SetPosition(mgr, entity.c_str(), x, y, z);
+					});
+
+			}
 			else if (cmd == "log") {
 				EnqueueCommand([=]() {
 					SoundManager_DebugPrintState(mgr);
@@ -178,6 +198,7 @@ void RunInteractiveTest() {
 					"  clear <entity> <tag>\n"
 					"  transient <entity> <tag>\n"
 					"  value <entity> <key> <float>\n"
+					"  pos <entity> <x> <y> <z>\n"
 					"  log\n"
 					"  exit\n";
 			}
@@ -222,7 +243,7 @@ void RunValueConditionTests() {
 
 	AssertEmittedSound(mgr, "idle.wav");  // Assert that "idle.wav" was triggered
 
-	
+
 	SoundManager_SetValue(mgr, "player", "velocity", 2.0f); // walk
 	SoundManager_Update(mgr);
 

@@ -116,7 +116,7 @@ size_t AudioBufferManager::GetMemoryUsage()
 	return currentMemoryUsage;
 }
 
-void AudioBufferManager::SetAssetpath(std::string& path)
+void AudioBufferManager::SetAssetpath(const std::string& path)
 {
 	assetPath = path;
 	LogMessage("updated path to assets: " + assetPath, LogCategory::AudioBuffer, LogLevel::Debug);

@@ -7,6 +7,7 @@
 #include "MatchUtils.hpp"
 #include <array>    
 #include <utility> 
+#include <optional>
 
 
 struct Node;
@@ -21,6 +22,10 @@ struct Node {
 	Expression		   volume{ "1.0" };
 	float pitch = 1, fadeIn = 0, fadeOut = 0, delay = 0;
 	bool loop = false;
+	std::optional<std::array<float, 3>> position;	// if set, used for distance/panning; otherwise treated as "global"
+	float radius = 0.0f;							// attenuation distance
+
+
 
 	virtual ~Node() = default;
 

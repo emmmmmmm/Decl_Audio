@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include "ValueMap.hpp"
+#include "Vec3.hpp"
 
 /// Wraps evaluation of numeric expressions (e.g. "velocity * 0.8 + 0.1")
 struct Expression {

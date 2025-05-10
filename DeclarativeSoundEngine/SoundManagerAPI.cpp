@@ -102,6 +102,12 @@ DECLSOUND_API void SoundManager_ClearValue(void* mgr, const char* entityId, cons
 	static_cast<SoundManager*>(mgr)->ClearValue(std::string(entityId), std::string(key));
 }
 
+DECLSOUND_API void SoundManager_SetPosition(void* mgr, const char* entityId, float x, float y, float z)
+{
+	auto manager = static_cast<SoundManager*>(mgr);
+	manager->SetEntityPosition(entityId, x, y, z);
+}
+
 DECLSOUND_API void SoundManager_ClearEntity(void* mgr, const char* entityId)
 {
 	static_cast<SoundManager*>(mgr)->ClearEntity(std::string(entityId));

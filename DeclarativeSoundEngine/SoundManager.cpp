@@ -6,7 +6,7 @@
 #include "AudioDevice.hpp"
 #include <string>
 #include "SoundManagerAPI.hpp"
-
+#
 
 #include "AudioDeviceMiniAudio.hpp"
 #include "AudioDeviceUnity.hpp"
@@ -48,12 +48,30 @@ void SoundManager::AddBehavior(AudioBehavior& behavior) {
 void SoundManager::SetTag(const std::string& entityId, const std::string& tag) {
 	entityTags[entityId].AddTag(tag);
 	LogMessage("tag added: " + tag + " (entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
+
+
+	// LISTENER // TODO is there a better place to put this? :thinking:
+	if (tag == "listener") {
+		Command c;
+		c.type = CommandType::SetListener;
+		c.entityId = entityId;          
+		managerToCore.push(c);
+	}
 }
+
 
 void SoundManager::ClearTag(const std::string& entityId, const std::string& tag) {
 	LogMessage("tag removed: " + tag + " (entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
 
 	entityTags[entityId].RemoveTag(tag);
+
+	// LISTENER // TODO is there a better place to put this? :thinking:
+	if (tag == "listener") {
+		Command c;
+		c.type = CommandType::RemoveListener;
+		c.entityId = entityId;
+		managerToCore.push(c);
+	}
 }
 
 void SoundManager::SetTransientTag(const std::string& entityId, const std::string& tag)
@@ -65,7 +83,6 @@ void SoundManager::SetTransientTag(const std::string& entityId, const std::strin
 void SoundManager::SetValue(const std::string& entityId, const std::string& key, float value) {
 	entityValues[entityId].SetValue(key, value);
 	LogMessage("set value: " + std::to_string(value) + " key: " + key + "(entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
-
 }
 
 void SoundManager::ClearValue(const std::string& entityId, const std::string& key) {
@@ -100,8 +117,14 @@ void SoundManager::SetAssetPath(const std::string& path)
 	// but maybe it does.
 	Command c;
 	c.type = CommandType::AssetPath;
-	c.strValue = assetpath;
+	c.value = assetpath;
 	managerToCore.push(c);
+}
+
+void SoundManager::SetEntityPosition(const std::string& entityId, float x, float y, float z)
+{
+	entityValues[entityId].SetValue("position", Vec3(x,y,z));
+
 }
 
 int SoundManager::TagSpecificity(const std::string& tag) {
@@ -167,7 +190,7 @@ void SoundManager::SendValueDiff(const std::string& entityId)
 	ValueMap& last = lastValues[entityId];           // creates empty on first use
 
 	for (auto [k, v] : current.GetAllValues()) {
-		if (!last.HasValue(k) || last.GetValue(k) != v) {
+		if (!last.HasValue(k) || last.values[k] != v) {
 			Command c;
 			c.type = CommandType::ValueUpdate;
 			c.entityId = entityId;
@@ -285,7 +308,8 @@ void SoundManager::ProcessCoreResponses() {
 	while (coreToManager.pop(cmd)) {
 		// Handle the response - logging, etc.
 		if (cmd.type == CommandType::Log) {
-			LogMessage("CORE Response: " + cmd.strValue, LogCategory::AudioCore, LogLevel::Info);
+			if (auto s = std::get_if<std::string>(&cmd.value))
+				LogMessage("CORE Response: " + *s, LogCategory::AudioCore, LogLevel::Info);
 		}
 
 	}
@@ -302,7 +326,14 @@ void SoundManager::DebugPrintState() {
 		}
 
 		for (const auto& pair : entityValues[entityId].GetAllValues()) {
-			LogMessage(" - Value: " + pair.first + " = " + std::to_string(pair.second), LogCategory::SoundManager, LogLevel::Debug);
+			std::string value = "";
+			if (auto s = std::get_if<std::string>(&pair.second))
+				value = *s;
+			else if (auto s = std::get_if<float>(&pair.second))
+				value = std::to_string(*s);
+			else if (auto s = std::get_if<Vec3>(&pair.second))
+				value = "( " + std::to_string(s->x) + " / " + std::to_string(s->y) + " / " + std::to_string(s->z) + " )";
+			LogMessage(" - Value: " + pair.first + " = " + value, LogCategory::SoundManager, LogLevel::Debug);
 		}
 	}
 }
