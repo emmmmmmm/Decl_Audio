@@ -49,6 +49,9 @@ extern "C" {
 
 	DECLSOUND_API void SoundManager_SetValue(void* mgr, const char* entityId, const char* key, float value);
 	DECLSOUND_API void SoundManager_ClearValue(void* mgr, const char* entityId, const char* key);
+
+	DECLSOUND_API void SoundManager_SetPosition(void* mgr, const char* entityId, float x, float y, float z);
+
 	DECLSOUND_API void SoundManager_ClearEntity(void* mgr, const char* entityId);
 	DECLSOUND_API void SoundManager_SetBusGain(void* mgr, const char* entityId, float gain);
 	DECLSOUND_API void SoundManager_SetBusGainExpression(void* mgr, const char* entityId, const char* gain);
@@ -59,9 +62,7 @@ extern "C" {
 
 	// debug, tests, etc
 	DECLSOUND_API void SoundManager_DebugPrintState(void* mgr);
-	DECLSOUND_API int SoundManager_GetLastEmitCount(void* mgr);
-	DECLSOUND_API const char* SoundManager_GetLastEmitName(void* mgr, int index);
-
+	
 	DECLSOUND_API void SoundAPI_SetLogCallback(LogCallbackFn cb);
 
 

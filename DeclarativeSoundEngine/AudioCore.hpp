@@ -12,7 +12,7 @@
 #include <atomic>         
 #include "ObjectFactory.hpp"
 #include "SoundManagerAPI.hpp"
-
+#include "Vec3.hpp"
 
 class SoundManager; // forward declaration
 
@@ -23,7 +23,7 @@ constexpr int  kMaxBuses = 16;                  // master + sub-buses
 constexpr int  kSnapCount = 3;                   // triple-buffer
 //static size_t   kBufSamples = 0;      // set in AudioCore() ctor
 
-struct Vec3 { float x, y, z; };
+
 
 struct Voice {
 	SoundHandle handle = {};
@@ -34,7 +34,7 @@ struct Voice {
 	float        volStep = {};
 	int          busIndex = {};
 	uint64_t startSample = {};
-
+	
 
 	bool loop = false;
 	const SoundNode* source = nullptr;
@@ -44,7 +44,7 @@ struct Voice {
 	float currentPitch = {};
 	float targetPitch = {};
 
-
+	
 
 	Voice MakeSnapShot() const {
 		return *this;
@@ -135,13 +135,15 @@ struct VoiceSnap {
 	uint8_t      bus;
 
 	uint64_t startSample = {};
-
+	// Spatialization
+	std::vector<float> pan ={};
 };
 
 
 
 /* -------- immutable snapshot -------- */
 struct Snapshot {
+	Vec3 listenerPosition = {};
 	uint32_t      voiceCount = 0;
 	VoiceSnap     voices[kMaxVoices];
 
@@ -206,6 +208,8 @@ class AudioCore {
 
 	uint64_t globalSampleCounter = 0;
 	AudioConfig* deviceCfg;
+
+	std::string currentListener = {};
 public:
 	AudioBufferManager* audioBufferManager;
 	std::unique_ptr<AudioDevice> device;
@@ -225,6 +229,7 @@ public:
 	void Update();
 	void AdvancePlayheads();
 private:
+
 	// methods
 	void TakeSnapshot();
 	void ProcessCommands();

@@ -6,6 +6,8 @@
 #include <memory>
 #include <unordered_map>
 #include <regex>
+#include "Vec3.hpp"
+
 
 /*
 TODO: soundbehaviors should have a "t" variable, that represents the current point in time of the playing behavior

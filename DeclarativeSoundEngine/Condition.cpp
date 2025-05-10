@@ -13,8 +13,19 @@ float Condition::eval( const ValueMap& entityVals, const ValueMap& globalVals) c
         std::string key = match[1];
         std::string op = match[2];
         float value = std::stof(match[3]);
+        float actual = 0;
 
-        float actual = entityVals.HasValue(key) ? entityVals.GetValue(key) : globalVals.GetValue(key);
+
+        if (entityVals.TryGetValue(key, actual)) {
+           // all good
+        }
+        else if (globalVals.TryGetValue(key,actual)){
+            // pretty much done
+        }
+        else {
+        // uh oh, value could not be found
+        }
+        //float actual = entityVals.HasValue(key) ? entityVals.GetValue(key) : globalVals.GetValue(key);
 
         if (op == ">") return actual > value;
         if (op == ">=") return actual >= value;

@@ -39,6 +39,7 @@ static const char* ToString(LogCategory category) {
 	}
 }
 
+
 void LogSetMinimumLevel(LogCategory category, LogLevel level) {
 	minimumLevels[category] = level;
 }
@@ -55,9 +56,11 @@ void LogMessageC(const char* message, int category, int level) {
 	g_buffer.emplace_back(message, (int)cat, (int)lvl);
 }
 
+// i don't think we're actally using this?
 extern "C" DECLSOUND_API void SoundAPI_SetLogCallback(LogCallbackFn cb) {
 	g_logCallback.store(cb, std::memory_order_release);
 }
+
 
 extern "C" DECLSOUND_API
 bool SoundAPI_PollLog(int* outCat, int* outLvl, char* outMsg, int maxLen)
