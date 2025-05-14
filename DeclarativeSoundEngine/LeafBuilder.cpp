@@ -19,13 +19,14 @@ namespace LeafBuilder {
 	static double ComputeDuration(const Node* node, const ValueMap& params, double sampleRate, AudioBufferManager* bufferManager) {
 		switch (node->type) {
 
-
 		case NodeType::Sound: { // TODO: Somethings weird here with the buffers...! 
 			auto* sn = static_cast<const SoundNode*>(node);
 			AudioBuffer* buf;
 			if (bufferManager->TryGet(sn->sound, buf)) {
+				std::cout << "[ComputeDuration] buffer length: " << std::to_string(static_cast<double>(buf->GetFrameCount())) << std::endl;
 				return static_cast<double>(buf->GetFrameCount());
 			}
+			std::cout << "[ComputeDuration] could not get bufferlength" << std::endl;
 			return 0;
 			//return buf ? static_cast<double>(buf->GetFrameCount()) : 0.0;
 		}
@@ -38,6 +39,7 @@ namespace LeafBuilder {
 			for (auto& child : node->children) {
 				sum += ComputeDuration(child.get(), params, sampleRate, bufferManager);
 			}
+			std::cout << "[ComputeDuration] sequence duration: " << std::to_string(sum) << std::endl;
 			return sum;
 		}
 		case NodeType::Parallel: {
@@ -46,6 +48,7 @@ namespace LeafBuilder {
 				double d = ComputeDuration(child.get(), params, sampleRate, bufferManager);
 				if (d > maxDur) maxDur = d;
 			}
+			std::cout << "[ComputeDuration] parallel duration: " << std::to_string(maxDur) << std::endl;
 			return maxDur;
 		}
 		case NodeType::Random:
@@ -69,6 +72,7 @@ namespace LeafBuilder {
 			return 0.0;
 		}
 		default:
+			std::cout << "ComputeDuration: Unknown node type" << std::endl;
 			return 0.0;
 		}
 	}
@@ -115,6 +119,7 @@ namespace LeafBuilder {
 		case NodeType::Sequence: {
 			double offset = startSample;
 			for (auto& child : node->children) {
+				std::cout << "sequence offset: " + std::to_string(offset) << std::endl;
 				BuildLeaves(child.get(), params, offset, inheritedLoop, bus, out, audioDeviceCfg, bufferManager);
 				// compute child duration to update offset
 				offset += ComputeDuration(child.get(), params, audioDeviceCfg->sampleRate, bufferManager);

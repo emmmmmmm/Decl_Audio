@@ -245,6 +245,89 @@ static void RunRandomNodeTest() {
 }
 
 
+static void RunParallelNodeTest() {
+	LogMessage("=== Parallel Node Test ===", LogCategory::CLI, LogLevel::Info);
+
+	AudioConfig cfg{};
+	cfg.bufferFrames = 512;
+	cfg.channels = 1;
+	cfg.sampleRate = 44100;
+	cfg.backend = AudioBackend::Miniaudio;
+	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
+
+	SoundManager_SetAssetPath(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/");
+
+	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
+
+	SoundManager_SetTag(mgr, "l", "listener");
+	SoundManager_SetPosition(mgr, "l", 0, 0, 0);
+
+	SoundManager_SetStringValue(mgr, "player", "velocity", "0");
+	SoundManager_SetTag(mgr, "player", "entity.tester");
+	SoundManager_SetPosition(mgr, "player", 0, 0, 0);
+
+	SoundManager_SetTag(mgr, "player", "test.parallel");
+	SoundManager_Update(mgr);
+	using Clock = std::chrono::steady_clock;
+	SoundManager_DebugPrintState(mgr);
+
+	auto start = Clock::now();
+	float testDuration = 5.f;
+	while (true) {
+		auto now = Clock::now();
+		// elapsed time in seconds as a float
+		std::chrono::duration<float> elapsed = now - start;
+
+
+		SoundManager_Update(mgr);      // enqueues new commands
+
+		if (elapsed.count() >= testDuration) break;      // exit after 5 seconds
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+	}
+}
+
+
+static void RunSequenceNodeTest() {
+	LogMessage("=== Sequence Node Test ===", LogCategory::CLI, LogLevel::Info);
+
+	AudioConfig cfg{};
+	cfg.bufferFrames = 512;
+	cfg.channels = 1;
+	cfg.sampleRate = 44100;
+	cfg.backend = AudioBackend::Miniaudio;
+	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
+
+	SoundManager_SetAssetPath(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/");
+
+	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
+
+	SoundManager_SetTag(mgr, "l", "listener");
+	SoundManager_SetPosition(mgr, "l", 0, 0, 0);
+
+	SoundManager_SetStringValue(mgr, "player", "velocity", "0");
+	SoundManager_SetTag(mgr, "player", "entity.tester");
+	SoundManager_SetPosition(mgr, "player", 0, 0, 0);
+
+	SoundManager_SetTag(mgr, "player", "test.sequence");
+	SoundManager_Update(mgr);
+	using Clock = std::chrono::steady_clock;
+	SoundManager_DebugPrintState(mgr);
+
+	auto start = Clock::now();
+	float testDuration = 5.f;
+	while (true) {
+		auto now = Clock::now();
+		// elapsed time in seconds as a float
+		std::chrono::duration<float> elapsed = now - start;
+
+		SoundManager_Update(mgr);      // enqueues new commands
+
+		if (elapsed.count() >= testDuration) break;      // exit after 5 seconds
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+	}
+}
 
 
 
@@ -469,9 +552,12 @@ int main() {
 	//RunInteractiveTest(); // <- this. is. so. cool! xD
 
 	//RunRandomNodeTest();
-	RunBlendNodeTest();
+	//RunBlendNodeTest();
 	//RunSelectNodeTest();
 
+
+	 RunSequenceNodeTest();
+	 //RunParallelNodeTest();
 
 
 	//RunBasicBehaviorTest();

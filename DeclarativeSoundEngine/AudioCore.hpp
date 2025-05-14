@@ -95,7 +95,7 @@ struct BehaviorInstance {
 	void StartVoice(const LeafBuilder::Leaf& leaf, int busIdx, uint64_t currentSample)
 	{
 
-		std::cout << "start leaf, loop: " + std::to_string(leaf.loop) << std::endl;
+		std::cout << "start leaf, loop: " + std::to_string(leaf.loop) <<" offset: " <<std::to_string(leaf.startSample)<< std::endl;
 		Voice v;
 		v.buffer = leaf.buffer;
 		v.playhead = 0;
@@ -103,7 +103,7 @@ struct BehaviorInstance {
 		v.loop = leaf.loop;
 		v.busIndex = busIdx;
 		v.source = leaf.src;
-		v.startSample = currentSample;
+		v.startSample = leaf.startSample;
 		voices.push_back(std::move(v));
 	};
 
