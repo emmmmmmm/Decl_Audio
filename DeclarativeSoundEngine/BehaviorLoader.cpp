@@ -1,189 +1,266 @@
+﻿// BehaviorLoader.cpp
 #include "pch.h"
 #include "BehaviorLoader.hpp"
-#include "ASTBuilder.hpp"
-#include "BehaviorResolver.hpp"
 #include "AudioBehavior.hpp"
+#include "ParserUtils.hpp"
+#include "Log.hpp"
 #include <filesystem>
 #include <yaml-cpp/yaml.h>
-#include "Log.hpp"
-#include <memory>
-#include <vector>
-#include <unordered_map>
-#include <regex>
-#include "ParserUtils.hpp"
-# include "Node.hpp"
-#include <objbase.h>
-#include <iostream>
-#include <sstream>
-#include <filesystem>
-
+#include <numeric>
+#include <cstdlib>
 std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std::string& folderPath) {
+	// 1. Load raw YAML definitions
+	std::vector<YAML::Node> yamlBehaviors;
 
+	namespace fs = std::filesystem;
 
-	// Step 1: parse raw ASTs
-	std::vector<RawAudioBehavior> raws;
-
-
-	std::filesystem::path p{ folderPath };
-	if (!std::filesystem::exists(p) || !std::filesystem::is_directory(p)) {
-		LogMessage("Behavior folder not found or not a directory: " + folderPath,
-			LogCategory::BehaviorLoader, LogLevel::Warning);
-		return {};  // empty vector;
+	// sanity-check the path up front
+	if (!fs::exists(folderPath)) {
+		std::cerr << "[BL][Error] folder not found: " << folderPath << "\n";
+		return {};
+	}
+	if (!fs::is_directory(folderPath)) {
+		std::cerr << "[BL][Error] not a directory: " << folderPath << "\n";
+		return {};
 	}
 
 
 	for (auto& entry : std::filesystem::directory_iterator(folderPath)) {
 		if (!entry.is_regular_file()) continue;
-		auto path = entry.path();
-		auto ext = path.extension().string();
+		const auto ext = entry.path().extension().string();
 		if (ext == ".audio" || ext == ".yaml") {
 			try {
-				YAML::Node yamlRoot = YAML::LoadFile(path.string());
-				// Support both single-object and sequence of behaviors in one file
-				std::vector<YAML::Node> yamlBehaviors;
-				if (yamlRoot.IsSequence()) {
-					for (const auto entryNode : yamlRoot) {
-						yamlBehaviors.push_back(entryNode);
-					}
+				YAML::Node root = YAML::LoadFile(entry.path().string());
+				LogMessage(
+					"[BehaviorLoader] loading file " + entry.path().filename().string() + " -> " +
+					(root.IsSequence() ? "sequence of " + std::to_string(root.size()) + "" :
+						"single map"),
+					LogCategory::BehaviorLoader, LogLevel::Debug
+				);
+				if (root.IsSequence()) {
+					for (auto node : root) yamlBehaviors.push_back(node);
 				}
 				else {
-					yamlBehaviors.push_back(yamlRoot);
-				}
-				for (auto& behNode : yamlBehaviors) {
-					ASTNode ast = ASTBuilder::build(behNode);
-					RawAudioBehavior raw;
-					// extract ID if present
-					if (ast.map.count("id") && ast.map.at("id").isScalar()) {
-						raw.id = ast.map.at("id").scalar;
-					}
-					else {
-						raw.id = path.stem().string();
-					}
-					raw.root = std::move(ast);
-					// Debug: raw parse complete
-					LogMessage("[BehaviorLoader] Parsed raw behavior: " + raw.id,
-						LogCategory::BehaviorLoader, LogLevel::Debug);
-					raws.push_back(std::move(raw));
+					yamlBehaviors.push_back(root);
 				}
 			}
 			catch (const std::exception& e) {
-				LogMessage(std::string("YAML parse error in ") + path.string() + ": " + e.what(),
+				LogMessage("YAML parse error in " + entry.path().string() + ": " + e.what(),
 					LogCategory::BehaviorLoader, LogLevel::Error);
 			}
 		}
 	}
 
+	// 2. Register and parse BehaviorDefs
+	ParserUtils::Context ctx;
+	struct RawDef { std::string id; YAML::Node node; };
+	std::vector<RawDef> rawDefs;
+	rawDefs.reserve(yamlBehaviors.size());
+	for (auto& beh : yamlBehaviors) {
+		rawDefs.push_back({ beh["id"].as<std::string>(""), beh });
+	}
 
-	// Debug: dump raw AST field names and values
-	
+	std::vector<std::unique_ptr<BehaviorDef>> definitions;
+	definitions.reserve(rawDefs.size());
 	/*
-	for (auto& raw : raws) {
-		auto& m = raw.root.map;
-		LogMessage("[BehaviorLoader] Raw AST for '" + raw.id + "' has fields:", LogCategory::BehaviorLoader, LogLevel::Debug);
-		for (auto& kv : m) {
-			std::string key = kv.first;
-			LogMessage("    key: " + key + ", type: " + (kv.second.isScalar() ? "Scalar" : kv.second.isSeq() ? "Sequence" : "Map"),
-				LogCategory::BehaviorLoader, LogLevel::Debug);
-			if (key == "parameters" && kv.second.isMap()) {
-				for (auto& pkv : kv.second.map) {
-					LogMessage("        param: " + pkv.first + " = " + pkv.second.scalar,
-						LogCategory::BehaviorLoader, LogLevel::Debug);
-				}
-			}
-			else if ((key == "matchTags" || key == "matchConditions") && kv.second.isSeq()) {
-				for (auto& item : kv.second.seq) {
-					LogMessage(std::string("        ") + key + ": " + item.scalar,
-						LogCategory::BehaviorLoader, LogLevel::Debug);
-				}
-			}
-		}
+	for (auto& rd : rawDefs) {
+		std::cerr << "[Debug] rd.id = " << rd.id << "\n";
+		std::cerr << "[Debug] rd.node =\n" << rd.node << "\n\n";
 	}
 	*/
 
-	// Step 2: resolve inheritance/overrides (once)
-	BehaviorResolver::resolveAll(raws);
+	for (auto& rd : rawDefs) {
+		auto def = std::make_unique<BehaviorDef>();
+		def->id = rd.id;
+		def->busIndex = rd.node["bus"].as<int>(0);
 
-	// Debug: dump resolved AST field names
-	/*
-	for (auto& raw : raws) {
-		auto& m = raw.root.map;
-		LogMessage("[BehaviorLoader] Resolved AST for '" + raw.id + "' has fields:", LogCategory::BehaviorLoader, LogLevel::Debug);
-		for (auto& kv : m) {
-			LogMessage(std::string("    key: ") + kv.first,
-				LogCategory::BehaviorLoader, LogLevel::Debug);
+
+
+
+		// 1) pull matchTags
+		if (auto tagsN = rd.node["matchTags"]) {
+			if (!tagsN.IsSequence()) {
+				LogMessage("[BehaviorLoader] warning: matchTags for “" + def->id + "” is not a sequence", LogCategory::BehaviorLoader, LogLevel::Warning);
+			}
+			else {
+				for (const auto& t : tagsN) {
+					def->matchTags.push_back(t.as<std::string>());
+				}
+			}
 		}
+		// 2) build your internal matchConditions (whatever that is in your code)
+		if (auto condsN = rd.node["matchConditions"]) {
+			if (!condsN.IsSequence()) {
+				LogMessage("[BehaviorLoader] warning: matchConditions for “" + def->id + "” is not a sequence", LogCategory::BehaviorLoader, LogLevel::Warning);
+			}
+			else {
+				for (const auto& t : condsN) {
+					def->matchConditions.push_back(Condition(t.as<std::string>()));
+				}
+			}
+		}
+
+		/*
+		auto activeYaml = rd.node["onActive"];
+		std::cerr
+			<< "[Debug] rd.id=" << rd.id
+			<< " has onActive? " << (activeYaml.IsDefined() ? "yes" : "no")
+			<< " / IsNull? " << (activeYaml.IsNull() ? "yes" : "no")
+			<< "\n";
+
+		
+
+		// — 1) log what keys are present
+		std::vector<std::string> have;
+		if (rd.node["onStart"])  have.push_back("onStart");
+		if (rd.node["onActive"]) have.push_back("onActive");
+		if (rd.node["onEnd"])    have.push_back("onEnd");
+		LogMessage(
+			"[BehaviorLoader] \"" + def->id + "\" has keys: " +
+			(have.empty()
+				? "<none>"
+				: std::accumulate(
+					std::next(have.begin()), have.end(), have[0],
+					[](const auto& a, const auto& b) { return a + "," + b; }
+				)
+				),
+			LogCategory::BehaviorLoader, LogLevel::Info
+		);
+		*/
+
+		// — 2) parse onStart
+		{
+			auto nodeY = rd.node["onStart"];
+			if (nodeY) {
+				def->onStart.reset(ParserUtils::ParseNode(nodeY, ctx));
+				LogMessage(
+					"[BehaviorLoader] parsed onStart  for " + def->id +
+					(def->onStart ? "" : " <FAILED>"),
+					LogCategory::BehaviorLoader, LogLevel::Info
+				);
+			}
+			else {
+				LogMessage("[BehaviorLoader] no onStart  for " + def->id,
+					LogCategory::BehaviorLoader, LogLevel::Info);
+			}
+		}
+
+		// — 3) parse onActive
+		{
+			auto yamlN = rd.node["onActive"];
+			/*std::cerr
+				<< "[Debug] rd.id=" << rd.id
+				<< " onActive defined=" << yamlN.IsDefined()
+				<< " null=" << yamlN.IsNull() << "\n";*/
+			
+
+			if (yamlN.IsDefined() && !yamlN.IsNull()) {
+				/*std::cerr << "[Debug] about to call ParseNode(onActive) for "
+					<< rd.id << "\n";*/
+
+				// capture the pointer
+				Node* parsed = ParserUtils::ParseNode(yamlN, ctx);
+
+				// log success or failure
+				if (!parsed) {
+					std::cerr << "[Error] ParseNode(onActive) returned nullptr for "
+						<< rd.id << "\n";
+				}
+				else {
+					/*std::cerr << "[Debug] ParseNode(onActive) returned non-null for "
+						<< rd.id << "\n";*/
+
+
+					def->onActive.reset(parsed);
+				}
+			}
+			else {
+				// std::cerr << "[Debug] skipping onActive for " << rd.id << "\n";
+			}
+		}
+
+		// — 4) parse onEnd
+		{
+			auto nodeY = rd.node["onEnd"];
+			if (nodeY) {
+				def->onEnd.reset(ParserUtils::ParseNode(nodeY, ctx));
+				/*LogMessage(
+					"[BehaviorLoader] parsed onEnd    for " + def->id +
+					(def->onEnd ? "" : " <FAILED>"),
+					LogCategory::BehaviorLoader, LogLevel::Info
+				);*/
+			}
+			else {
+				/*LogMessage("[BehaviorLoader] no onEnd    for " + def->id,
+					LogCategory::BehaviorLoader, LogLevel::Info);*/
+			}
+		}
+
+		definitions.push_back(std::move(def));
 	}
-	*/
-	// Step 3: instantiate into final AudioBehavior structs
 
-	
 
+	// 3. Resolve references
+	for (auto& pr : ctx.unresolvedRefs) {
+		auto it = ctx.definitions.find(pr.second);
+		if (it != ctx.definitions.end()) pr.first->resolve(it->second);
+		else LogMessage("Unresolved reference '" + pr.second + "'", LogCategory::BehaviorLoader, LogLevel::Error);
+	}
+	ctx.unresolvedRefs.clear();
+
+	// 4. Build AudioBehavior list
 	std::vector<AudioBehavior> behaviors;
-	behaviors.reserve(raws.size());
-	for (auto& raw : raws) {
+	behaviors.reserve(definitions.size());
+	for (auto& defPtr : definitions) {
 		AudioBehavior b;
-		// is that ... smart?^^
-		GUID guid;
-		auto result = CoCreateGuid(&guid);
-		b.id = guid.Data1;
-		b.name = raw.id;
-
-
-
-		auto grab = [&](const std::string& key)->std::shared_ptr<Node> {
-			auto it = raw.root.map.find(key);
-			return (it != raw.root.map.end()) ? ParseNode(it->second) : nullptr;
-			};
-
-		b.onStart = grab("onStart");
-		b.onActive = grab("onActive");
-		b.onEnd = grab("onEnd");
-
-		// backward-compat single-node shortcut (soundName / soundNode)
-		if (!b.onActive) {
-			if (auto it = raw.root.map.find("soundNode"); it != raw.root.map.end())
-				b.onActive = ParseNode(it->second);
-			else if (auto it2 = raw.root.map.find("soundName");
-				it2 != raw.root.map.end() && it2->second.isScalar()) {
-				auto snd = std::make_unique<SoundNode>();
-				snd->sound = it2->second.scalar;
-				b.onActive = std::move(snd);
-			}
-		}
-
-
-
-
-
-		// flatten matchTags
-		if (auto it = raw.root.map.find("matchTags");
-			it != raw.root.map.end() && it->second.isSeq()) {
-			for (auto& tagAst : it->second.seq)
-				b.matchTags.push_back(tagAst.scalar);
-		}
-		// flatten matchConditions
-		if (auto it = raw.root.map.find("matchConditions");
-			it != raw.root.map.end() && it->second.isSeq()) {
-			for (auto& cAst : it->second.seq)
-				b.matchConditions.push_back(parseCondition(cAst.scalar));
-		}
-		// flatten parameters
-		if (auto it = raw.root.map.find("parameters");
-			it != raw.root.map.end() && it->second.isMap()) {
-			for (auto& kv : it->second.map)
-				b.parameters[kv.first] = parseExpression(kv.second.scalar);
-		}
-
-
-		// Debug: instantiated behavior summary
-		LogMessage("[BehaviorLoader] Instantiated behavior '" + b.name + "': "
-			"tags=" + std::to_string(b.matchTags.size()) + ", "
-			"conds=" + std::to_string(b.matchConditions.size()) + ", "
-			"params=" + std::to_string(b.parameters.size()),
-			LogCategory::BehaviorLoader, LogLevel::Debug);
+		b.name = defPtr->id;
+		b.id = rand();
+		b.busIndex = defPtr->busIndex;
+		b.matchTags = defPtr->matchTags;
+		b.matchConditions = defPtr->matchConditions;
+		b.rootVolume = defPtr->rootVolume;
+		b.onStart = std::move(defPtr->onStart);
+		b.onActive = std::move(defPtr->onActive);
+		b.onEnd = std::move(defPtr->onEnd);
 		behaviors.push_back(std::move(b));
 	}
 
-	std::cout << "BehaviorLoader::LoadAudioBehaviorsFromFolder - DONE" << std::endl;
+
+	// — 5) After you’ve built your `behaviors` vector, dump a final summary:
+	for (auto& b : behaviors) {
+		LogMessage(
+			"[BehaviorLoader] AudioBehavior '" + b.name +
+			"' -> onStart=" + (b.onStart ? "yes" : "no") +
+			", onActive=" + (b.onActive ? "yes" : "no") +
+			", onEnd=" + (b.onEnd ? "yes" : "no"),
+			LogCategory::BehaviorLoader, LogLevel::Info
+		);
+	}
+
+
+	//for (auto& b : behaviors) {
+	//	std::cerr << "[Debug] AudioBehavior '" << b.name << "'\n";
+
+	//	// dump matchTags
+	//	std::cerr << "        matchTags       = { ";
+	//	for (size_t i = 0; i < b.matchTags.size(); ++i) {
+	//		std::cerr << b.matchTags[i];
+	//		if (i + 1 < b.matchTags.size()) std::cerr << ", ";
+	//	}
+	//	std::cerr << " }\n";
+
+	//	// dump matchConditions (assuming it's a vector<std::string> or has a .toString())
+	//	std::cerr << "        matchConditions = { ";
+	//	for (size_t i = 0; i < b.matchConditions.size(); ++i) {
+	//		std::cerr << b.matchConditions[i].text;
+	//		if (i + 1 < b.matchConditions.size()) std::cerr << ", ";
+	//	}
+	//	std::cerr << " }\n\n";
+	//}
+
+
+
+
+
 	return behaviors;
 }

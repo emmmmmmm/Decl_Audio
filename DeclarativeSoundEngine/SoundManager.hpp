@@ -10,7 +10,7 @@
 #include "BehaviorDefinitionManager.hpp"
 
 #include "SoundManagerAPI.hpp"
-
+#include "MatchUtils.hpp"
 
 
 
@@ -21,11 +21,11 @@ public:
 
 	void Update();
 
-	void AddBehavior(AudioBehavior& behavior);
 	void SetTag(const std::string& entityId, const std::string& tag);
 	void ClearTag(const std::string& entityId, const std::string& tag);
 	void SetTransientTag(const std::string& entityId, const std::string& tag);
 	void SetValue(const std::string& entityId, const std::string& key, float value);
+	void SetValue(const std::string& entityId, const std::string& key, const std::string& value);
 	void ClearValue(const std::string& entityId, const std::string& key);
 	void ClearEntity(const std::string& entityId);
 	void SetBusGain(const std::string& entityId, float gain);             // literal
@@ -49,15 +49,10 @@ private:
 	std::unordered_map<std::string, std::unordered_set<uint32_t>> activeBehaviors; // entity -> playing IDs
 	std::unordered_map<std::string, ValueMap>                     lastValues;      // entity -> values pushed to core
 	void SendValueDiff(const std::string& entityId);
-	void SyncBehaviors(const std::string& entityId, const std::unordered_set<uint32_t>& desired);
 
 	void SyncBehaviorsForEntity(const std::string& entityId, const TagMap& tags, const TagMap& globalTags);
 
-	int MatchScore(const MatchDefinition& behavior, const TagMap& entityMap, const TagMap& globalMap, const std::string& entityId);
-	int TagSpecificity(const std::string& tag);
-	bool TagMatches(const std::string& pattern, const std::string& actual);
-
+	
 	AudioCore* audioCore; // AudioCore instance
-	void ProcessCoreResponses(); // Process responses from AudioCore
 
 };

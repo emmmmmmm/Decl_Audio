@@ -5,6 +5,7 @@
 #include "Condition.hpp"
 #include "Expression.hpp"
 
+struct Node;
 
 struct MatchDefinition {
 	uint32_t id = {};
@@ -21,7 +22,6 @@ struct PlayDefinition {
 	std::unique_ptr<Node> onStart;
 	std::unique_ptr<Node> onActive;
 	std::unique_ptr<Node> onEnd;
-
 
 	std::unordered_map<std::string, Expression> parameters;
 };

@@ -5,6 +5,12 @@
 #include "SoundManager.hpp"
 #include <atomic>
 
+#include <format>
+#include <chrono>
+#include <string>
+
+using namespace std::chrono_literals;
+
 
 static std::atomic<LogCallbackFn> g_logCallback{ nullptr };
 static std::mutex    g_mtx;
@@ -14,7 +20,11 @@ static std::unordered_map<LogCategory, LogLevel> minimumLevels = {
 	{ LogCategory::SoundManager, LogLevel::Debug },
 	{ LogCategory::BehaviorLoader, LogLevel::Debug },
 	{ LogCategory::CLI, LogLevel::Debug },
-	{ LogCategory::General, LogLevel::Debug }
+	{ LogCategory::General, LogLevel::Debug },
+	{ LogCategory::AudioCore, LogLevel::Debug },
+	{ LogCategory::BehaviorDefMgr, LogLevel::Debug},
+	{ LogCategory::AudioDevice, LogLevel::Debug},
+	{ LogCategory::AudioBuffer, LogLevel::Debug}
 };
 
 static const char* ToString(LogLevel level) {
@@ -35,6 +45,9 @@ static const char* ToString(LogCategory category) {
 	case LogCategory::CLI: return "CLI";
 	case LogCategory::General: return "General";
 	case LogCategory::AudioCore: return "AudioCore";
+	case LogCategory::BehaviorDefMgr: return "BehaviorDefinitionManager:";
+	case LogCategory::AudioDevice: return "AudioDevice";
+	case LogCategory::AudioBuffer: return "AudioBuffer";
 	default: return "Unknown";
 	}
 }
@@ -45,11 +58,14 @@ void LogSetMinimumLevel(LogCategory category, LogLevel level) {
 }
 
 
+
 void LogMessageC(const char* message, int category, int level) {
 	LogCategory cat = static_cast<LogCategory>(category);
 	LogLevel lvl = static_cast<LogLevel>(level);
 	if (lvl >= minimumLevels[cat]) {
-		std::cout << "[Log-" << ToString(cat) << "] " << message << std::endl;
+		
+		auto now = std::chrono::system_clock::now();
+		std::cout << std::format("{:%H %M %S}", now) <<  " [Log-" << ToString(cat) << "] " << message << std::endl;
 	}
 
 	std::lock_guard<std::mutex> lk(g_mtx);

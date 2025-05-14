@@ -1,6 +1,7 @@
 // TagMap.cpp
 #include "pch.h"
 #include "TagMap.hpp"
+#include "Log.hpp"
 
 void TagMap::AddTag(const std::string& tag, bool transient) {
     if (transient)
@@ -27,5 +28,9 @@ std::vector<std::string> TagMap::GetAllTags() const {
 }
 
 void TagMap::ClearTransient() {
+    if(_transient.size()>0)
+        LogMessage("clearning " + std::to_string(_transient.size())
+            + " transient tags", LogCategory::SoundManager, LogLevel::Info);
+
     _transient.clear();
 }

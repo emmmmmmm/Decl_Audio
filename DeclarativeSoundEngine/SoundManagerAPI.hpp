@@ -46,8 +46,9 @@ extern "C" {
 	DECLSOUND_API void SoundManager_SetTag(void* mgr, const char* entityId, const char* tag);
 	DECLSOUND_API void SoundManager_ClearTag(void* mgr, const char* entityId, const char* tag);
 	DECLSOUND_API void SoundManager_SetTransientTag(void* mgr, const char* entityId, const char* tag);
-
+		
 	DECLSOUND_API void SoundManager_SetValue(void* mgr, const char* entityId, const char* key, float value);
+	DECLSOUND_API void SoundManager_SetStringValue(void* mgr, const char* entityId, const char* key, const char* value);
 	DECLSOUND_API void SoundManager_ClearValue(void* mgr, const char* entityId, const char* key);
 
 	DECLSOUND_API void SoundManager_SetPosition(void* mgr, const char* entityId, float x, float y, float z);

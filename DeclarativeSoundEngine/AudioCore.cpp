@@ -7,6 +7,7 @@
 #include "AudioDeviceMiniAudio.hpp"
 #include <algorithm>
 #include <array>  
+#include "LeafBuilder.hpp"
 
 const double M_PI = 3.14159265358979323846;
 namespace {
@@ -14,32 +15,42 @@ namespace {
 }
 void BehaviorInstance::Update(const ValueMap& params, AudioBufferManager* bufMgr, uint8_t busIdx, float dt, uint64_t nowSamples)
 {
-	if (!onActive)
-		return;
+	//if (!onActive)
+	//	return;
 
 	constexpr float FADE_SEC = 0.05f;          // 50-ms fade
 	float stepFactor = (std::min)(dt / FADE_SEC, 1.0f);  // dt is control-tick
 
-	std::vector<SoundLeaf> desired;
-	CollectLeaves(*onActive, params, 1.0f, busIdx, desired, bufMgr);
+	std::vector<LeafBuilder::Leaf> desired;
+	
+	LeafBuilder::BuildLeaves(onActive.get(), params, 0, false, busIdx, desired, deviceCfg, bufMgr); // TODO: Startsample!?
+	//CollectLeaves(*onActive, params, 1.0f, busIdx, desired, bufMgr);
 
 	// start new
 	for (auto& leaf : desired) {
-		if (!leaf.buf) continue; // failed load, skip
+		if (!leaf.buffer) continue; // failed load, skip
 		if (!HasVoice(leaf.src))
 			StartVoice(leaf, busIdx, nowSamples);
 	}
 
+	// TODO: Update targetVol of already playing voices (contained in leafs)
+	
+
 	// fade-out missing
 	for (auto& v : voices)
 		if (std::none_of(desired.begin(), desired.end(),
-			[&](const SoundLeaf& l) { return l.src == v.source; }))
+			[&](const LeafBuilder::Leaf& l) {
+				return l.src == v.source;
+			}))
 			v.targetVol = 0.0f;
+			
 
 	// 2) ramp
 	for (Voice& v : voices) {
 		float diff = v.targetVol - v.currentVol;
 		v.currentVol += diff * stepFactor;           // 0 → 1 fade-in, 1 → 0 fade-out
+
+		std::cout << "currentVolume: " + std::to_string(v.currentVol) << std::endl;
 	}
 	// 3) prune
 	auto endIt = std::remove_if(voices.begin(), voices.end(),
@@ -53,14 +64,41 @@ void BehaviorInstance::Update(const ValueMap& params, AudioBufferManager* bufMgr
 }
 
 
+// a little helper to overload lambdas
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+static void PrintValue(const Value& v) {
+	std::visit(overloaded{
+		[](float f) { std::cerr << f; },
+		[](const std::string& s) { std::cerr << '"' << s << '"'; },
+		[](const Vec3& w) { std::cerr
+							   << "{" << w.x << ", " << w.y << ", " << w.z << "}";
+						  }
+		}, v);
+}
+// dumps an entire map
+static void DumpValueMap(const ValueMap& m) {
+	std::cerr << "-----VALUEMAP------------\n";
+	for (auto const& [key, val] : m.GetAllValues()) {
+		std::cerr << "  [" << key << "] = ";
+		PrintValue(val);
+		std::cerr << "\n";
+	}
+	std::cerr << "-------------------------\n";
+}
+
+/*
 void BehaviorInstance::CollectLeaves(const Node& n,
 	const ValueMap& params,
-	float              inGain,
-	uint8_t            bus,
+	float					inGain,
+	uint8_t					bus,
 	std::vector<SoundLeaf>& out,
-	AudioBufferManager* bufMgr)
+	AudioBufferManager* bufMgr,
+	bool loop)
 {
-	float here = inGain * n.volume.eval(params);
+	std::cout << "CollectLeaves: " + std::to_string(loop) << std::endl;
+
+	float gain = inGain * n.volume.eval(params);
 
 	switch (n.type)
 	{
@@ -72,54 +110,84 @@ void BehaviorInstance::CollectLeaves(const Node& n,
 
 			return;          // silent fail
 		}
-		out.push_back({ &sn, buf, here, sn.loop, bus });
+		std::cout << "sound node: " + std::to_string(loop) + " - gain: "+std::to_string(gain) << std::endl;
+		out.push_back({ &sn, buf, gain, loop, bus });
 		return;
 	}
 
-	case NodeType::Layer:
+	case NodeType::Parallel:
 		for (auto& c : n.children)
-			CollectLeaves(*c, params, here, bus, out, bufMgr);
+			CollectLeaves(*c, params, gain, bus, out, bufMgr, loop);
 		return;
 
 	case NodeType::Random: {
 		auto& rn = static_cast<const RandomNode&>(n);
 		size_t idx = rn.pickOnce();               // RandomNode remembers choice
-		CollectLeaves(*rn.children[idx], params, here, bus, out, bufMgr);
+		std::cout << "rng picked: " << idx << std::endl;
+		std::cout << "len children: " << rn.children.size() << std::endl;
+		CollectLeaves(*rn.children[idx], params, gain, bus, out, bufMgr, loop);
 		return;
 	}
+
+
+
 
 	case NodeType::Blend: {
 		const BlendNode& bn = static_cast<const BlendNode&>(n);
 
 		float val = 0;
+		// always get a float (defaults to 0.0 if missing)
+		float x = 0.f;
+		params.TryGetValue(bn.parameter, x);
 
-		if (params.TryGetValue(bn.parameter, val)) {
-			float x = params.HasValue(bn.parameter) ? val : 0.f;
+		auto w = bn.weights(x);
 
-			auto w = bn.weights(x);
-			if (w[0].first) CollectLeaves(*w[0].first, params, here * w[0].second, bus, out, bufMgr);
-			if (w[1].first) CollectLeaves(*w[1].first, params, here * w[1].second, bus, out, bufMgr);
-		}
+		std::cout << std::to_string(w[0].second) + " / " + std::to_string(w[1].second) << std::endl;
+
+		if (w[0].first) CollectLeaves(*w[0].first, params, gain * w[0].second, bus, out, bufMgr, loop);
+		if (w[1].first) CollectLeaves(*w[1].first, params, gain * w[1].second, bus, out, bufMgr, loop);
+
 		return;
 	}
 
 	case NodeType::Select: {
-		const SelectNode& sn = static_cast<const SelectNode&>(n);
-		std::string s = "";
-		if (params.TryGetValue(sn.parameter, s)) {
-			std::string val = params.HasValue(sn.parameter)
-				? s
-				: "";
-			if (const Node* child = sn.pick(val))
-				CollectLeaves(*child, params, here, bus, out, bufMgr);
+		auto const& sn = static_cast<const SelectNode&>(n);
+		std::cerr << "[SelectNode] looking for parameter "
+			<< sn.parameter << "\n";
+
+		//DumpValueMap(params);
+		float   fv = 0.f;
+		std::string sval;
+		// first try string (in case someone stored a literal)
+		if (params.TryGetValue(sn.parameter, sval)			// otherwise try the float overload
+			|| (params.TryGetValue(sn.parameter, fv)
+				&& (sval = std::to_string(fv), true)))
+		{
+			std::cerr << "[SelectNode] matched value " << sval << "\n";
+			if (auto child = sn.pick(sval))
+			{
+				std::cout << child << std::endl;
+				CollectLeaves(*child, params, gain, bus, out, bufMgr, loop);
+			}
+		}
+		else {
+			std::cerr << "[SelectNode] no entry for "
+				<< sn.parameter << "\n";
 		}
 		return;
 	}
+	case NodeType::Loop: {
+		auto& rn = static_cast<const LoopNode&>(n);
+		std::cout << "LOOP: len children: " << rn.children.size() << std::endl;
+		CollectLeaves(*rn.children[0], params, gain, bus, out, bufMgr, true); // loopnodes always have exactly one child!
+		return;
+	}
+
 
 	default: return;
 	}
 }
-
+*/
 
 
 AudioCore::AudioCore(
@@ -184,6 +252,7 @@ void AudioCore::AdvancePlayheads()
 	for (auto& [eid, ed] : entityMap)
 		for (auto& inst : ed.instances)
 			for (auto& v : inst->voices) {
+				if (v.buffer->Empty()) continue; // TODO: buffer not ready. but this would offset our start, right? not sure how to properly handle this tbh...?
 				size_t len = v.buffer->GetFrameCount();
 				if (v.loop)
 					v.playhead = (v.playhead + step) % len;
@@ -256,7 +325,7 @@ void AudioCore::TakeSnapshot()
 					pan.push_back(1);
 				}
 
-				back.voices[back.voiceCount++] = {
+				back.voices[back.voiceCount++] = VoiceSnap {
 					v.buffer,
 					v.playhead,
 					v.currentVol * att,   // pre‐attenuated
@@ -346,9 +415,10 @@ void AudioCore::HandleStartBehavior(const Command& cmd)
 
 	// 2) build fresh instance
 	auto inst = behaviorFactory.create();
+	inst->deviceCfg = deviceCfg;
 
 	inst->id = p->second.id;
-	inst->phase = Phase::Start;
+	inst->phase = BehaviorInstance::Phase::Start;
 
 	inst->onStart = p->second.onStart ? p->second.onStart->clone() : nullptr;
 	inst->onActive = p->second.onActive ? p->second.onActive->clone() : nullptr;
@@ -389,7 +459,7 @@ void AudioCore::HandleStopBehavior(const Command& cmd) {
 
 	for (auto& inst : entityMap[cmd.entityId].instances) {
 		if (inst->id == cmd.behaviorId) {
-			inst->phase = Phase::Ending;
+			inst->phase = BehaviorInstance::Phase::Ending;
 		}
 	}
 
@@ -430,40 +500,79 @@ void AudioCore::ProcessActiveSounds(float dt)
 			auto inst = *instPtr; // DOES THIS MAKE SENSE?
 			switch (inst->phase)
 			{
-			case Phase::Start:
+			case  BehaviorInstance::Phase::Start:
 			{
+				LogMessage("START", LogCategory::AudioCore, LogLevel::Debug);
+				//LogMessage("start", LogCategory::AudioCore, LogLevel::Debug);
+				//LogMessage(std::to_string(inst->onStart == nullptr), LogCategory::AudioCore, LogLevel::Debug);
+				//LogMessage(std::to_string(inst->onActive == nullptr), LogCategory::AudioCore, LogLevel::Debug);
+				//LogMessage(std::to_string(inst->onEnd == nullptr), LogCategory::AudioCore, LogLevel::Debug);
 				if (inst->voices.empty() && inst->onStart) {
 
-					std::vector<SoundLeaf> tmp;
-					inst->CollectLeaves(*inst->onStart, data.params, 1.0f,
-						GetOrCreateBus(eid), tmp, audioBufferManager);
-					for (auto& leaf : tmp) inst->StartVoice(leaf, leaf.bus, globalSampleCounter);
+					std::vector<LeafBuilder::Leaf> tmp;
+					//inst->CollectLeaves(*inst->onStart, data.params, 1.0f,GetOrCreateBus(eid), tmp, audioBufferManager);
+					LeafBuilder::BuildLeaves(inst->onStart.get(), data.params, 0, false, GetOrCreateBus(eid), tmp, deviceCfg, audioBufferManager);	// startsample==0??
+					for (auto& leaf : tmp) 
+						inst->StartVoice(leaf, leaf.bus, globalSampleCounter);
+
+					LogMessage("start: started " + std::to_string(tmp.size()) + " leafs", LogCategory::AudioCore, LogLevel::Debug);
 				}
 
-				// if (!inst->voices.empty() && AllFinished(inst->voices))
 
-				inst->phase = Phase::Active;
+				//inst->Update(data.params, audioBufferManager, GetOrCreateBus(eid), dt, globalSampleCounter);
+
+
+				if (inst->voices.empty() || AllFinished(inst->voices))
+				{
+					LogMessage("Transition to Active State: " + inst->id, LogCategory::AudioCore, LogLevel::Debug);
+					inst->phase = BehaviorInstance::Phase::Active;
+				}
 				// Active voices will be created next CollectLeaves() pass
 
 			}
 			break;
 
-			case Phase::Active:
+			case  BehaviorInstance::Phase::Active:
+				// start OnActiveLeafs
+				if (inst->voices.size() > 0)
+					LogMessage("ACTIVE: " + inst->voices[0].loop ? "true" : "false", LogCategory::AudioCore, LogLevel::Debug);
+				if (inst->voices.empty() && inst->onActive) {
+
+					std::vector<LeafBuilder::Leaf> tmp;
+					//inst->CollectLeaves(*inst->onActive, data.params, 1.0f, GetOrCreateBus(eid), tmp, audioBufferManager);
+					LeafBuilder::BuildLeaves(inst->onActive.get(), data.params, 0, false, GetOrCreateBus(eid), tmp, deviceCfg, audioBufferManager);
+					for (auto& leaf : tmp) 
+						inst->StartVoice(leaf, leaf.bus, globalSampleCounter);
+
+					LogMessage("ACTIVE: started " + std::to_string(tmp.size()) + " leafs", LogCategory::AudioCore, LogLevel::Debug);
+				}
+
+
+
 				// voices updated/diffed by CollectLeaves() 
 				inst->Update(data.params, audioBufferManager, GetOrCreateBus(eid), dt, globalSampleCounter);
 
 				// if active is oneshot, or no active sounds are assigned
 				// TODO: is this sufficient?
-				if (AllFinished(inst->voices))
-					inst->phase = Phase::Ending;
+
+				if (inst->voices.empty() || AllFinished(inst->voices))
+				{
+					inst->phase = BehaviorInstance::Phase::Ending;
+					LogMessage("Transition to Ended State: " + inst->id, LogCategory::AudioCore, LogLevel::Debug);
+				}
 
 				break;
 
-			case Phase::Ending:
+			case  BehaviorInstance::Phase::Ending:
 				// TODO:	
 				// - stop all sounds that are still playing
 				// - start events from onEnd
 				// - only after that, wait for allfinished
+
+				LogMessage("ending", LogCategory::AudioCore, LogLevel::Debug);
+
+				//inst->Update(data.params, audioBufferManager, GetOrCreateBus(eid), dt, globalSampleCounter);
+
 
 				if (AllFinished(inst->voices)) {
 
@@ -542,7 +651,7 @@ void AudioCore::RenderCallback(float* out, int frames)
 	{
 		const VoiceSnap& vs = s.voices[v];
 
-
+		if (vs.buf->Empty())continue; // buffer not loaded...?
 
 		const float* pcm = vs.buf->GetData();
 		int          ch = vs.buf->GetChannelCount();
@@ -560,7 +669,7 @@ void AudioCore::RenderCallback(float* out, int frames)
 			if (pos < len)               s0 = pcm[pos * ch] * vs.gain;
 			else if (vs.loop)            s0 = pcm[(pos % len) * ch] * vs.gain;
 
-			for (int c = 0; c < deviceCfg->channels; ++c)
+			for (uint32_t c = 0; c < deviceCfg->channels; ++c)
 				busBuf[i * deviceCfg->channels + c] += s0 * vs.pan[c]; // TODO: ChannelMatrix
 		}
 	}

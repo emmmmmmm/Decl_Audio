@@ -13,6 +13,7 @@
 #include "ObjectFactory.hpp"
 #include "SoundManagerAPI.hpp"
 #include "Vec3.hpp"
+#include "LeafBuilder.hpp"
 
 class SoundManager; // forward declaration
 
@@ -27,7 +28,7 @@ constexpr int  kSnapCount = 3;                   // triple-buffer
 
 struct Voice {
 	SoundHandle handle = {};
-	AudioBuffer* buffer = {};
+	const AudioBuffer* buffer = {};
 	size_t       playhead = {};      // sample-frame read offset
 	float        currentVol = {};
 	float        targetVol = {};
@@ -59,36 +60,30 @@ struct Voice {
 	}
 };
 
-struct SoundLeaf {
-	const SoundNode* src;     // unique identity in graph
-	AudioBuffer* buf;
-	float				gain;
-	bool				loop;
-	uint8_t				bus;
-};
 
-
-
-
-enum class Phase { Start, Active, Ending };
 
 struct BehaviorInstance {
+
+	enum class Phase { Start, Active, Ending };
+
 	uint32_t                    id = {};
 	Phase                       phase{ Phase::Start };
-
-	std::unique_ptr<Node> onStart;
-	std::unique_ptr<Node> onActive;
-	std::unique_ptr<Node> onEnd;
+	AudioConfig*				deviceCfg;
+	std::unique_ptr<Node>		onStart;
+	std::unique_ptr<Node>		onActive;
+	std::unique_ptr<Node>		onEnd;
 
 	std::vector<Voice>          voices;
 
 	std::unordered_map<std::string, Expression> paramExpr;
+	
+	
+	//AudioBufferManager* bufferManager;
 
 
 
-
-	static void CollectLeaves(const Node&, const ValueMap&, float, uint8_t,
-		std::vector<SoundLeaf>&, AudioBufferManager*);
+	//static void CollectLeaves(const Node&, const ValueMap&, float, uint8_t,
+	//	std::vector<SoundLeaf>&, AudioBufferManager*, bool loop = false);
 
 
 	bool HasVoice(const SoundNode* src) const
@@ -97,12 +92,14 @@ struct BehaviorInstance {
 			[&](const Voice& v) { return v.source == src; });
 	};
 
-	void StartVoice(const SoundLeaf& leaf, int busIdx, uint64_t currentSample)
+	void StartVoice(const LeafBuilder::Leaf& leaf, int busIdx, uint64_t currentSample)
 	{
+
+		std::cout << "start leaf, loop: " + std::to_string(leaf.loop) << std::endl;
 		Voice v;
-		v.buffer = leaf.buf;
+		v.buffer = leaf.buffer;
 		v.playhead = 0;
-		v.currentVol = v.targetVol = leaf.gain;
+		v.currentVol = v.targetVol = leaf.volume;
 		v.loop = leaf.loop;
 		v.busIndex = busIdx;
 		v.source = leaf.src;
@@ -128,11 +125,11 @@ struct BehaviorInstance {
 };
 
 struct VoiceSnap {
-	AudioBuffer* buf;
-	size_t       playhead;
-	float        gain;
-	bool         loop;
-	uint8_t      bus;
+	const AudioBuffer*	buf;
+	size_t				playhead;
+	float				gain;
+	bool				loop;
+	uint8_t				bus;
 
 	uint64_t startSample = {};
 	// Spatialization
@@ -143,7 +140,7 @@ struct VoiceSnap {
 
 /* -------- immutable snapshot -------- */
 struct Snapshot {
-	Vec3 listenerPosition = {};
+	Vec3		  listenerPosition = {};
 	uint32_t      voiceCount = 0;
 	VoiceSnap     voices[kMaxVoices];
 
@@ -185,7 +182,7 @@ class AudioCore {
 	// runtime state
 	std::unordered_map<std::string, EntityData> entityMap;
 	std::unordered_map<uint32_t, PlayDefinition> prototypes;
-	AudioBufferManager* bufferMgr = {};
+	//AudioBufferManager* bufferMgr = {};
 
 	std::vector<Voice> voiceSnapShots;
 
@@ -213,8 +210,10 @@ class AudioCore {
 public:
 	AudioBufferManager* audioBufferManager;
 	std::unique_ptr<AudioDevice> device;
+
+
 	ObjectFactory<Voice> voiceFactory{ 200, 50 }; // TBD.
-	ObjectFactory<BehaviorInstance> behaviorFactory{ 100, 10 };
+	ObjectFactory<BehaviorInstance> behaviorFactory{ 100, 5 };
 
 public:
 	AudioCore(
@@ -248,7 +247,7 @@ private:
 	void ClearBusBuffers();
 	void HandleBusGain(const Command& cmd);
 
-
+	AudioConfig* GetDeviceConfig() { return deviceCfg; };
 
 	/*Utility*/
 	static inline bool VoiceFinished(const Voice& v)

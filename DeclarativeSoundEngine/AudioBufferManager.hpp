@@ -10,6 +10,7 @@ class AudioBufferManager {
 public:
 	AudioBufferManager();
 	~AudioBufferManager();
+	bool TryGet( const std::string& path, AudioBuffer*& outBuf);
 	bool TryLoad(const std::string& path, AudioBuffer*& outBuf);
 	//std::future<AudioBuffer*> LoadAsync(const std::string& path);
 	void         Unload(const std::string& path);

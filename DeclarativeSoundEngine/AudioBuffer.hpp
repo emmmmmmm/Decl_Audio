@@ -10,7 +10,8 @@ public:
 	uint64_t    GetFrameCount() const;
 	const float*      GetData() const;
 	void        ReadSamples(float* dest, uint64_t offset, uint64_t frames) const;
-	bool Empty();
+	const bool Empty() const;
+	const static AudioBuffer* Get(const std::string& filePath);
 private:
 	std::vector<float> samples;  // interleaved
 	uint32_t sampleRate;

@@ -1,4 +1,4 @@
-#include "pch.h"
+ï»¿#include "pch.h"
 #include "BehaviorDefinitionManager.hpp"
 #include "BehaviorLoader.hpp"
 #include <iostream>
@@ -16,16 +16,17 @@ void BehaviorDefinitionManager::LoadFilesFromFolder(const std::string& path)
 	playdefs.reserve(behaviors.size());
 
 	for (auto& b : behaviors) {
-		if (!b.onStart && !b.onActive && !b.onEnd) { // we shouldn't actually continue here I think, but instead treat them as b.onstart?
+		if (!b.onStart && !b.onActive && !b.onEnd) {
 			LogMessage(
-				"BehaviorDefinitionManager: skipping behavior '" + b.name +
-				"'—no soundNode or soundName defined",
+				"BehaviorDefinitionManager: skipping behavior " + b.name +
+				" - no soundNode or soundName defined",
 				LogCategory::BehaviorDefMgr,
 				LogLevel::Warning
 			);
 			continue;
 		}
 
+		//LogMessage("BehaviorDefinitionManager: building MD: "+b.name, LogCategory::BehaviorDefMgr, LogLevel::Info);
 		// 1) Build MatchDefinition
 		MatchDefinition md;
 		md.id = b.id;
@@ -34,8 +35,8 @@ void BehaviorDefinitionManager::LoadFilesFromFolder(const std::string& path)
 		md.matchConditions = b.matchConditions;
 		md.parameters = b.parameters;
 		matchdefs.push_back(std::move(md));
+		//LogMessage("BehaviorDefinitionManager: building PD: "+b.name, LogCategory::BehaviorDefMgr, LogLevel::Info);
 
-		
 		// 2) Build PlayDefinition
 		PlayDefinition pd;
 		pd.id = b.id;
@@ -50,8 +51,8 @@ void BehaviorDefinitionManager::LoadFilesFromFolder(const std::string& path)
 
 		playdefs.push_back(std::move(pd));
 
-		LogMessage("BehaviorDefinitionManager: loaded " +
-			b.name + " valid behaviors",
+		LogMessage("BehaviorDefinitionManager: loaded Behavior: " +
+			b.name ,
 			LogCategory::BehaviorDefMgr,
 			LogLevel::Info);
 	}
@@ -60,6 +61,18 @@ void BehaviorDefinitionManager::LoadFilesFromFolder(const std::string& path)
 		std::to_string(playdefs.size()) + " valid behaviors",
 		LogCategory::BehaviorDefMgr,
 		LogLevel::Info);
+
+
+	std::cerr << "[Debug] Registered MatchDefinitions:\n";
+	for (auto& md : matchdefs) {
+		std::cerr << "  Behavior " << md.name << " -> tags={";
+		for (auto& t : md.matchTags) std::cerr << t << ",";
+		std::cerr << "}  conds={";
+		for (auto& c : md.matchConditions)    std::cerr << c.text << ",";
+		std::cerr << "}\n";
+	}
+
+
 }
 
 

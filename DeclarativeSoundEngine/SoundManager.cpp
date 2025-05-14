@@ -6,7 +6,7 @@
 #include "AudioDevice.hpp"
 #include <string>
 #include "SoundManagerAPI.hpp"
-#
+
 
 #include "AudioDeviceMiniAudio.hpp"
 #include "AudioDeviceUnity.hpp"
@@ -28,8 +28,6 @@ SoundManager::SoundManager(AudioConfig* cfg)
 	// todo: detach audio core as separate thread
 }
 
-
-
 SoundManager::~SoundManager()
 {
 	LogMessage("~SoundManager", LogCategory::SoundManager, LogLevel::Debug);
@@ -38,11 +36,6 @@ SoundManager::~SoundManager()
 
 	delete defsProvider;
 
-}
-
-
-void SoundManager::AddBehavior(AudioBehavior& behavior) {
-	LogMessage("::Addbehavior is obsolete!!", LogCategory::SoundManager, LogLevel::Warning);
 }
 
 void SoundManager::SetTag(const std::string& entityId, const std::string& tag) {
@@ -54,11 +47,10 @@ void SoundManager::SetTag(const std::string& entityId, const std::string& tag) {
 	if (tag == "listener") {
 		Command c;
 		c.type = CommandType::SetListener;
-		c.entityId = entityId;          
+		c.entityId = entityId;
 		managerToCore.push(c);
 	}
 }
-
 
 void SoundManager::ClearTag(const std::string& entityId, const std::string& tag) {
 	LogMessage("tag removed: " + tag + " (entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
@@ -85,10 +77,15 @@ void SoundManager::SetValue(const std::string& entityId, const std::string& key,
 	LogMessage("set value: " + std::to_string(value) + " key: " + key + "(entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
 }
 
+void SoundManager::SetValue(const std::string& entityId, const std::string& key, const std::string& value)
+{
+	entityValues[entityId].SetValue(key, value);
+	LogMessage("set value: " + value + " key: " + key + "(entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
+}
+
 void SoundManager::ClearValue(const std::string& entityId, const std::string& key) {
 	entityValues[entityId].ClearValue(key);
 	LogMessage("clear Value: " + key + " (entity: " + entityId + ")", LogCategory::SoundManager, LogLevel::Debug);
-
 }
 
 void SoundManager::ClearEntity(const std::string& entityId) {
@@ -123,65 +120,8 @@ void SoundManager::SetAssetPath(const std::string& path)
 
 void SoundManager::SetEntityPosition(const std::string& entityId, float x, float y, float z)
 {
-	entityValues[entityId].SetValue("position", Vec3(x,y,z));
+	entityValues[entityId].SetValue("position", Vec3(x, y, z));
 
-}
-
-int SoundManager::TagSpecificity(const std::string& tag) {
-	std::istringstream stream(tag);
-	std::string segment;
-	int score = 0;
-
-	while (std::getline(stream, segment, '.')) {
-		score += (segment == "*") ? 5 : 10;
-	}
-
-	return score;
-}
-
-bool SoundManager::TagMatches(const std::string& pattern, const std::string& actual) {
-	std::istringstream pat(pattern);
-	std::istringstream act(actual);
-	std::string pseg, aseg;
-
-	while (std::getline(pat, pseg, '.')) {
-		if (!std::getline(act, aseg, '.')) return false;
-		if (pseg != "*" && pseg != aseg) return false;
-	}
-
-	return !std::getline(act, aseg, '.');
-}
-
-
-int SoundManager::MatchScore(const MatchDefinition& md, const TagMap& entityMap, const TagMap& globalMap, const std::string& entityId) {
-	int score = 0;
-	auto allTags = entityMap.GetAllTags();
-	const auto& globalTags = globalMap.GetAllTags();
-	allTags.insert(allTags.end(), globalTags.begin(), globalTags.end());
-
-	for (const auto& required : md.matchTags) {
-		bool matched = false;
-		for (const auto& actual : allTags) {
-			if (TagMatches(required, actual)) {
-				matched = true;
-				score += 10 + TagSpecificity(required);
-				break;
-			}
-		}
-		if (!matched) return -1;
-	}
-
-	static const ValueMap emptyVals;
-	const ValueMap& entityVals = entityValues.count(entityId) ? entityValues.at(entityId) : emptyVals;
-	const ValueMap& globalVals = entityValues.count("global") ? entityValues.at("global") : emptyVals;
-
-	for (const auto& condition : md.matchConditions) {
-		if (!condition.eval(entityVals, globalVals)) {
-			return -1;
-		}
-	}
-
-	return score;
 }
 
 void SoundManager::SendValueDiff(const std::string& entityId)
@@ -189,7 +129,7 @@ void SoundManager::SendValueDiff(const std::string& entityId)
 	const ValueMap& current = entityValues[entityId];
 	ValueMap& last = lastValues[entityId];           // creates empty on first use
 
-	for (auto [k, v] : current.GetAllValues()) {
+	for (auto& [k, v] : current.GetAllValues()) {
 		if (!last.HasValue(k) || last.values[k] != v) {
 			Command c;
 			c.type = CommandType::ValueUpdate;
@@ -202,38 +142,17 @@ void SoundManager::SendValueDiff(const std::string& entityId)
 	}
 }
 
-// UNUSUED?
-void SoundManager::SyncBehaviors(const std::string& entityId, const std::unordered_set<uint32_t>& desired)
-{
-	auto& active = activeBehaviors[entityId];
 
-	// start new
-	for (uint32_t id : desired)
-		if (!active.contains(id)) {
-			Command c;
-			c.type = CommandType::StartBehavior;
-			c.entityId = entityId;
-			c.behaviorId = id;
-			managerToCore.push(c);
-		}
-
-
-	// stop obsolete
-	for (uint32_t id : active)
-		if (!desired.contains(id)) {
-			Command c;
-			c.type = CommandType::StopBehavior;
-			c.entityId = entityId;
-			c.behaviorId = id;
-			managerToCore.push(c);
-			LogMessage("removed behavior", LogCategory::SoundManager, LogLevel::Debug);
-		}
-
-	active = desired;   // snapshot for next frame
+static std::string JoinTags(const std::vector<std::string>& tags) {
+	std::ostringstream oss;
+	oss << "[";
+	for (size_t i = 0; i < tags.size(); ++i) {
+		oss << tags[i];
+		if (i + 1 < tags.size()) oss << ", ";
+	}
+	oss << "]";
+	return oss.str();
 }
-
-
-
 
 void SoundManager::SyncBehaviorsForEntity(const std::string& entityId, const TagMap& tags, const TagMap& globalTags)
 {
@@ -242,14 +161,28 @@ void SoundManager::SyncBehaviorsForEntity(const std::string& entityId, const Tag
 	// 1) Gather all matching definitions
 	std::unordered_set<uint32_t> desired;
 	for (const auto& md : matchDefinitions) {
-		if (MatchScore(md, tags, globalTags, entityId) >= 0) {
+		auto score = MatchUtils::MatchScore(md, tags, globalTags, entityValues, entityId);
+
+
+		/*std::cerr
+			<< "[Debug]   candidate " << md.name
+			<< " → score=" << score
+			<< " id: " << md.id
+			<< "  entitytags=" << JoinTags(tags.GetAllTags())
+			<< "  matchtags=" << JoinTags(md.matchTags)
+			<< "\n";*/
+
+		if (score >= 0) {
+
 			desired.insert(md.id);
+
 		}
 	}
 
 	// 2) Start newly desired behaviors
 	for (auto id : desired) {
 		if (!data.count(id)) {
+			std::cerr << "starting new id: " << id << std::endl;
 
 			Command c;
 			c.type = CommandType::StartBehavior;
@@ -280,33 +213,15 @@ void SoundManager::SyncBehaviorsForEntity(const std::string& entityId, const Tag
 
 void SoundManager::Update()
 {
-
-
-	const TagMap& globalTags = entityTags["global"];
-
 	for (auto& [entityId, tags] : entityTags) {
-		SyncBehaviorsForEntity(entityId, tags, globalTags);
+		SyncBehaviorsForEntity(entityId, tags, entityTags["global"]);
 		SendValueDiff(entityId);
 		tags.ClearTransient();
 	}
-
 	audioCore->Update(); // TODO: remove once audiocore gets detached into it's own thread!
-
-	ProcessCoreResponses(); // for later I guess
 }
 
-void SoundManager::ProcessCoreResponses() {
-	// logs, callbacks, etc
-	Command cmd;
-	while (coreToManager.pop(cmd)) {
-		// Handle the response - logging, etc.
-		if (cmd.type == CommandType::Log) {
-			if (auto s = std::get_if<std::string>(&cmd.value))
-				LogMessage("CORE Response: " + *s, LogCategory::AudioCore, LogLevel::Info);
-		}
 
-	}
-}
 
 
 

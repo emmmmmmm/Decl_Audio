@@ -1,158 +1,218 @@
-// ParseNode.cpp
+﻿// ParserUtils.cpp
 #include "pch.h"
+#include "ParserUtils.hpp"
 #include "Node.hpp"
-#include "ASTNode.hpp"
-#include "Condition.hpp"
-#include "Expression.hpp"
-#include <iostream>
-#include "Log.hpp"
+#include <stdexcept>
 
-std::unique_ptr<Node> ParseNode(const ASTNode& ast) {
-	if (!ast.isMap()) return nullptr;
-	auto it = ast.map.begin();
-	const std::string nodeType = it->first;
-	const ASTNode& payload = it->second;
-	std::unique_ptr<Node> node;
+namespace ParserUtils {
 
-	if (nodeType == "sound") {
-		auto sn = std::make_unique<SoundNode>();
-		sn->sound = payload.scalar;
-		node = std::move(sn);
-	}
-	else if (nodeType == "layer") {
-		auto ln = std::make_unique<LayerNode>();
-		if (auto soundsIt = payload.map.find("sounds");
-			soundsIt != payload.map.end() && soundsIt->second.isSeq()) {
-			for (auto& childAst : soundsIt->second.seq) {
-				std::unique_ptr<Node> child;
-				if (childAst.isMap()) {
-					child = ParseNode(childAst);
-
-				}
-				else if (childAst.isScalar()) {
-					// scalar shorthand: just a filename
-					auto sn = std::make_unique<SoundNode>();
-					sn->sound = childAst.scalar;
-					child = std::move(sn);
-
-				}
-				if (child) {
-					ln->children.push_back(std::move(child));
-
-				}
-
+	std::string ExtractCoreKey(const YAML::Node& mapNode) {
+		for (auto it = mapNode.begin(); it != mapNode.end(); ++it) {
+			std::string key = it->first.Scalar();
+			if (key == "sound" || key == "delay" || key == "random" || key == "sequence" ||
+				key == "blend" || key == "select" || key == "loop" || key == "parallel") {
+				return key;
 			}
 		}
-		node = std::move(ln);
+		std::cout << "UNKNOWN NODETYPE: \n" << mapNode << std::endl;
+		throw std::runtime_error("Unknown node type in map: ");
 	}
-	else if (nodeType == "random") {
-		auto rn = std::make_unique<RandomNode>();
-		if (auto soundsIt = payload.map.find("sounds");
-			soundsIt != payload.map.end() && soundsIt->second.isSeq()) {
-			for (auto& childAst : soundsIt->second.seq) {
-				std::unique_ptr<Node> child;
-				if (childAst.isMap()) {
-					child = ParseNode(childAst);
 
-				}
-				else if (childAst.isScalar()) {
-					auto sn = std::make_unique<SoundNode>();
-					sn->sound = childAst.scalar;
-					child = std::move(sn);
+	ModifierMap ExtractModifiers(const YAML::Node& mapNode) {
+		ModifierMap mods;
+		if (mapNode["volume"])   mods.volume = mapNode["volume"].as<std::string>();
+		if (mapNode["pitch"])    mods.pitch = mapNode["pitch"].as<std::string>();
+		if (mapNode["loop"])	 mods.loop = true;
+		//mods.loop = mapNode["loop"] ? mapNode["loop"].as<bool>() : false;
+		return mods;
+	}
 
-				}
-				if (child) {
-					rn->children.push_back(std::move(child));
-
-				}
-
+	YAML::Node ExtractChildren(const YAML::Node& mapNode) {
+		// 1) if it’s a one-entry map whose value is itself a map, unwrap it
+		if (mapNode.IsMap() && mapNode.size() == 1) {
+			auto it = mapNode.begin();
+			if (it->second.IsMap()) {
+				return ExtractChildren(it->second);
 			}
 		}
-		node = std::move(rn);
-	}
-	else if (nodeType == "blend") {
-		auto bn = std::make_unique<BlendNode>();
-		if (auto pIt = payload.map.find("parameter");
-			pIt != payload.map.end() && pIt->second.isScalar()) {
-			bn->parameter = pIt->second.scalar;
-		}
-		if (auto bIt = payload.map.find("blends");
-			bIt != payload.map.end() && bIt->second.isSeq()) {
-			for (auto& pointAst : bIt->second.seq) {
-				float at = std::stof(pointAst.map.at("at").scalar);
-				ASTNode childNode = pointAst;
-				if (pointAst.map.count("soundNode"))
-					childNode = pointAst.map.at("soundNode");
-				bn->blends.push_back({ at, ParseNode(childNode) });
-			}
-			// sort blendpoints (?) // think about if this is actually a good idea though, because it might create create inconsistencies!
-			// std::sort(bn->blends.begin(), bn->blends.end(),
-			// 		[](const BlendNode::Point& a, const BlendNode::Point& b)
-			// 		{ return a.at < b.at; });
-		}
-		node = std::move(bn);
-	}
-	else if (nodeType == "select") {
-		auto sel = std::make_unique<SelectNode>();
-		sel->parameter = payload.map.at("parameter").scalar;
 
-		if (auto cases = payload.map.find("cases"); cases != payload.map.end()) {
-			for (auto& kv : cases->second.map) {
-				SelectNode::Option opt;
-				opt.pattern = kv.first;
-				opt.node = ParseNode(kv.second);
-				sel->options.push_back(std::move(opt));
+		// 2) explicit known container keys
+		if (mapNode["nodes"]) return mapNode["nodes"];
+		if (mapNode["sounds"]) return mapNode["sounds"];
+		if (mapNode["blends"]) return mapNode["blends"];
+		if (mapNode["cases"]) return mapNode["cases"];
+
+		// 3) fallback: first sequence child anywhere
+		for (auto it = mapNode.begin(); it != mapNode.end(); ++it) {
+			if (it->second.IsSequence())
+				return it->second;
+		}
+
+		return YAML::Node();
+	}
+	Node* NormalizeLoops(Node* root) {
+		if (!root)return nullptr;
+		if (auto loopNode = dynamic_cast<LoopNode*>(root)) {
+			if (auto inner = dynamic_cast<LoopNode*>(loopNode->getChild())) {
+				return NormalizeLoops(inner);
 			}
 		}
-		if (auto def = payload.map.find("default"); def != payload.map.end())
-			sel->defaultNode = ParseNode(def->second);
-
-		node = std::move(sel);
+		for (auto& child : root->getChildren())
+			NormalizeLoops(child.get());
+		return root;
 	}
 
-	// common params
-	if (ast.map.count("volume"))   node->volume = Expression(ast.map.at("volume").scalar);
-	if (ast.map.count("pitch"))    node->pitch = std::stof(ast.map.at("pitch").scalar);
-	if (ast.map.count("fadeIn"))   node->fadeIn = std::stof(ast.map.at("fadeIn").scalar);
-	if (ast.map.count("fadeOut"))  node->fadeOut = std::stof(ast.map.at("fadeOut").scalar);
-	if (ast.map.count("delay"))    node->delay = std::stof(ast.map.at("delay").scalar);
-	if (ast.map.count("loop"))     node->loop = std::stoi(ast.map.at("loop").scalar);
 
+	Node* ParseNode(const YAML::Node& yamlNode, Context& ctx) {
+		Node* node = nullptr;
+		ModifierMap mods;
 
-	// spatial params
-	// maybe we want to use this in the future for a positional offset against the entity?
-	/*
-	if (ast.map.count("position")) {
-		const ASTNode& posNode = ast.map.at("position");
-		if (posNode.isSeq() && posNode.seq.size() == 3) {
-			node->position = std::array<float, 3>{
-			std::stof(posNode.seq[0].scalar),
-			std::stof(posNode.seq[1].scalar),
-			std::stof(posNode.seq[2].scalar)
-			};
+		/*std::cerr << "[ParseNode] entry; "
+			<< "IsNull=" << yamlNode.IsNull()
+			<< ", IsScalar=" << yamlNode.IsScalar()
+			<< ", IsSequence=" << yamlNode.IsSequence()
+			<< ", IsMap=" << yamlNode.IsMap()
+			<< "\n"
+			<< yamlNode << "\n";*/
+
+		if (yamlNode.IsScalar()) {
+			// simple string → Sound or Reference
+			std::string val = yamlNode.as<std::string>();
+			auto it = ctx.definitions.find(val);
+			if (it != ctx.definitions.end()) {
+				auto ref = new ReferenceNode(val);
+				ctx.unresolvedRefs.emplace_back(ref, val);
+				node = ref;
+			}
+			else {
+				node = new SoundNode(val);
+			}
+		}
+		else if (yamlNode.IsSequence()) {
+			auto seq = new SequenceNode();
+			for (const auto& child : yamlNode)
+				seq->addChild(ParseNode(child, ctx));
+			node = seq;
+		}
+		else if (yamlNode.IsMap()) {
+			// Find which kind it is (sound, delay, random, blend, select, …)
+			std::string key = ExtractCoreKey(yamlNode);
+			mods = ExtractModifiers(yamlNode);
+			YAML::Node children = ExtractChildren(yamlNode);
+
+			if (key == "sound" || key == "delay") {
+				// both store a single string
+				auto valNode = yamlNode[key];
+				if (!valNode || !valNode.IsScalar())
+					throw std::runtime_error(key + " node missing scalar value");
+				if (key == "sound")
+					node = new SoundNode(valNode.as<std::string>());
+				else
+					node = new DelayNode(valNode.as<std::string>());
+			}
+			else if (key == "random") {
+				auto rnd = new RandomNode();
+				if (children && children.IsSequence())
+					for (const auto& c : children)
+						rnd->addChild(ParseNode(c, ctx));
+				node = rnd;
+			}
+			else if (key == "sequence") {
+				auto seq = new SequenceNode();
+				if (children && children.IsSequence())
+					for (const auto& c : children)
+						seq->addChild(ParseNode(c, ctx));
+				node = seq;
+			}
+			else if (key == "parallel") {
+				auto par = new ParallelNode();
+				if (children && children.IsSequence())
+					for (const auto& c : children)
+						par->addChild(ParseNode(c, ctx));
+				node = par;
+			}
+			else if (key == "blend") {
+				// 1) grab the 'blend' sub-map
+				auto sub = yamlNode["blend"];
+				if (!sub || !sub.IsMap())
+					throw std::runtime_error("blend node not a map");
+
+				// 2) read parameter from the sub-map
+				auto paramN = sub["parameter"];
+				if (!paramN || !paramN.IsScalar())
+					throw std::runtime_error("blend missing parameter");
+				auto bn = new BlendNode();
+				bn->parameter = paramN.as<std::string>();
+
+				// 3) iterate cases, but recurse only on the inner sound
+				auto listN = sub["blends"];
+				if (listN && listN.IsSequence()) {
+					for (auto const& item : listN) {
+						float at = item["at"].as<float>();
+						YAML::Node soundN = item["sound"];
+						if (!soundN)
+							throw std::runtime_error("blend case missing sound");
+						Node* child = ParseNode(soundN, ctx);
+						bn->addCase(at, child);
+					}
+				}
+				node = bn;
+			}
+			else if (key == "select") {
+				auto sub = yamlNode["select"];
+				if (!sub || !sub.IsMap())
+					throw std::runtime_error("select node not a map");
+
+				// read the “parameter”
+				auto paramN = sub["parameter"];
+				if (!paramN.IsScalar())
+					throw std::runtime_error("select missing parameter");
+				auto sn = new SelectNode();
+				sn->parameter = paramN.as<std::string>();
+
+				// drill into “cases” and only recurse on the sound child
+				auto listN = sub["cases"];
+				if (listN && listN.IsSequence()) {
+					for (auto const& item : listN) {
+						// either use item["pattern"] or item["at"] depending on your YAML
+						std::string pat = item["at"].as<std::string>();
+						auto soundN = item["sound"];
+						if (!soundN)
+							throw std::runtime_error("select case missing sound");
+						Node* child = ParseNode(soundN, ctx);
+						sn->addCase(pat, child);
+					}
+				}
+				node = sn;
+			}
+
+			else if (key == "loop") {
+				auto sub = yamlNode["loop"];
+				if (!sub) throw std::runtime_error("loop missing child");
+				auto child = std::unique_ptr<Node>(ParseNode(sub, ctx));
+				node = new LoopNode(std::move(child));
+			}
+			else {
+				throw std::runtime_error("Unhandled coreKey: " + key);
+			}
 		}
 		else {
-			// you can hook into your logging system here
-			LogMessage("Warning: 'position' must be a sequence of 3 scalars\n", LogCategory::SoundManager, LogLevel::Warning);
+			throw std::runtime_error("Invalid YAML node type");
 		}
+
+		// apply modifiers
+		if (mods.volume) node->setVolume(*mods.volume);
+		if (mods.pitch)  node->setPitch(*mods.pitch);
+
+		// insn't this somewhat redundant?
+		if (mods.loop) {
+			std::unique_ptr<Node> owned(node);
+			auto loopNode = std::make_unique<LoopNode>(std::move(owned));
+			node = loopNode.release();
+		}
+
+		return NormalizeLoops(node);
 	}
-	*/
-	if (ast.map.count("radius")) {
-		node->radius = std::stof(ast.map.at("radius").scalar);
-
-	}
 
 
-
-
-	return node;
-}
-Condition parseCondition(const std::string& string)
-{
-	return Condition(string);
-}
-
-Expression parseExpression(const std::string& string)
-{
-	return Expression(string);
-}
+} // namespace ParserUtils

@@ -97,6 +97,11 @@ DECLSOUND_API void SoundManager_SetValue(void* mgr, const char* entityId, const 
 	static_cast<SoundManager*>(mgr)->SetValue(std::string(entityId), std::string(key), value);
 }
 
+DECLSOUND_API void SoundManager_SetStringValue(void* mgr, const char* entityId, const char* key, const char* value)
+{
+	static_cast<SoundManager*>(mgr)->SetValue(std::string(entityId), std::string(key), value);
+}
+
 DECLSOUND_API void SoundManager_ClearValue(void* mgr, const char* entityId, const char* key)
 {
 	static_cast<SoundManager*>(mgr)->ClearValue(std::string(entityId), std::string(key));

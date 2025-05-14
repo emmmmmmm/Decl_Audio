@@ -20,14 +20,15 @@ AudioBufferManager::~AudioBufferManager()
 	cache.clear();
 	lruList.clear();
 }
-
-bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
-{
-	// TODO: Combine path with assetpath, use absolute path in AudioBuffer!
-
-
-	std::lock_guard<std::mutex> lock(mutex);
+bool AudioBufferManager::TryGet(const std::string& path, AudioBuffer*& outBuf) {
+//	std::lock_guard<std::mutex> lock(mutex);
 	// already cached?
+
+	std::cerr << "[AudioBufferManager::TryGet] this=" << this
+		<< "  cache@=" << &cache
+		<< "  cache.size()=" << cache.size() << "\n";
+
+
 	auto it = cache.find(path);
 	if (it != cache.end()) {
 		// Move this path to front of LRU
@@ -36,12 +37,37 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 		// Increment ref count
 		it->second.second++;
 		outBuf = &it->second.first;
-
-		LogMessage("AudioBufferManager: file aready loaded: " + path,
-			LogCategory::AudioBuffer, LogLevel::Debug);
-
 		return true;
 	}
+	return false;
+}
+bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
+{
+
+	std::lock_guard<std::mutex> lock(mutex);
+	// already cached?
+	if (TryGet(path, outBuf)) {
+		LogMessage("AudioBufferManager: file aready loaded: " + path,
+			LogCategory::AudioBuffer, LogLevel::Debug);
+		return true;
+	}
+
+	
+
+
+	//if (it != cache.end()) {
+	//	// Move this path to front of LRU
+	//	lruList.remove(path);
+	//	lruList.push_front(path);
+	//	// Increment ref count
+	//	it->second.second++;
+	//	outBuf = &it->second.first;
+
+	//	LogMessage("AudioBufferManager: file aready loaded: " + path,
+	//		LogCategory::AudioBuffer, LogLevel::Debug);
+
+	//	return true;
+	//}
 
 
 	// Load new buffer
@@ -78,7 +104,7 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	);
 
 	// emplaced.first is iterator into the new element
-	it = emplaced.first;
+	auto it = emplaced.first;
 
 	// LRU and memory tracking
 	lruList.push_front(path);

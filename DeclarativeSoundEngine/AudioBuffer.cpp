@@ -84,7 +84,8 @@ AudioBuffer::AudioBuffer(const std::string& filePath)
     }
 
     ma_decoder_uninit(&decoder);
-    LogMessage("Loaded “" + filePath + "”: frames=" +
+
+    LogMessage("Loaded " + filePath + ": frames=" +
         std::to_string(frameCount) + " ch=" +
         std::to_string(channelCount) + " SR=" +
         std::to_string(sampleRate),
@@ -117,7 +118,12 @@ void AudioBuffer::ReadSamples(float* dest, uint64_t offsetFrame, uint64_t frameC
 	std::memcpy(dest, samples.data() + startSample, sampleCount * sizeof(float));
 }
 
-bool AudioBuffer::Empty()
+const bool AudioBuffer::Empty()  const
 {
 	return frameCount == 0;
+}
+
+const AudioBuffer* AudioBuffer::Get(const std::string& filePath) 
+{
+    return  new AudioBuffer(filePath);
 }
