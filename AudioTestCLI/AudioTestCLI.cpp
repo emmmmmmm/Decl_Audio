@@ -8,7 +8,7 @@
 #include <chrono>
 
 #include "SoundManagerAPI.hpp"
-#include "AudioBehavior.hpp" 
+#include "BehaviorDef.hpp" 
 #include "BehaviorLoader.hpp"
 #include "Log.hpp"
 #include <SoundManager.hpp>
@@ -306,6 +306,8 @@ static void RunSequenceNodeTest() {
 	SoundManager_SetPosition(mgr, "l", 0, 0, 0);
 
 	SoundManager_SetStringValue(mgr, "player", "velocity", "0");
+	SoundManager_SetValue(mgr, "player", "altitude", 1);
+	SoundManager_SetValue(mgr, "player", "delaytime", 0.125);
 	SoundManager_SetTag(mgr, "player", "entity.tester");
 	SoundManager_SetPosition(mgr, "player", 0, 0, 0);
 

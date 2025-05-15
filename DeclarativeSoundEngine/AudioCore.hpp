@@ -3,7 +3,7 @@
 
 #pragma once
 #include "AudioCommand.hpp"
-#include "AudioBehavior.hpp"
+#include "BehaviorDef.hpp"
 #include "AudioBufferManager.hpp"
 #include "AudioDevice.hpp"
 #include "IBehaviorDefinition.hpp"
@@ -92,14 +92,15 @@ struct BehaviorInstance {
 			[&](const Voice& v) { return v.source == src; });
 	};
 
-	void StartVoice(const LeafBuilder::Leaf& leaf, int busIdx, uint64_t currentSample)
+	void StartVoice(const LeafBuilder::Leaf& leaf, int busIdx, uint64_t currentSample, const ValueMap& params)
 	{
 
 		std::cout << "start leaf, loop: " + std::to_string(leaf.loop) <<" offset: " <<std::to_string(leaf.startSample)<< std::endl;
 		Voice v;
 		v.buffer = leaf.buffer;
 		v.playhead = 0;
-		v.currentVol = v.targetVol = leaf.volume;
+		v.currentVol = v.targetVol = leaf.volume(params);
+		//v.targetPitch = leaf.pitch(params); // TBD
 		v.loop = leaf.loop;
 		v.busIndex = busIdx;
 		v.source = leaf.src;
@@ -252,6 +253,7 @@ private:
 	/*Utility*/
 	static inline bool VoiceFinished(const Voice& v)
 	{
+		if (!v.buffer)return true; //!??
 		return !v.loop && v.playhead >= v.buffer->GetFrameCount();
 	}
 

@@ -30,7 +30,7 @@ void BehaviorInstance::Update(const ValueMap& params, AudioBufferManager* bufMgr
 	for (auto& leaf : desired) {
 		if (!leaf.buffer) continue; // failed load, skip
 		if (!HasVoice(leaf.src))
-			StartVoice(leaf, busIdx, nowSamples);
+			StartVoice(leaf, busIdx, nowSamples, params);
 	}
 
 	// TODO: Update targetVol of already playing voices (contained in leafs)
@@ -56,7 +56,7 @@ void BehaviorInstance::Update(const ValueMap& params, AudioBufferManager* bufMgr
 	auto endIt = std::remove_if(voices.begin(), voices.end(),
 		[&](const Voice& v)
 		{
-			bool done = !v.loop && v.playhead >= v.buffer->GetFrameCount();
+			bool done = !v.buffer || !v.loop && v.playhead >= v.buffer->GetFrameCount();
 			bool silent = (v.currentVol < 0.001f && v.targetVol == 0.f);
 			return done || silent;
 		});
@@ -252,6 +252,7 @@ void AudioCore::AdvancePlayheads()
 	for (auto& [eid, ed] : entityMap)
 		for (auto& inst : ed.instances)
 			for (auto& v : inst->voices) {
+				if (!v.buffer) continue;
 				if (v.buffer->Empty()) continue; // TODO: buffer not ready. but this would offset our start, right? not sure how to properly handle this tbh...?
 				size_t len = v.buffer->GetFrameCount();
 				if (v.loop)
@@ -513,7 +514,7 @@ void AudioCore::ProcessActiveSounds(float dt)
 					//inst->CollectLeaves(*inst->onStart, data.params, 1.0f,GetOrCreateBus(eid), tmp, audioBufferManager);
 					LeafBuilder::BuildLeaves(inst->onStart.get(), data.params, 0, false, GetOrCreateBus(eid), tmp, deviceCfg, audioBufferManager);	// startsample==0??
 					for (auto& leaf : tmp) 
-						inst->StartVoice(leaf, leaf.bus, globalSampleCounter);
+						inst->StartVoice(leaf, leaf.bus, globalSampleCounter, data.params);
 
 					LogMessage("start: started " + std::to_string(tmp.size()) + " leafs", LogCategory::AudioCore, LogLevel::Debug);
 				}
@@ -542,7 +543,7 @@ void AudioCore::ProcessActiveSounds(float dt)
 					//inst->CollectLeaves(*inst->onActive, data.params, 1.0f, GetOrCreateBus(eid), tmp, audioBufferManager);
 					LeafBuilder::BuildLeaves(inst->onActive.get(), data.params, 0, false, GetOrCreateBus(eid), tmp, deviceCfg, audioBufferManager);
 					for (auto& leaf : tmp) 
-						inst->StartVoice(leaf, leaf.bus, globalSampleCounter);
+						inst->StartVoice(leaf, leaf.bus, globalSampleCounter, data.params);
 
 					LogMessage("ACTIVE: started " + std::to_string(tmp.size()) + " leafs", LogCategory::AudioCore, LogLevel::Debug);
 				}
@@ -651,7 +652,8 @@ void AudioCore::RenderCallback(float* out, int frames)
 	{
 		const VoiceSnap& vs = s.voices[v];
 
-		if (vs.buf->Empty())continue; // buffer not loaded...?
+		// causes crash with delay node... :thinking:
+		if (!vs.buf || vs.buf->Empty())  continue; // buffer not loaded...?
 
 		const float* pcm = vs.buf->GetData();
 		int          ch = vs.buf->GetChannelCount();

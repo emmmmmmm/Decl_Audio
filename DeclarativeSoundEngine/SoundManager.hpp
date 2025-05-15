@@ -2,7 +2,7 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
-#include "AudioBehavior.hpp"
+#include "BehaviorDef.hpp"
 #include "TagMap.hpp"
 #include "ValueMap.hpp"
 #include "AudioCommand.hpp"

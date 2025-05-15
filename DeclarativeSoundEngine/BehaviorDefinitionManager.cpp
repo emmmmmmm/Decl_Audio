@@ -10,6 +10,12 @@ void BehaviorDefinitionManager::LoadFilesFromFolder(const std::string& path)
 {
 
 	auto behaviors = BehaviorLoader::LoadAudioBehaviorsFromFolder(path);
+	audioBehaviors = behaviors;
+
+
+
+
+	// all of this will be obsolete! // TODO
 	matchdefs.clear();
 	matchdefs.reserve(behaviors.size());
 	playdefs.clear();

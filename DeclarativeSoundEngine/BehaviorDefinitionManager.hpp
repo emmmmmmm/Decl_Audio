@@ -3,7 +3,7 @@
 #include <memory>
 #include "Node.hpp"
 #include "IBehaviorDefinition.hpp"
-
+#include "BehaviorDef.hpp"
 
 
 class BehaviorDefinitionManager : public IBehaviorDefinition {
@@ -11,7 +11,10 @@ public:
 	
 	// Load or reload a sound-bank. Parses YAML → AST once.
 	// creates playdefs and matchdefs?
-	void LoadFilesFromFolder(const std::string& path);
+	void LoadFilesFromFolder(const std::string& path); // JUST MOVE THIS TO AUDIOMANAGER // TODO
+
+
+	std::vector<BehaviorDef>& GetBehaviorDefs() { return audioBehaviors; }
 
 
 
@@ -24,4 +27,7 @@ public:
 private :
 	std::vector<PlayDefinition> playdefs;
 	std::vector<MatchDefinition> matchdefs;
+
+
+	std::vector<BehaviorDef> audioBehaviors;
 };

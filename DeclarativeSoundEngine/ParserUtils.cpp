@@ -20,10 +20,17 @@ namespace ParserUtils {
 
 	ModifierMap ExtractModifiers(const YAML::Node& mapNode) {
 		ModifierMap mods;
-		if (mapNode["volume"])   mods.volume = mapNode["volume"].as<std::string>();
+		if (mapNode["volume"])
+		{
+			mods.volume = mapNode["volume"].as<std::string>();
+
+			std::cout << "MODMAP: " << mods.volume.value() << std::endl;
+		}
 		if (mapNode["pitch"])    mods.pitch = mapNode["pitch"].as<std::string>();
 		if (mapNode["loop"])	 mods.loop = true;
-		//mods.loop = mapNode["loop"] ? mapNode["loop"].as<bool>() : false;
+
+
+
 		return mods;
 	}
 
@@ -96,9 +103,20 @@ namespace ParserUtils {
 		}
 		else if (yamlNode.IsMap()) {
 			// Find which kind it is (sound, delay, random, blend, select, …)
+
 			std::string key = ExtractCoreKey(yamlNode);
-			mods = ExtractModifiers(yamlNode);
-			YAML::Node children = ExtractChildren(yamlNode);
+			// 2) peel off the inner map/sequence
+			YAML::Node def = yamlNode[key];
+
+			YAML::Node children;
+			if (def.IsMap()) {
+				mods = ExtractModifiers(def);
+				children = ExtractChildren(def);
+			}
+			else {
+				// def is a sequence or scalar → it *is* the children
+				children = def;
+			}
 
 			if (key == "sound" || key == "delay") {
 				// both store a single string
@@ -195,21 +213,31 @@ namespace ParserUtils {
 			else {
 				throw std::runtime_error("Unhandled coreKey: " + key);
 			}
+
+
+
 		}
+
 		else {
 			throw std::runtime_error("Invalid YAML node type");
 		}
-
 		// apply modifiers
-		if (mods.volume) node->setVolume(*mods.volume);
-		if (mods.pitch)  node->setPitch(*mods.pitch);
-
+		if (mods.volume)
+		{
+			node->setVolume(*mods.volume);
+		}
+		if (mods.pitch)
+		{
+			node->setPitch(*mods.pitch);
+		}
 		// insn't this somewhat redundant?
 		if (mods.loop) {
 			std::unique_ptr<Node> owned(node);
 			auto loopNode = std::make_unique<LoopNode>(std::move(owned));
 			node = loopNode.release();
 		}
+
+
 
 		return NormalizeLoops(node);
 	}

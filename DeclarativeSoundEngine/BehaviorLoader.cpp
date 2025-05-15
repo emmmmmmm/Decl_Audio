@@ -1,14 +1,14 @@
 ﻿// BehaviorLoader.cpp
 #include "pch.h"
 #include "BehaviorLoader.hpp"
-#include "AudioBehavior.hpp"
+#include "BehaviorDef.hpp"
 #include "ParserUtils.hpp"
 #include "Log.hpp"
 #include <filesystem>
 #include <yaml-cpp/yaml.h>
 #include <numeric>
 #include <cstdlib>
-std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std::string& folderPath) {
+std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std::string& folderPath) {
 	// 1. Load raw YAML definitions
 	std::vector<YAML::Node> yamlBehaviors;
 
@@ -71,7 +71,7 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 
 	for (auto& rd : rawDefs) {
 		auto def = std::make_unique<BehaviorDef>();
-		def->id = rd.id;
+		def->name = rd.id;
 		def->busIndex = rd.node["bus"].as<int>(0);
 
 
@@ -80,7 +80,7 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 		// 1) pull matchTags
 		if (auto tagsN = rd.node["matchTags"]) {
 			if (!tagsN.IsSequence()) {
-				LogMessage("[BehaviorLoader] warning: matchTags for “" + def->id + "” is not a sequence", LogCategory::BehaviorLoader, LogLevel::Warning);
+				LogMessage("[BehaviorLoader] warning: matchTags for " + def->name + " is not a sequence", LogCategory::BehaviorLoader, LogLevel::Warning);
 			}
 			else {
 				for (const auto& t : tagsN) {
@@ -91,7 +91,7 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 		// 2) build your internal matchConditions (whatever that is in your code)
 		if (auto condsN = rd.node["matchConditions"]) {
 			if (!condsN.IsSequence()) {
-				LogMessage("[BehaviorLoader] warning: matchConditions for “" + def->id + "” is not a sequence", LogCategory::BehaviorLoader, LogLevel::Warning);
+				LogMessage("[BehaviorLoader] warning: matchConditions for " + def->name + " is not a sequence", LogCategory::BehaviorLoader, LogLevel::Warning);
 			}
 			else {
 				for (const auto& t : condsN) {
@@ -134,13 +134,13 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 			if (nodeY) {
 				def->onStart.reset(ParserUtils::ParseNode(nodeY, ctx));
 				LogMessage(
-					"[BehaviorLoader] parsed onStart  for " + def->id +
+					"[BehaviorLoader] parsed onStart  for " + def->name +
 					(def->onStart ? "" : " <FAILED>"),
 					LogCategory::BehaviorLoader, LogLevel::Info
 				);
 			}
 			else {
-				LogMessage("[BehaviorLoader] no onStart  for " + def->id,
+				LogMessage("[BehaviorLoader] no onStart  for " + def->name,
 					LogCategory::BehaviorLoader, LogLevel::Info);
 			}
 		}
@@ -208,11 +208,11 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 	}
 	ctx.unresolvedRefs.clear();
 
-	// 4. Build AudioBehavior list
-	std::vector<AudioBehavior> behaviors;
+	// 4. Build BehaviorDef list
+	std::vector<BehaviorDef> behaviors;
 	behaviors.reserve(definitions.size());
 	for (auto& defPtr : definitions) {
-		AudioBehavior b;
+		BehaviorDef b;
 		b.name = defPtr->id;
 		b.id = rand();
 		b.busIndex = defPtr->busIndex;
@@ -229,7 +229,7 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 	// — 5) After you’ve built your `behaviors` vector, dump a final summary:
 	for (auto& b : behaviors) {
 		LogMessage(
-			"[BehaviorLoader] AudioBehavior '" + b.name +
+			"[BehaviorLoader] BehaviorDef '" + b.name +
 			"' -> onStart=" + (b.onStart ? "yes" : "no") +
 			", onActive=" + (b.onActive ? "yes" : "no") +
 			", onEnd=" + (b.onEnd ? "yes" : "no"),
@@ -239,7 +239,7 @@ std::vector<AudioBehavior> BehaviorLoader::LoadAudioBehaviorsFromFolder(const st
 
 
 	//for (auto& b : behaviors) {
-	//	std::cerr << "[Debug] AudioBehavior '" << b.name << "'\n";
+	//	std::cerr << "[Debug] BehaviorDef '" << b.name << "'\n";
 
 	//	// dump matchTags
 	//	std::cerr << "        matchTags       = { ";

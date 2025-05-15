@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include <queue>
-#include "AudioBehavior.hpp"
+#include "BehaviorDef.hpp"
 #include <memory>
 #include "RingBuffer.hpp"
 

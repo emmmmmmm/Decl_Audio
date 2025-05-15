@@ -1,7 +1,7 @@
 #pragma once
 
 #include "declsound_export.hpp"
-#include "AudioBehavior.hpp"
+#include "BehaviorDef.hpp"
 #include "Log.hpp"
 class SoundManager;
 
