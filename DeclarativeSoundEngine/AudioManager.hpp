@@ -3,7 +3,6 @@
 #include <unordered_map>
 #include "AudioCommand.hpp"
 #include "AudioDevice.hpp"
-#include "SoundManagerAPI.hpp"
 
 
 
@@ -48,6 +47,10 @@ public:
 
 	void TakeSnapshot();
 
+	void AdvancePlayheads();
+
+	int GetOrCreateBus(const std::string& entityId);
+
 	void SetTag(Command cmd);
 	void SetTransient(Command cmd);
 	void ClearTag(Command cmd);
@@ -56,10 +59,16 @@ public:
 
 	void LoadBehaviorsFromFolder(Command cmd);
 
+	void SetAssetPath(Command cmd);
+
+
+	void DebugPrintState();
+
 private:
 
-	inline static std::atomic<int>	gFront{ 0 };                // index the callback sees
-	inline static int				gBuild = 1;                 // control fills here
+	std::atomic<int> currentReadBuffer = 0;
+	std::atomic<uint32_t>  cbBlockIndex{ 0 };
+
 	std::atomic<uint32_t>			pendingFrames{ 0 };
 
 	void RenderCallback(float* output, int nFrames);

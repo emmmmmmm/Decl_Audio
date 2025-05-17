@@ -48,6 +48,7 @@ static const char* ToString(LogCategory category) {
 	case LogCategory::BehaviorDefMgr: return "BehaviorDefinitionManager:";
 	case LogCategory::AudioDevice: return "AudioDevice";
 	case LogCategory::AudioBuffer: return "AudioBuffer";
+	case LogCategory::AudioManager: return "AudioManager";
 	default: return "Unknown";
 	}
 }

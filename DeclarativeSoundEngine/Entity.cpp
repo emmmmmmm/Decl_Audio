@@ -9,25 +9,34 @@ void Entity::TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, 
 {	// stop all voices from current graph
 	ab.StopAllVoices(); 
 	
+	
+
 	// set new phase & graph
 	switch (phase) {
 		case ActiveBehavior::Phase::Start: {
 			ab.SetPhase(ActiveBehavior::Phase::Start);
-			ab.currentNodeGraph = ab.GetDefinition()->onStart;
+			auto newGraph = ab.GetDefinition()->onStart;
+			ab.currentNodeGraph = newGraph ? newGraph->clone() : nullptr;
+			std::cerr << "[STATE] " << ab.Name() << ": Transition to Phase::Start" << std::endl;
 			break;
 		}
 		case ActiveBehavior::Phase::Active: {
 			ab.SetPhase(ActiveBehavior::Phase::Active);
-			ab.currentNodeGraph = ab.GetDefinition()->onActive;
+			auto newGraph = ab.GetDefinition()->onActive;
+			ab.currentNodeGraph = newGraph ? newGraph->clone() : nullptr;
+			std::cerr << "[STATE] " << ab.Name() << ": Transition to Phase::Active" << std::endl;
 			break;
 		}
 		case ActiveBehavior::Phase::Ending: {
 			ab.SetPhase(ActiveBehavior::Phase::Ending);
-			ab.currentNodeGraph = ab.GetDefinition()->onEnd;
+			auto newGraph = ab.GetDefinition()->onEnd;
+			ab.currentNodeGraph = newGraph ? newGraph->clone() : nullptr;
+			std::cerr << "[STATE] " << ab.Name() << ": Transition to Phase::Ended" << std::endl;
 			break;
 		}
 		case ActiveBehavior::Phase::Finished: {
 			ab.SetPhase(ActiveBehavior::Phase::Finished);
+			std::cerr << "[STATE] " << ab.Name() << ": Transition to Phase::Finished" << std::endl;
 			ab.currentNodeGraph = nullptr;
 			return; // nothing to do here
 		}
@@ -36,21 +45,27 @@ void Entity::TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, 
 	// start voices for new graph
 	
 	std::vector<LeafBuilder::Leaf> leaves;
-	LeafBuilder::BuildLeaves(ab.currentNodeGraph.get(), values, 0, false, 0, leaves, deviceCfg, bufferManager); // TODO: pass correct params
+	LeafBuilder::BuildLeaves(ab.currentNodeGraph.get(), values, 0, false, busId, leaves, deviceCfg, bufferManager); // TODO: pass correct params
 
 	for (auto& leaf : leaves) {
 
 		// start new voice
-		std::cout << "start voice, loop: " + std::to_string(leaf.loop) << " offset: " << std::to_string(leaf.startSample) << std::endl;
 		Voice v;
 		v.buffer = leaf.buffer;
 		v.playhead = 0;
 		v.loop = leaf.loop;
-		v.busIndex = leaf.bus; // where is this even being set?
+		v.busIndex = leaf.bus; 
 		v.source = leaf.src;
 		v.startSample = leaf.startSample;
+		v.currentVol = leaf.volume(values);
 
 		ab.AddVoice(std::move(v));
+
+		std::cout << "[start voice], loop: " + std::to_string(leaf.loop) 
+			<< " offset: " << std::to_string(leaf.startSample) 
+			<< " volume: " << std::to_string(v.currentVol)
+			<< std::endl;
+
 	}
 }
 
@@ -80,7 +95,7 @@ void Entity::Update(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags,
 		switch (ab.GetPhase()) {
 		case ActiveBehavior::Phase::Init:
 		{
-			ab.currentNodeGraph = ab.GetDefinition()->onStart;  // think about if currentNodeGraph should be a uniqueptr and we should call onStart.clone()
+			TransitionToPhase(ab, ActiveBehavior::Phase::Start, deviceCfg, bufferManager);
 			break;
 		}
 		case ActiveBehavior::Phase::Start:
@@ -158,6 +173,7 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 	for (const auto& def : allDefs) {
 		auto score = MatchUtils::MatchScore(def, tags, globalTags, values, globalValues);
 
+		/*
 		std::cerr
 			<< "[Debug]   candidate " << def.name
 			<< " -> score=" << score
@@ -165,7 +181,7 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 			<< "  entitytags=" << MatchUtils::JoinTags(tags.GetAllTags())
 			<< "  matchtags=" << MatchUtils::JoinTags(def.matchTags)
 			<< "\n";
-
+		*/
 		if (score >= 0) {
 			desired.insert(def.name);
 
@@ -202,9 +218,13 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 	// Do ... things.
 	for (auto& def : toSpawn) {
 		std::cerr << "starting new behavior: " << def->name << std::endl;
-		activeBehaviors.emplace_back(*ActiveBehavior::Create(def, 0)); // TODO get from factory instead of creating
+		auto& ab = activeBehaviors.emplace_back(*ActiveBehavior::Create(def, 0)); // TODO get from factory instead of creating
+
+
 	}
 	for (auto& ab : toRetire) {
+		if (ab->GetPhase() !=ActiveBehavior::Phase::Active) // only active state actually needs to be ended (in case it's looping) 
+			continue;
 		std::cerr << "stopping behavior: " << ab->GetDefinition()->name << std::endl;
 		TransitionToPhase(*ab, ActiveBehavior::Phase::Ending, deviceCfg, bufferManager);
 

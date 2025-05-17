@@ -20,7 +20,7 @@ private:
 
 public:
 	ActiveBehavior(const BehaviorDef* def, uint64_t startSample)
-		: definition(def), phase(Phase::Start), startSample(startSample){ }
+		: definition(def), phase(Phase::Init), startSample(startSample){ }
 
 	const Phase GetPhase()				const { return phase; }
 	const void SetPhase(Phase newPhase)	  { phase=newPhase; }

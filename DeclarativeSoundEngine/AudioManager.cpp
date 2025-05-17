@@ -12,6 +12,7 @@
 #include <chrono>
 
 const double M_PI = 3.14159265358979323846;
+
 namespace {
 	Snapshot::Snapshot gSnapshots[Snapshot::kSnapCount];   // single, file-local definition
 }
@@ -35,27 +36,37 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 		for (int b = 0; b < Snapshot::kMaxBuses; ++b)
 			snap.bus[b].resize(bufSamples, 0.0f);
 
+	// set callback
 	device->SetRenderCallback(
 		[this](float* output, int frameCount) {RenderCallback(output, frameCount); });
 
-	// Create Master Bus
+	// Create Master Bus at buses[0]
 	buses.clear();
 	buses.push_back({ std::vector<float>(deviceCfg->bufferFrames * deviceCfg->channels),{} }); // master
-
-
 
 }
 
 void AudioManager::ThreadMain() {
+	uint32_t lastSeen = 0; // block counter
+
 	using Clock = std::chrono::steady_clock;
 	auto start = Clock::now();
+
 	while (!shouldQuit) {
+		uint32_t head = cbBlockIndex.load(std::memory_order_acquire);
+		if (head == lastSeen) {
+			std::this_thread::yield();
+			continue;
+		}
+		lastSeen = head;
+
+
 		auto now = Clock::now();
-		// elapsed time in seconds as a float
 		std::chrono::duration<float> elapsed = now - start;
 
 		Update(elapsed.count());
-		std::this_thread::sleep_for(std::chrono::milliseconds(5)); // avoid busy-wait
+		TakeSnapshot();
+
 
 	}
 	std::cout << "END OF AUDIO THREAD" << std::endl;
@@ -64,18 +75,20 @@ void AudioManager::ThreadMain() {
 
 
 AudioManager::~AudioManager() {
-	LogMessage("~AudioCore", LogCategory::AudioCore, LogLevel::Debug);
+	LogMessage("~AudioCore", LogCategory::AudioManager, LogLevel::Debug);
 	delete bufferManager;
 }
 
 void AudioManager::Update(float dt)
 {
-	// drain queue
+	// drain command queue
 	size_t commandsToDrain = inQueue->Length();
 	Command cmd;
 	// can we really do this without a lock? :thinking:
 	while (inQueue->pop(cmd)) {
-		LogMessage("ProcessCommands: " + cmd.GetTypeName() + "  (queue length: " + std::to_string(inQueue->Length()) + " / " + std::to_string(commandsToDrain) + ")", LogCategory::AudioCore, LogLevel::Debug);
+		LogMessage(
+			"ProcessCommands: " + cmd.GetTypeName() + "  (queue length: " + std::to_string(inQueue->Length()) + " / " + std::to_string(commandsToDrain) + ")",
+			LogCategory::AudioManager, LogLevel::Debug);
 
 		switch (cmd.type) {
 		case CommandType::SetTag:		SetTag(cmd);		break;
@@ -85,6 +98,9 @@ void AudioManager::Update(float dt)
 		case CommandType::ClearValue:	ClearValue(cmd);	break;
 		case CommandType::LoadBehaviors:LoadBehaviorsFromFolder(cmd);break;
 		case CommandType::Shutdown:		Shutdown();			break;
+		case CommandType::AssetPath:	SetAssetPath(cmd);	break;
+		default: LogMessage("UNKNOWN COMMAND: " + cmd.GetTypeName(), LogCategory::AudioManager, LogLevel::Debug);
+
 		}
 	}
 
@@ -96,7 +112,6 @@ void AudioManager::Update(float dt)
 		entityValue.second.Update(definitions, globalTags, globalValues, deviceCfg, bufferManager);
 	}
 
-	TakeSnapshot();
 }
 
 void AudioManager::Shutdown() {
@@ -109,20 +124,23 @@ void AudioManager::Shutdown() {
 // build a fresh read‐only snapshot for render
 void AudioManager::TakeSnapshot()
 {
-	Snapshot::Snapshot& back = gSnapshots[gBuild];
 
-	/* ---- reset counters (no vector clear) ---- */
+	int front = currentReadBuffer.load(std::memory_order_acquire);
+	int backIndex = 1 - front;
+	Snapshot::Snapshot& back = gSnapshots[backIndex];
+
+	// reset counters
 	back.voiceCount = 0;
 	back.busCount = uint32_t(buses.size());
-
-	/* ---- bus gains ---- */
+	
+	// bus gains
 	for (uint32_t i = 0; i < back.busCount; ++i) {
 		back.busGain[i] = buses[i].volume.eval(entities.empty() ? ValueMap{} : entities.begin()->second.GetValues());
 		back.busParent.resize(back.busCount); // maybe fixed size in the future (some max bus count)
 		back.busParent[i] = buses[i].parent;
 	}
 
-	// --- read listener position (fallback to origin) ---
+	// listener position (fallback to origin)
 	Vec3 listenerPos{ 0,0,0 };
 	if (!currentListener.empty()) {
 		auto it = entities.find(currentListener);
@@ -133,14 +151,14 @@ void AudioManager::TakeSnapshot()
 
 	back.listenerPosition = listenerPos;
 
-
-	/* ---- flatten voices ---- */
+	
+	// flatten voices
 	for (auto& [eid, ed] : entities)
-
 
 		for (auto& inst : ed.GetBehaviors()) {
 			for (auto& v : inst.GetVoices()) {
-				if (back.voiceCount >= Snapshot::kMaxVoices) continue;
+				if (back.voiceCount >= Snapshot::kMaxVoices) 
+					continue;
 				Vec3 srcPos;
 				bool isSpatial = ed.GetValues().TryGetValue("position", srcPos);
 				float att = 1.f;
@@ -153,9 +171,10 @@ void AudioManager::TakeSnapshot()
 					float dz = srcPos.z - listenerPos.z;
 
 					float dist = std::sqrt(dx * dx + dz * dz + dy * dy);
-					float radius = 10.0f; // fallthrough default value
+					float radius = 20.0f; // fallthrough default value
 					ed.GetValues().TryGetValue("radius", radius); // TODO check if radius>0!
 					att = std::clamp(1.f - dist / radius, 0.f, 1.f);
+
 					// stereo azimuth panning
 					float az = std::atan2(dx, dz);
 					panL = std::clamp(0.5f - az / float(M_PI), 0.f, 1.f);
@@ -167,6 +186,7 @@ void AudioManager::TakeSnapshot()
 					pan.push_back(1); // TODO: MULTICHANNEL
 					pan.push_back(1);
 				}
+
 
 				back.voices[back.voiceCount++] = Snapshot::VoiceSnap{
 					v.buffer,
@@ -180,18 +200,49 @@ void AudioManager::TakeSnapshot()
 			}
 		}
 
+	AdvancePlayheads();
 
-	gFront.store(gBuild, std::memory_order_release);
-	gBuild = (gBuild + 1) % Snapshot::kSnapCount;
-
-
-	//LogMessage("Created Snapshot", LogCategory::AudioCore, LogLevel::Debug);
+	currentReadBuffer.store(backIndex, std::memory_order_release);
 }
+
+
+void AudioManager::AdvancePlayheads()
+{
+	uint32_t step = pendingFrames.exchange(0, std::memory_order_acquire);
+	if (step == 0) return;
+
+	for (auto& [eid, ed] : entities)
+		for (auto& inst : ed.GetBehaviors())
+			for (auto& v : inst.GetVoices()) {
+				if (!v.buffer) continue;
+				if (v.buffer->Empty()) continue; // TODO: buffer not ready. but this would offset our start, right? not sure how to properly handle this tbh...?
+				size_t len = v.buffer->GetFrameCount();
+				if (v.loop)
+					v.playhead = (v.playhead + step) % len;
+				else
+					v.playhead = (std::min)(v.playhead + step, len);
+			}
+}
+
+
+int AudioManager::GetOrCreateBus(const std::string& entityId) {
+	auto it = entityBus.find(entityId);
+	if (it != entityBus.end()) return it->second;
+	// allocate new sub‐bus
+	int newIndex = (int)buses.size();
+	buses.push_back({ std::vector<float>(deviceCfg->bufferFrames * deviceCfg->channels), {} });
+	entityBus.emplace(entityId, newIndex);
+
+	std::cout << "[BUS] added new bus for entity: " << entityId << std::endl;
+	return newIndex;
+}
+
 
 void AudioManager::SetTag(Command cmd) {
 	std::string entityId = cmd.entityId;
 	auto* tag = std::get_if<std::string>(&cmd.value);
 	auto& entity = entities[entityId]; // create if missing
+	entity.SetBus(GetOrCreateBus(entityId));
 	entity.SetTag(*tag);
 
 	if (*tag == "listener")
@@ -223,69 +274,120 @@ void AudioManager::ClearValue(Command cmd) {
 void AudioManager::LoadBehaviorsFromFolder(Command cmd)
 {
 	auto* path = std::get_if<std::string>(&cmd.value);
-	definitions = BehaviorLoader::LoadAudioBehaviorsFromFolder(*path); // will this work?
+	definitions = BehaviorLoader::LoadAudioBehaviorsFromFolder(*path); 
+}
+void AudioManager::SetAssetPath(Command cmd)
+{
+	const auto* path = std::get_if<std::string>(&cmd.value);
+	bufferManager->SetAssetpath(*path);
 }
 
 
 
+void AudioManager::DebugPrintState()
+{
+	for (auto& e : entities) {
+		std::cout << e.first << ":" << std::endl;
+		std::cout << "  tags:" << std::endl;;
+		for (auto& tag : e.second.GetTags().GetAllTags()) {
+			std::cout << "    - " << tag << std::endl;
+		}
+		std::cout << "  vals:" << std::endl;
+
+		for (auto& val : e.second.GetValues().GetAllValues()) {
+			auto n = val.first;
+			auto sv = "";
+			auto fv = 0.f;
+			auto vv = Vec3{};
+			if (e.second.GetValues().TryGetValue(n, sv)) {
+				std::cout << "    - " << n << ": " << sv << std::endl;
+			}
+			if (e.second.GetValues().TryGetValue(n, fv)) {
+				std::cout << "    - " << n << ": " << std::to_string(fv) << std::endl;
+			}
+			if (e.second.GetValues().TryGetValue(n, vv)) {
+				std::cout << "    - " << n << ": " << "("
+					<< std::to_string(vv.x) << ", "
+					<< std::to_string(vv.y) << ", "
+					<< std::to_string(vv.z) << ")" << std::endl;
+			}
+		}
+
+		std::cout << "  behaviors: " << std::endl;
+		for (auto& ab : e.second.GetBehaviors()) {
+			std::cout << "    - " << ab.Name() << std::endl;
+		}
+	}
+}
+
+
 void AudioManager::RenderCallback(float* out, int frames)
 {
-	/* ------- pull immutable snapshot ------- */
-	const Snapshot::Snapshot& s = gSnapshots[gFront.load(std::memory_order_acquire)];
+	// load snapshot
+	int front = currentReadBuffer.load(std::memory_order_acquire);
+	const Snapshot::Snapshot& s = gSnapshots[front];
 
 	uint64_t blockStart = globalSampleCounter;
-	int samples = frames * deviceCfg->channels;      // inside RenderCallback
+	int samples = frames * deviceCfg->channels;      
 
-
-	/* ------- clear bus buffers in the snapshot ------- */
+	// clear bus buffers
 	for (uint32_t b = 0; b < s.busCount; ++b)
 		std::fill(s.bus[b].begin(), s.bus[b].end(), 0.0f);
 
-	/* ------- mix voices ------- */
+	// mix voices
 	for (uint32_t v = 0; v < s.voiceCount; ++v)
 	{
 		const Snapshot::VoiceSnap& vs = s.voices[v];
 
 		// causes crash with delay node... :thinking:
-		if (!vs.buf || vs.buf->Empty())  continue; // buffer not loaded...?
+		if (!vs.buf || vs.buf->Empty())
+		{
+			std::cout << "RCB: Buffer not ready" << std::endl;
+			continue; // buffer not loaded...?
+		}
+		const float*	pcm = vs.buf->GetData();
+		int				ch = vs.buf->GetChannelCount();
+		size_t			len = vs.buf->GetFrameCount();
+		size_t			basePos = size_t(vs.playhead);
 
-		const float* pcm = vs.buf->GetData();
-		int          ch = vs.buf->GetChannelCount();
-		size_t       len = vs.buf->GetFrameCount();
 
-		uint64_t basePos = blockStart - vs.startSample;
 		float* busBuf = s.bus[vs.bus].data();
-
-
-
 		for (int i = 0; i < frames; ++i) {
-			uint64_t pos = basePos + i;
+			size_t pos = basePos + size_t(i);
 			float s0 = 0.f;
 
-			if (pos < len)               s0 = pcm[pos * ch] * vs.gain;
-			else if (vs.loop)            s0 = pcm[(pos % len) * ch] * vs.gain;
+			if (pos < len) 
+				s0 = pcm[pos * ch] * vs.gain;
+			else if (vs.loop) 
+				s0 = pcm[(pos % len) * ch] * vs.gain;
 
 			for (uint32_t c = 0; c < deviceCfg->channels; ++c)
 				busBuf[i * deviceCfg->channels + c] += s0 * vs.pan[c]; // TODO: ChannelMatrix
 		}
 	}
 
-	/* ------- fold buses (same math, but now inside snapshot) ------- */
+	for (uint32_t b = 0; b < s.busCount; ++b) {
+		float maxSample = 0;
+		for (float f : s.bus[b])
+			maxSample = (std::max)(maxSample, std::abs(f));
+	}
+
+
+	// fold busses onto master bus (master = buses[0])
 	for (int b = int(s.busCount) - 1; b > 0; --b) {
 		float gain = s.busGain[b];
-		//int    parent = buses[b].parent;           // parent index hasn’t changed
 		int parent = parent = s.busParent[b];
 		float* src = s.bus[b].data();
 		float* dst = s.bus[parent].data();
-
 		for (int i = 0; i < samples; ++i)
 			dst[i] += src[i] * gain;
 	}
 
-	/* ------- copy master to device ------- */
+	// copy to device
 	std::memcpy(out, s.bus[0].data(), size_t(frames * deviceCfg->channels) * sizeof(float));
 
-	/* ------- advance counters ------- */
+	// advance counters
 	pendingFrames.fetch_add(frames, std::memory_order_relaxed);
-	globalSampleCounter += frames;
+	globalSampleCounter += frames; // this might be a little redundant
+	cbBlockIndex.fetch_add(1, std::memory_order_release); 
 }

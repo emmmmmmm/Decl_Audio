@@ -21,10 +21,6 @@ extern "C" {
 		uint32_t     channels;
 	};
 
-	// where do we need to put these, how do we need to prefix them?
-	CommandQueue apiToManager;
-	CommandQueue managerToApi;
-	
 	/*
 	 // we need: 
 		- create an audiomanager
@@ -35,18 +31,17 @@ extern "C" {
 
 	*/
 
-	AudioManager* mgr;
-	std::thread audioThread;
 
 
 	DECLSOUND_API void AudioManager_Create(AudioConfig* cfg);
 	DECLSOUND_API void AudioManager_Destroy();
 
 	// behavior loading
-	DECLSOUND_API void AudioManager_LoadBehaviorsFromFile(void* mgr, const char* path);
+	DECLSOUND_API void AudioManager_LoadBehaviorsFromFile(const char* behaviorPath, const char* assetPath);
 
 
 	DECLSOUND_API void AudioManager_SetTag(const char* entityId, const char* tag);
+	DECLSOUND_API void AudioManager_SetTransientTag(const char* entityId, const char* tag);
 	DECLSOUND_API void AudioManager_ClearTag(const char* entityId, const char* tag);
 	DECLSOUND_API void AudioManager_SetFloatValue(const char* entityId, const char* key, float value);
 	DECLSOUND_API void AudioManager_SetStringValue(const char* entityId, const char* key, const char* value);
@@ -54,7 +49,7 @@ extern "C" {
 	DECLSOUND_API void AudioManager_ClearValue(const char* entityId, const char* key);
 	// etc
 
-
+	DECLSOUND_API void AudioManager_DebugPrintState();
 
 	// Logging via DECLSOUND_API bool SoundAPI_PollLog();
 }

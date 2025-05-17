@@ -1,8 +1,8 @@
 #pragma once
 #include <string>
 #include <queue>
-#include "BehaviorDef.hpp"
 #include <memory>
+#include "BehaviorDef.hpp"
 #include "RingBuffer.hpp"
 
 enum class CommandType {

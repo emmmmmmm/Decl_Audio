@@ -18,12 +18,8 @@ AudioBufferManager::~AudioBufferManager()
 	lruList.clear();
 }
 bool AudioBufferManager::TryGet(const std::string& path, AudioBuffer*& outBuf) {
-//	std::lock_guard<std::mutex> lock(mutex);
+	//	std::lock_guard<std::mutex> lock(mutex);
 	// already cached?
-
-	std::cerr << "[AudioBufferManager::TryGet] this=" << this
-		<< "  cache@=" << &cache
-		<< "  cache.size()=" << cache.size() << "\n";
 
 	auto it = cache.find(path);
 	if (it != cache.end()) {
@@ -35,6 +31,7 @@ bool AudioBufferManager::TryGet(const std::string& path, AudioBuffer*& outBuf) {
 		outBuf = &it->second.first;
 		return true;
 	}
+	std::cerr << "[AudioBufferManager::TryGet] Could not get buffer for path: " << path << std::endl;
 	return false;
 }
 bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
@@ -43,8 +40,7 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	std::lock_guard<std::mutex> lock(mutex);
 	// already cached?
 	if (TryGet(path, outBuf)) {
-		LogMessage("AudioBufferManager: file aready loaded: " + path,
-			LogCategory::AudioBuffer, LogLevel::Debug);
+		//LogMessage("AudioBufferManager: file aready loaded: " + path, LogCategory::AudioBuffer, LogLevel::Debug);
 		return true;
 	}
 
@@ -56,10 +52,10 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	// join them:
 	fs::path fullPath = assetDir / fileName;
 
-	std::string fullStr = fullPath.string(); 
+	std::string fullStr = fullPath.string();
 	AudioBuffer buffer(fullStr);
 
-	
+
 	if (buffer.Empty()) {
 		LogMessage("AudioBufferManager: failed to load " + path,
 			LogCategory::AudioBuffer, LogLevel::Warning);
@@ -84,7 +80,7 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	// LRU and memory tracking
 	lruList.push_front(path);
 	currentMemoryUsage += mem;
-	outBuf = & it->second.first;
+	outBuf = &it->second.first;
 
 	LogMessage("AudioBufferManager: finished loading " + path,
 		LogCategory::AudioBuffer, LogLevel::Warning);

@@ -14,15 +14,18 @@ AudioDeviceMiniaudio::AudioDeviceMiniaudio(int channels, int sampleRate, int buf
 	cfg.dataCallback = nullptr;     // we’ll open a raw device instead of engine_playSource
 
 	ma_context_init(nullptr, 0, nullptr, &context_);
-
+	
 	ma_device_config dc = ma_device_config_init(ma_device_type_playback);
 	dc.playback.format = ma_format_f32;
 	dc.playback.channels = channels;
 	dc.sampleRate = sampleRate;
+	dc.periodSizeInFrames = bufferFrames;		// e.g. 2048
+	dc.periods = 2;								// gives you a total backend buffer of ~4096 frames
+
+
 	
 	dc.dataCallback = AudioDeviceMiniaudio::dataCallback;
 	dc.pUserData = this;
-
 	
 	ma_device_init(&context_, &dc, &device_);
 	ma_device_start(&device_);

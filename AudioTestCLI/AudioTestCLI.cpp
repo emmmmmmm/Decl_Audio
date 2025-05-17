@@ -7,141 +7,55 @@
 #include <sstream>
 #include <chrono>
 
-#include "SoundManagerAPI.hpp"
 #include "BehaviorDef.hpp" 
 #include "BehaviorLoader.hpp"
 #include "Log.hpp"
-#include <SoundManager.hpp>
+#include <AudioManager.hpp>
+#include "AudioManagerAPI.hpp"
 
 
-// TODO: Those funcs no longer work!
-// SoundManager_GetLastEmitName() currently returns the behaviorID, which we don't know here. 
-// -> this needs some rework
-/*
-void AssertEmitted(SoundManager* mgr, int expectedCount) {
-	int actualCount = SoundManager_GetLastEmitCount(mgr);
-	if (actualCount != expectedCount) {
-		std::cerr << "[ASSERT FAILED] Expected " << expectedCount << " events, but got " << actualCount << "." << std::endl;
-		//exit(1);  // You could also return or throw depending on how you want to handle this
-	}
-	std::cout << "[ASSERT PASS] " << expectedCount << " events emitted." << std::endl;
-}
-void AssertEmittedSound(SoundManager* mgr, const std::string& expectedSound, int index = 0) {
-	std::string actualSound = SoundManager_GetLastEmitName(mgr, index);
-	if (actualSound != expectedSound) {
-		std::cerr << "[ASSERT FAILED] Expected sound: " << expectedSound << ", but got: " << actualSound << std::endl;
-		//exit(1);
-	}
-	std::cout << "[ASSERT PASS] Expected sound: " << expectedSound << " matched." << std::endl;
-}
-*/
+using Clock = std::chrono::steady_clock;
 
-static void RunBasicBehaviorTest() {
+const char* assetPath = "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/";
+const char* behaviorPath = "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors";
 
-	LogMessage("=== Basic Behavior Test ===", LogCategory::CLI, LogLevel::Info);
 
+static AudioConfig GetTestConfig() {
 	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 1;
+	cfg.bufferFrames = 1024;
+	cfg.channels = 2;
 	cfg.sampleRate = 44100;
 	cfg.backend = AudioBackend::Miniaudio;
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
-
-	SoundManager_SetAssetPath(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/");
-	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
-
-	SoundManager_SetTag(mgr, "player", "entity.player");
-	SoundManager_SetTag(mgr, "player", "foot.contact.left");
-
-	SoundManager_SetValue(mgr, "player", "velocity", 3.2f);
-	SoundManager_SetValue(mgr, "player", "fatigue", 0.8f);
-	SoundManager_SetGlobalValue(mgr, "time", 0.5f);
-
-
-
-	int count = 0;
-	auto start = std::chrono::steady_clock::now();
-	while (std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
-		SoundManager_Update(mgr);      // enqueues new commands
-		std::this_thread::sleep_for(std::chrono::milliseconds(16));
-		count++;
-
-		if (count == 10)
-			SoundManager_ClearTag(mgr, "player", "foot.contact.left");
-
-		if (count == 50) {
-			SoundManager_SetTransientTag(mgr, "player", "foot.contact.left");
-		}
-		// now auto-cleared via transient tag
-		//if (count == 55) {
-		//	SoundManager_ClearTag(mgr, "player", "foot.contact.left");
-		//}
-
-		if (count == 100) {
-			SoundManager_SetTag(mgr, "player", "foot.contact.right");
-		}
-		if (count == 105) {
-			SoundManager_ClearTag(mgr, "player", "foot.contact.right");
-		}
-	}
-
-	SoundManager_DebugPrintState(mgr);
-
-	SoundManager_ClearTag(mgr, "player", "foot.contact.left");
-	SoundManager_ClearTag(mgr, "player", "entity.player");
-	SoundManager_ClearValue(mgr, "player", "velocity");
-	SoundManager_ClearEntity(mgr, "monster");
-
-	SoundManager_DebugPrintState(mgr);
-
-	DestroySoundManager(mgr);
+	return cfg;
 }
-
 
 
 static void RunBlendNodeTest() {
 	LogMessage("=== Blend Node Test ===", LogCategory::CLI, LogLevel::Info);
 
-	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 1;
-	cfg.sampleRate = 44100;
-	cfg.backend = AudioBackend::Miniaudio;
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
+	auto cfg = GetTestConfig();
+	AudioManager_Create(&cfg);
+	AudioManager_LoadBehaviorsFromFile(behaviorPath, assetPath);
+	AudioManager_SetTag("l", "listener");
+	AudioManager_SetVectorValue("l", "position", 0, 0, 0);
+	AudioManager_SetTag("player", "entity.tester");
+	AudioManager_SetVectorValue("player", "position", 5, 0, 0);
+	AudioManager_SetTag("player", "test.blend");
 
-	SoundManager_SetAssetPath(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/");
-
-	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
-
-	SoundManager_SetTag(mgr, "l", "listener");
-	SoundManager_SetPosition(mgr, "l", 0, 0, 0);
-	SoundManager_SetTag(mgr, "player", "entity.tester");
-	SoundManager_SetPosition(mgr, "player", 0, 0, 0);
-
-	SoundManager_SetTag(mgr, "player", "test.blend");
-
-	//SoundManager_SetValue(mgr, "player", "velocity", 0);
-	SoundManager_Update(mgr);
-
-	SoundManager_DebugPrintState(mgr);
-
-	using Clock = std::chrono::steady_clock;
 
 	auto start = Clock::now();
-	float testDuration = 5.f;
+	auto testDuration = 5.f;
 	while (true) {
 		auto now = Clock::now();
 		// elapsed time in seconds as a float
 		std::chrono::duration<float> elapsed = now - start;
-		float t = elapsed.count() / testDuration;        // normalized 0→1 over 5 seconds
-		t = std::clamp(t, 0.0f, 1.0f);           // ensure it never exceeds [0,1]
+		auto t = elapsed.count() / testDuration;        // normalized 0->1 over 5 seconds
+		t = std::clamp(t, 0.0f, 1.0f);					 // ensure it never exceeds [0,1]
 
-		SoundManager_SetValue(mgr, "player", "velocity", t);
-
-		SoundManager_Update(mgr);      // enqueues new commands
+		AudioManager_SetFloatValue("player", "velocity", t);
 
 		if (elapsed.count() >= testDuration)
-			break;      // exit after 5 seconds
+			break;				// exit after 5 seconds
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 }
@@ -149,187 +63,129 @@ static void RunBlendNodeTest() {
 static void RunSelectNodeTest() {
 	LogMessage("=== Select Node Test ===", LogCategory::CLI, LogLevel::Info);
 
-	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 1;
-	cfg.sampleRate = 44100;
-	cfg.backend = AudioBackend::Miniaudio;
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
+	auto cfg = GetTestConfig();
+	AudioManager_Create(&cfg);
+	AudioManager_LoadBehaviorsFromFile(behaviorPath, assetPath);
+	AudioManager_SetTag("l", "listener");
+	AudioManager_SetVectorValue("l", "position", 0, 0, 0);
+	AudioManager_SetTag("player", "entity.tester");
+	AudioManager_SetVectorValue("player", "position", 5, 0, 0);
+	AudioManager_SetTag("player", "test.select");
 
-	SoundManager_SetAssetPath(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/");
-
-	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
-
-	SoundManager_SetTag(mgr, "l", "listener");
-	SoundManager_SetPosition(mgr, "l", 0, 0, 0);
-
-	SoundManager_SetStringValue(mgr, "player", "velocity", "0");
-	SoundManager_SetTag(mgr, "player", "entity.tester");
-	SoundManager_SetPosition(mgr, "player", 0, 0, 0);
-
-	SoundManager_SetTag(mgr, "player", "test.select");
-	SoundManager_Update(mgr);
-	using Clock = std::chrono::steady_clock;
-	SoundManager_DebugPrintState(mgr);
 
 	auto start = Clock::now();
-	float testDuration = 5.f;
+	auto testDuration = 5.f;
 	while (true) {
 		auto now = Clock::now();
 		// elapsed time in seconds as a float
 		std::chrono::duration<float> elapsed = now - start;
-
-
-
-
-		float t = elapsed.count() / testDuration;        // normalized 0→1 over 5 seconds
-		t = std::clamp(t, 0.0f, 1.0f);           // ensure it never exceeds [0,1]
-
 		int val = int(elapsed.count()) % 2;
 
-		SoundManager_SetStringValue(mgr, "player", "velocity", std::to_string(val).c_str());
+		AudioManager_SetStringValue("player", "velocity", std::to_string(val).c_str());
 
-		SoundManager_Update(mgr);      // enqueues new commands
-
-		if (elapsed.count() >= testDuration) break;      // exit after 5 seconds
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-	}
-}
-
-static void RunRandomNodeTest() {
-	LogMessage("=== Random Node Test ===", LogCategory::CLI, LogLevel::Info);
-
-	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 1;
-	cfg.sampleRate = 44100;
-	cfg.backend = AudioBackend::Miniaudio;
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
-
-	SoundManager_SetAssetPath(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/");
-
-	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
-
-	SoundManager_SetTag(mgr, "l", "listener");
-	SoundManager_SetPosition(mgr, "l", 0, 0, 0);
-	SoundManager_SetTag(mgr, "player", "entity.tester");
-	SoundManager_SetTag(mgr, "player", "test.random");
-	SoundManager_SetPosition(mgr, "player", 0, 0, 0);
-	SoundManager_Update(mgr);
-	using Clock = std::chrono::steady_clock;
-
-	auto start = Clock::now();
-	float testDuration = 5.f;
-	int count = 0;
-	
-	while (true) {
-		auto now = Clock::now();
-		std::chrono::duration<float> elapsed = now - start;
-
-		count++;
-		if (count%10==0) {
-			SoundManager_SetTransientTag(mgr, "player", "foot.contact.left");
-			SoundManager_DebugPrintState(mgr);
-		}
-
-
-		SoundManager_Update(mgr);      // enqueues new commands
-
-		if (elapsed.count() >= testDuration) 
-			break;      // exit after 5 seconds
-
+		if (elapsed.count() >= testDuration)
+			break;				// exit after 5 seconds
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
-
 }
-
 
 static void RunParallelNodeTest() {
 	LogMessage("=== Parallel Node Test ===", LogCategory::CLI, LogLevel::Info);
 
-	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 1;
-	cfg.sampleRate = 44100;
-	cfg.backend = AudioBackend::Miniaudio;
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
+	auto cfg = GetTestConfig();
+	AudioManager_Create(&cfg);
+	AudioManager_LoadBehaviorsFromFile(behaviorPath, assetPath);
+	AudioManager_SetTag("l", "listener");
+	AudioManager_SetVectorValue("l", "position", 0, 0, 0);
+	AudioManager_SetTag("player", "entity.tester");
+	AudioManager_SetVectorValue("player", "position", 5, 0, 0);
+	AudioManager_SetTag("player", "test.parallel");
 
-	SoundManager_SetAssetPath(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/");
-
-	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
-
-	SoundManager_SetTag(mgr, "l", "listener");
-	SoundManager_SetPosition(mgr, "l", 0, 0, 0);
-
-	SoundManager_SetStringValue(mgr, "player", "velocity", "0");
-	SoundManager_SetTag(mgr, "player", "entity.tester");
-	SoundManager_SetPosition(mgr, "player", 0, 0, 0);
-
-	SoundManager_SetTag(mgr, "player", "test.parallel");
-	SoundManager_Update(mgr);
-	using Clock = std::chrono::steady_clock;
-	SoundManager_DebugPrintState(mgr);
 
 	auto start = Clock::now();
-	float testDuration = 5.f;
+	auto testDuration = 5.f;
+
 	while (true) {
 		auto now = Clock::now();
 		// elapsed time in seconds as a float
 		std::chrono::duration<float> elapsed = now - start;
+		int val = int(elapsed.count()) % 2;
 
 
-		SoundManager_Update(mgr);      // enqueues new commands
 
-		if (elapsed.count() >= testDuration) break;      // exit after 5 seconds
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+		if (elapsed.count() >= testDuration)
+			break;				// exit after 5 seconds
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 }
-
-
 static void RunSequenceNodeTest() {
 	LogMessage("=== Sequence Node Test ===", LogCategory::CLI, LogLevel::Info);
 
-	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 1;
-	cfg.sampleRate = 44100;
-	cfg.backend = AudioBackend::Miniaudio;
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
+	auto cfg = GetTestConfig();
+	AudioManager_Create(&cfg);
+	AudioManager_LoadBehaviorsFromFile(behaviorPath, assetPath);
+	AudioManager_SetTag("l", "listener");
+	AudioManager_SetVectorValue("l", "position", 0, 0, 0);
+	AudioManager_SetTag("player", "entity.tester");
+	AudioManager_SetVectorValue("player", "position", 5, 0, 0);
+	AudioManager_SetTag("player", "test.sequence");
 
-	SoundManager_SetAssetPath(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/");
-
-	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
-
-	SoundManager_SetTag(mgr, "l", "listener");
-	SoundManager_SetPosition(mgr, "l", 0, 0, 0);
-
-	SoundManager_SetStringValue(mgr, "player", "velocity", "0");
-	SoundManager_SetValue(mgr, "player", "altitude", 1);
-	SoundManager_SetValue(mgr, "player", "delaytime", 0.125);
-	SoundManager_SetTag(mgr, "player", "entity.tester");
-	SoundManager_SetPosition(mgr, "player", 0, 0, 0);
-
-	SoundManager_SetTag(mgr, "player", "test.sequence");
-	SoundManager_Update(mgr);
-	using Clock = std::chrono::steady_clock;
-	SoundManager_DebugPrintState(mgr);
 
 	auto start = Clock::now();
-	float testDuration = 5.f;
+	auto testDuration = 5.f;
+
 	while (true) {
 		auto now = Clock::now();
 		// elapsed time in seconds as a float
 		std::chrono::duration<float> elapsed = now - start;
+		int val = int(elapsed.count()) % 2;
 
-		SoundManager_Update(mgr);      // enqueues new commands
 
-		if (elapsed.count() >= testDuration) break;      // exit after 5 seconds
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+		if (elapsed.count() >= testDuration)
+			break;				// exit after 5 seconds
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 }
+
+
+static void RunRandomNodeTest() {
+	LogMessage("=== Random Node Test ===", LogCategory::CLI, LogLevel::Info);
+
+	auto cfg = GetTestConfig();
+	AudioManager_Create(&cfg);
+	AudioManager_LoadBehaviorsFromFile(behaviorPath, assetPath);
+	AudioManager_SetTag("l", "listener");
+	AudioManager_SetVectorValue("l", "position", 0, 2, 2);
+	AudioManager_SetTag("player", "entity.tester");
+	AudioManager_SetVectorValue("player", "position", 2, 0, 0);
+	AudioManager_SetTag("player", "test.random");
+
+
+	auto start = Clock::now();
+	auto testDuration = 5.f;
+	int count = 0;
+	while (true) {
+		auto now = Clock::now();
+		// elapsed time in seconds as a float
+		std::chrono::duration<float> elapsed = now - start;
+		int val = int(elapsed.count()) % 2;
+
+		count++;
+		if (count % 10 == 0) {
+			AudioManager_SetTransientTag("player", "foot.contact.left");
+		}
+
+
+		//AudioManager_DebugPrintState();
+
+		if (elapsed.count() >= testDuration)
+			break;				// exit after 5 seconds
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	}
+}
+
+
 
 
 
@@ -348,7 +204,7 @@ static void EnqueueCommand(std::function<void()> cmd) {
 	gCommands.push(std::move(cmd));
 }
 
-static void ProcessCommands(SoundManager* mgr) {
+static void ProcessCommands() {
 	std::lock_guard<std::mutex> lg(gCmdMutex);
 	while (!gCommands.empty()) {
 		gCommands.front()();
@@ -358,27 +214,20 @@ static void ProcessCommands(SoundManager* mgr) {
 
 static void RunInteractiveTest() {
 
-	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 2;
-	cfg.sampleRate = 44100;
-	cfg.backend = AudioBackend::Miniaudio;
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
-	SoundManager_SetAssetPath(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/");
 
-	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
+
+	LogMessage("=== Random Node Test ===", LogCategory::CLI, LogLevel::Info);
+
+	auto cfg = GetTestConfig();
+	AudioManager_Create(&cfg);
+	AudioManager_LoadBehaviorsFromFile(behaviorPath, assetPath);
+	AudioManager_SetTag("l", "listener");
+	AudioManager_SetVectorValue("l", "position", 0, 0, 0);
+	AudioManager_SetTag("player", "entity.tester");
+	AudioManager_SetVectorValue("player", "position", 5, 0, 0);
+	AudioManager_SetTag("player", "test.random");
+
 	std::atomic<bool> running{ true };
-
-
-
-	SoundManager_SetTag(mgr, "l", "listener");
-	SoundManager_SetPosition(mgr, "l", 0, 0, 0);
-	SoundManager_SetTag(mgr, "a", "entity.player");
-	SoundManager_SetPosition(mgr, "a", -5, 0, 0);
-	SoundManager_SetGlobalTag(mgr, "gamestate.ready");
-	SoundManager_SetGlobalValue(mgr, "difficulty", 1);
-
-
 
 
 	// Input thread: blocks on getline, parses lines, enqueues actions
@@ -397,41 +246,48 @@ static void RunInteractiveTest() {
 				std::string entity, tag;
 				iss >> entity >> tag;
 				EnqueueCommand([=]() {
-					SoundManager_SetTag(mgr, entity.c_str(), tag.c_str());
+					AudioManager_SetTag(entity.c_str(), tag.c_str());
 					});
 			}
 			else if (cmd == "clear") {
 				std::string entity, tag;
 				iss >> entity >> tag;
 				EnqueueCommand([=]() {
-					SoundManager_ClearTag(mgr, entity.c_str(), tag.c_str());
+					AudioManager_ClearTag(entity.c_str(), tag.c_str());
 					});
 			}
 			else if (cmd == "transient") {
 				std::string entity, tag;
 				iss >> entity >> tag;
 				EnqueueCommand([=]() {
-					SoundManager_SetTransientTag(mgr, entity.c_str(), tag.c_str());
+					AudioManager_SetTransientTag(entity.c_str(), tag.c_str());
 					});
 			}
-			else if (cmd == "value") {
+			else if (cmd == "float") {
 				std::string entity, key; float v;
 				iss >> entity >> key >> v;
 				EnqueueCommand([=]() {
-					SoundManager_SetValue(mgr, entity.c_str(), key.c_str(), v);
+					AudioManager_SetFloatValue(entity.c_str(), key.c_str(), v);
+					});
+			}
+			else if (cmd == "string") {
+				std::string entity, key; std::string v;
+				iss >> entity >> key >> v;
+				EnqueueCommand([=]() {
+					AudioManager_SetStringValue(entity.c_str(), key.c_str(), v.c_str());
 					});
 			}
 			else if (cmd == "pos") {
 				std::string entity; float x, y, z;
 				iss >> entity >> x >> y >> z;
 				EnqueueCommand([=]() {
-					SoundManager_SetPosition(mgr, entity.c_str(), x, y, z);
+					AudioManager_SetVectorValue(entity.c_str(), "position", x, y, z);
 					});
 
 			}
 			else if (cmd == "log") {
 				EnqueueCommand([=]() {
-					SoundManager_DebugPrintState(mgr);
+					AudioManager_DebugPrintState();
 					});
 			}
 			else {
@@ -439,7 +295,8 @@ static void RunInteractiveTest() {
 					"  tag <entity> <tag>\n"
 					"  clear <entity> <tag>\n"
 					"  transient <entity> <tag>\n"
-					"  value <entity> <key> <float>\n"
+					"  float <entity> <key> <float>\n"
+					"  string <entity> <key> <string>\n"
 					"  pos <entity> <x> <y> <z>\n"
 					"  log\n"
 					"  exit\n";
@@ -452,8 +309,7 @@ static void RunInteractiveTest() {
 	while (running) {
 		auto now = std::chrono::steady_clock::now();
 		if (now - last >= std::chrono::milliseconds(16)) {
-			ProcessCommands(mgr);
-			SoundManager_Update(mgr);
+			ProcessCommands();
 			last = now;
 		}
 		// sleep a bit to avoid busy-spin
@@ -461,112 +317,24 @@ static void RunInteractiveTest() {
 	}
 
 	inputThread.join();
-	DestroySoundManager(mgr);
+	AudioManager_Destroy();
 }
 
 
 
-
-static void RunValueConditionTests() {
-	LogMessage("=== Value Condition Tests ===", LogCategory::CLI, LogLevel::Info);
-
-	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 2;
-	cfg.sampleRate = 44100;
-	cfg.backend = AudioBackend::Miniaudio;
-
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
-
-	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
-	SoundManager_SetTag(mgr, "player", "entity.player");
-
-	SoundManager_SetValue(mgr, "player", "velocity", 0.0f); // idle
-	SoundManager_Update(mgr);
-
-	//AssertEmittedSound(mgr, "idle.wav");  // Assert that "idle.wav" was triggered
-
-
-	SoundManager_SetValue(mgr, "player", "velocity", 2.0f); // walk
-	SoundManager_Update(mgr);
-
-	//AssertEmittedSound(mgr, "walk.wav");
-
-	SoundManager_SetValue(mgr, "player", "velocity", 3.5f); // run
-	SoundManager_Update(mgr);
-
-	//AssertEmittedSound(mgr, "run.wav");
-
-	DestroySoundManager(mgr);
-}
-
-static void RunInvalidTagTest() {
-	LogMessage("=== Invalid Tag Test ===", LogCategory::CLI, LogLevel::Info);
-	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 2;
-	cfg.sampleRate = 44100;
-	cfg.backend = AudioBackend::Miniaudio;
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
-
-	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
-	SoundManager_SetTag(mgr, "ghost", "nonexistent.tag");
-	SoundManager_SetTag(mgr, "ghost", "nonexistent2..tag");
-	SoundManager_Update(mgr);
-	DestroySoundManager(mgr);
-}
-
-static void RunWildcardMatchingTest() {
-	LogMessage("=== Wildcard Matching Test ===", LogCategory::CLI, LogLevel::Info);
-	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 2;
-	cfg.sampleRate = 44100;
-	cfg.backend = AudioBackend::Miniaudio;
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
-
-	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
-	SoundManager_SetTag(mgr, "npc", "entity.npc.guard");
-	SoundManager_SetTag(mgr, "npc", "foot.contact.left");
-	SoundManager_Update(mgr);
-	DestroySoundManager(mgr);
-}
-
-static void RunNoMatchTest() {
-	LogMessage("=== No Match Test ===", LogCategory::CLI, LogLevel::Info);
-	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 2;
-	cfg.sampleRate = 44100;
-	cfg.backend = AudioBackend::Miniaudio;
-	SoundManager* mgr = static_cast<SoundManager*>(CreateSoundManager(&cfg));
-
-	SoundManager_LoadBehaviorsFromFile(mgr, "C:/Users/manuel/source/repos/DeclarativeSoundEngine/x64/Debug/behaviors");
-	SoundManager_SetTag(mgr, "thing", "something.unknown");
-	SoundManager_Update(mgr);
-
-	DestroySoundManager(mgr);
-}
 
 
 int main() {
 
 	//RunInteractiveTest(); // <- this. is. so. cool! xD
 
-	//RunRandomNodeTest();
+	RunRandomNodeTest();
 	//RunBlendNodeTest();
 	//RunSelectNodeTest();
 
-
-	 RunSequenceNodeTest();
+	 //RunSequenceNodeTest();
 	 //RunParallelNodeTest();
 
-
-	//RunBasicBehaviorTest();
-	//RunValueConditionTests();
-	//RunInvalidTagTest();
-	//RunWildcardMatchingTest();
-	//RunNoMatchTest();
 
 	return 0;
 }

@@ -3,6 +3,12 @@
 #include "AudioManager.hpp"
 #include "Vec3.hpp"
 
+CommandQueue apiToManager;
+CommandQueue managerToApi;
+
+AudioManager* mgr = nullptr;
+std::thread audioThread;
+
 
 void AudioManager_Create(AudioConfig* cfg)
 {
@@ -22,18 +28,34 @@ void AudioManager_Destroy()
 	mgr = nullptr;
 }
 
-void AudioManager_LoadBehaviorsFromFile(void* mgr, const char* path)
+void AudioManager_LoadBehaviorsFromFile(const char* behaviorPath, const char* assetPath)
 {
+	Command cmd2;
+	cmd2.type = CommandType::AssetPath;
+	cmd2.value = assetPath;
+	apiToManager.push(cmd2);
+
 	Command cmd;
 	cmd.type = CommandType::LoadBehaviors;
-	cmd.value = path;
+	cmd.value = behaviorPath;
 	apiToManager.push(cmd);
+
+	
 }
 
 void AudioManager_SetTag(const char* entityId, const char* tag)
 {
 	Command cmd;
 	cmd.type = CommandType::SetTag;
+	cmd.entityId = entityId;
+	cmd.value = tag;
+	apiToManager.push(cmd);
+}
+
+void AudioManager_SetTransientTag(const char* entityId, const char* tag)
+{
+	Command cmd;
+	cmd.type = CommandType::SetTransient;
 	cmd.entityId = entityId;
 	cmd.value = tag;
 	apiToManager.push(cmd);
@@ -82,4 +104,9 @@ void AudioManager_ClearValue(const char* entityId, const char* key)
 	cmd.entityId = entityId;
 	cmd.key = key;
 	apiToManager.push(cmd);
+}
+
+void AudioManager_DebugPrintState()
+{
+	mgr->DebugPrintState();
 }

@@ -62,12 +62,12 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 
 	std::vector<std::unique_ptr<BehaviorDef>> definitions;
 	definitions.reserve(rawDefs.size());
-	/*
+
 	for (auto& rd : rawDefs) {
 		std::cerr << "[Debug] rd.id = " << rd.id << "\n";
 		std::cerr << "[Debug] rd.node =\n" << rd.node << "\n\n";
 	}
-	*/
+	
 
 	for (auto& rd : rawDefs) {
 		auto def = std::make_unique<BehaviorDef>();
@@ -108,7 +108,7 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 			<< " / IsNull? " << (activeYaml.IsNull() ? "yes" : "no")
 			<< "\n";
 
-		
+
 
 		// — 1) log what keys are present
 		std::vector<std::string> have;
@@ -133,16 +133,8 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 			auto nodeY = rd.node["onStart"];
 			if (nodeY) {
 				def->onStart.reset(ParserUtils::ParseNode(nodeY, ctx));
-				LogMessage(
-					"[BehaviorLoader] parsed onStart  for " + def->name +
-					(def->onStart ? "" : " <FAILED>"),
-					LogCategory::BehaviorLoader, LogLevel::Info
-				);
 			}
-			else {
-				LogMessage("[BehaviorLoader] no onStart  for " + def->name,
-					LogCategory::BehaviorLoader, LogLevel::Info);
-			}
+
 		}
 
 		// — 3) parse onActive
@@ -152,13 +144,13 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 				<< "[Debug] rd.id=" << rd.id
 				<< " onActive defined=" << yamlN.IsDefined()
 				<< " null=" << yamlN.IsNull() << "\n";*/
-			
+
 
 			if (yamlN.IsDefined() && !yamlN.IsNull()) {
 				/*std::cerr << "[Debug] about to call ParseNode(onActive) for "
 					<< rd.id << "\n";*/
 
-				// capture the pointer
+					// capture the pointer
 				Node* parsed = ParserUtils::ParseNode(yamlN, ctx);
 
 				// log success or failure
@@ -196,6 +188,14 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 			}
 		}
 
+		if (def->onStart)
+			def->onStart->PrintChildren();
+		if (def->onActive)
+			def->onActive->PrintChildren();
+		if (def->onEnd)
+			def->onEnd->PrintChildren();
+
+
 		definitions.push_back(std::move(def));
 	}
 
@@ -213,7 +213,7 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 	behaviors.reserve(definitions.size());
 	for (auto& defPtr : definitions) {
 		BehaviorDef b;
-		b.name = defPtr->id;
+		b.name = defPtr->name;
 		b.id = rand();
 		b.busIndex = defPtr->busIndex;
 		b.matchTags = defPtr->matchTags;
@@ -224,39 +224,38 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 		b.onEnd = std::move(defPtr->onEnd);
 		behaviors.push_back(std::move(b));
 	}
-
+	LogMessage(
+		std::to_string(behaviors.size()) + " behaviors loaded: ",
+		LogCategory::BehaviorLoader, LogLevel::Debug
+	);
 
 	// — 5) After you’ve built your `behaviors` vector, dump a final summary:
+	/*for (auto& b : behaviors) {
+		std::cerr <<
+			"     - " + b.name << " / (id: " << std::to_string(b.id) <<
+			")  -> onStart=" << (b.onStart ? "yes" : "no") <<
+			", onActive=" << (b.onActive ? "yes" : "no") <<
+			", onEnd=" << (b.onEnd ? "yes" : "no") << std::endl;
+	}*/
+
+
 	for (auto& b : behaviors) {
-		LogMessage(
-			"[BehaviorLoader] BehaviorDef '" + b.name +
-			"' -> onStart=" + (b.onStart ? "yes" : "no") +
-			", onActive=" + (b.onActive ? "yes" : "no") +
-			", onEnd=" + (b.onEnd ? "yes" : "no"),
-			LogCategory::BehaviorLoader, LogLevel::Info
-		);
+		std::cerr << "[Debug] BehaviorDef '" << b.name << "'\n";
+		// dump matchTags
+		std::cerr << "        matchTags       = { ";
+		for (size_t i = 0; i < b.matchTags.size(); ++i) {
+			std::cerr << b.matchTags[i];
+			if (i + 1 < b.matchTags.size()) std::cerr << ", ";
+		}
+		std::cerr << " }\n";
+		// dump matchConditions (assuming it's a vector<std::string> or has a .toString())
+		std::cerr << "        matchConditions = { ";
+		for (size_t i = 0; i < b.matchConditions.size(); ++i) {
+			std::cerr << b.matchConditions[i].text;
+			if (i + 1 < b.matchConditions.size()) std::cerr << ", ";
+		}
+		std::cerr << " }\n\n";
 	}
-
-
-	//for (auto& b : behaviors) {
-	//	std::cerr << "[Debug] BehaviorDef '" << b.name << "'\n";
-
-	//	// dump matchTags
-	//	std::cerr << "        matchTags       = { ";
-	//	for (size_t i = 0; i < b.matchTags.size(); ++i) {
-	//		std::cerr << b.matchTags[i];
-	//		if (i + 1 < b.matchTags.size()) std::cerr << ", ";
-	//	}
-	//	std::cerr << " }\n";
-
-	//	// dump matchConditions (assuming it's a vector<std::string> or has a .toString())
-	//	std::cerr << "        matchConditions = { ";
-	//	for (size_t i = 0; i < b.matchConditions.size(); ++i) {
-	//		std::cerr << b.matchConditions[i].text;
-	//		if (i + 1 < b.matchConditions.size()) std::cerr << ", ";
-	//	}
-	//	std::cerr << " }\n\n";
-	//}
 
 
 

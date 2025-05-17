@@ -24,7 +24,7 @@ namespace ParserUtils {
 		{
 			mods.volume = mapNode["volume"].as<std::string>();
 
-			std::cout << "MODMAP: " << mods.volume.value() << std::endl;
+			//std::cout << "MODMAP: " << mods.volume.value() << std::endl;
 		}
 		if (mapNode["pitch"])    mods.pitch = mapNode["pitch"].as<std::string>();
 		if (mapNode["loop"])	 mods.loop = true;
@@ -127,6 +127,7 @@ namespace ParserUtils {
 					node = new SoundNode(valNode.as<std::string>());
 				else
 					node = new DelayNode(valNode.as<std::string>());
+
 			}
 			else if (key == "random") {
 				auto rnd = new RandomNode();

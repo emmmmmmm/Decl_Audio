@@ -15,6 +15,7 @@ class Entity {
 	std::string id{};
 	TagMap tags{};
 	ValueMap values{};
+	int busId;
 	std::vector<ActiveBehavior> activeBehaviors{};
 	public:
 		void TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, AudioConfig* deviceCfg, AudioBufferManager* bufferManager) const;
@@ -37,7 +38,9 @@ class Entity {
 
 		std::vector<LeafBuilder::Leaf> BuildLeaves(AudioConfig* deviceCfg, AudioBufferManager* bufferManager);
 		void SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags, const ValueMap& globalValues, AudioConfig* deviceCfg, AudioBufferManager* bufferManager);
-
+		void SetBus(int id) {
+			busId = id;
+		}
 	//Snapshot GenerateSnapshot();
 };
 

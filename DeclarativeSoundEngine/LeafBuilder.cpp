@@ -117,7 +117,7 @@ namespace LeafBuilder {
 			for (auto& e : inheritedVols)
 			{
 				finalVol *= e.eval(params);
-				std::cout << "final volume: " << std::to_string(finalVol) << " :: " << e.text << std::endl;
+				//std::cout << "final volume: " << sn->sound << " : " << std::to_string(finalVol) << " :: " << e.text << std::endl;
 			}
 
 			float finalPitch = 1.0f;

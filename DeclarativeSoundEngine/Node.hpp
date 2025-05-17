@@ -8,7 +8,8 @@
 #include <random>
 #include "Expression.hpp"
 #include "Log.hpp"
-
+#include <typeinfo>
+#include <iostream>
 struct Node;
 using BlendWeights = std::array<std::pair<const Node*, float>, 2>;
 
@@ -58,6 +59,12 @@ struct Node {
 		return children;
 	}
 
+	virtual void PrintChildren() {
+		std::cerr << "Node: "<< typeid(*this).name() << std::endl;
+		for (auto& c : children)
+			c->PrintChildren();
+	}
+
 protected:
 	void copyCommonFields(Node& dst) const {
 		dst.type = type;
@@ -76,6 +83,9 @@ struct SoundNode : Node {
 		auto n = std::make_unique<SoundNode>(sound);
 		copyCommonFields(*n);
 		return n;
+	}
+	void PrintChildren() override {
+		std::cerr << "SoundNode! - " << sound << std::endl;
 	}
 };
 
@@ -128,12 +138,23 @@ struct RandomNode : Node {
 		return rng;
 	}
 	size_t pickOnce() const {
+
+		/*std::cerr << "[RandomNode trigger] this=" 
+			<< this << " children=" 
+			<< children.size() 
+			<< " val before random: "
+			<< std::to_string(choice)
+			<< std::endl;
+
+		for (auto& c : children)
+			std::cerr << "  child: " << typeid(*c).name() << std::endl;*/
+
 		if (choice < 0 && !children.empty()) {
 			std::uniform_int_distribution<size_t> d(0, children.size() - 1);
 			choice = static_cast<int>(d(Rng()));
 		}
-		else
-			std::cerr << "no children in random node!" << std::endl;
+		//std::cerr << "[RandomNode trigger] choice: " << std::to_string(choice) << std::endl;
+
 		return static_cast<size_t>(choice < 0 ? 0 : choice);
 	}
 };
