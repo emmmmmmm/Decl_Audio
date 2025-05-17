@@ -16,8 +16,8 @@ namespace LeafBuilder {
     struct Leaf {
         const SoundNode*    src;     // unique identity in graph
         const AudioBuffer*  buffer;   // null for delay
-        double              startSample;       // when (in samples) to begin
-        double              durationSamples;   // for delay or sound length
+        uint64_t            startSample;       // when (in samples) to begin
+        uint64_t            durationSamples;   // for delay or sound length
         //float               volume;            // evaluated volume
         //float               pitch;             // evaluated pitch
         bool                loop;              // should this leaf loop
@@ -40,16 +40,10 @@ namespace LeafBuilder {
 
     };
    
-    // Recursively traverse a Node graph and flatten into leaves
-    // startSample: current sample-offset within the behavior timeline
-    // inheritedLoop: true if any ancestor LoopNode is active
-    // bus: audio bus index to route to
-    // params: runtime parameters for eval
-  
 
     static void BuildLeaves(const Node* node,
         const ValueMap& params,
-        double startSample,
+        uint64_t startSample,
         bool inheritedLoop,
         std::vector<Expression> inheritedVols,
         std::vector<Expression> inheritedPitches,
@@ -60,7 +54,7 @@ namespace LeafBuilder {
 
     void BuildLeaves(const Node* node,
         const ValueMap& params,
-        double startSample,
+        uint64_t startSample,
         bool inheritedLoop,
         int bus,
         std::vector<Leaf>& out,

@@ -11,8 +11,10 @@
 
 const double M_PI = 3.14159265358979323846;
 namespace {
-	Snapshot gSnapshots[kSnapCount];   // single, file-local definition
+	Snapshot::Snapshot gSnapshots[kSnapCount];   // single, file-local definition
 }
+
+
 void BehaviorInstance::Update(const ValueMap& params, AudioBufferManager* bufMgr, uint8_t busIdx, float dt, uint64_t nowSamples)
 {
 	//if (!onActive)
@@ -87,107 +89,6 @@ static void DumpValueMap(const ValueMap& m) {
 	std::cerr << "-------------------------\n";
 }
 
-/*
-void BehaviorInstance::CollectLeaves(const Node& n,
-	const ValueMap& params,
-	float					inGain,
-	uint8_t					bus,
-	std::vector<SoundLeaf>& out,
-	AudioBufferManager* bufMgr,
-	bool loop)
-{
-	std::cout << "CollectLeaves: " + std::to_string(loop) << std::endl;
-
-	float gain = inGain * n.volume.eval(params);
-
-	switch (n.type)
-	{
-	case NodeType::Sound: {
-		const SoundNode& sn = static_cast<const SoundNode&>(n);
-		AudioBuffer* buf;
-
-		if (!bufMgr->TryLoad(sn.sound, buf)) {
-
-			return;          // silent fail
-		}
-		std::cout << "sound node: " + std::to_string(loop) + " - gain: "+std::to_string(gain) << std::endl;
-		out.push_back({ &sn, buf, gain, loop, bus });
-		return;
-	}
-
-	case NodeType::Parallel:
-		for (auto& c : n.children)
-			CollectLeaves(*c, params, gain, bus, out, bufMgr, loop);
-		return;
-
-	case NodeType::Random: {
-		auto& rn = static_cast<const RandomNode&>(n);
-		size_t idx = rn.pickOnce();               // RandomNode remembers choice
-		std::cout << "rng picked: " << idx << std::endl;
-		std::cout << "len children: " << rn.children.size() << std::endl;
-		CollectLeaves(*rn.children[idx], params, gain, bus, out, bufMgr, loop);
-		return;
-	}
-
-
-
-
-	case NodeType::Blend: {
-		const BlendNode& bn = static_cast<const BlendNode&>(n);
-
-		float val = 0;
-		// always get a float (defaults to 0.0 if missing)
-		float x = 0.f;
-		params.TryGetValue(bn.parameter, x);
-
-		auto w = bn.weights(x);
-
-		std::cout << std::to_string(w[0].second) + " / " + std::to_string(w[1].second) << std::endl;
-
-		if (w[0].first) CollectLeaves(*w[0].first, params, gain * w[0].second, bus, out, bufMgr, loop);
-		if (w[1].first) CollectLeaves(*w[1].first, params, gain * w[1].second, bus, out, bufMgr, loop);
-
-		return;
-	}
-
-	case NodeType::Select: {
-		auto const& sn = static_cast<const SelectNode&>(n);
-		std::cerr << "[SelectNode] looking for parameter "
-			<< sn.parameter << "\n";
-
-		//DumpValueMap(params);
-		float   fv = 0.f;
-		std::string sval;
-		// first try string (in case someone stored a literal)
-		if (params.TryGetValue(sn.parameter, sval)			// otherwise try the float overload
-			|| (params.TryGetValue(sn.parameter, fv)
-				&& (sval = std::to_string(fv), true)))
-		{
-			std::cerr << "[SelectNode] matched value " << sval << "\n";
-			if (auto child = sn.pick(sval))
-			{
-				std::cout << child << std::endl;
-				CollectLeaves(*child, params, gain, bus, out, bufMgr, loop);
-			}
-		}
-		else {
-			std::cerr << "[SelectNode] no entry for "
-				<< sn.parameter << "\n";
-		}
-		return;
-	}
-	case NodeType::Loop: {
-		auto& rn = static_cast<const LoopNode&>(n);
-		std::cout << "LOOP: len children: " << rn.children.size() << std::endl;
-		CollectLeaves(*rn.children[0], params, gain, bus, out, bufMgr, true); // loopnodes always have exactly one child!
-		return;
-	}
-
-
-	default: return;
-	}
-}
-*/
 
 
 AudioCore::AudioCore(
@@ -199,24 +100,18 @@ AudioCore::AudioCore(
 	: defsProvider(defsProvider), inQueue(fromManager), outQueue(toManager), device(std::move(audioDevice))
 {
 	deviceCfg = cfg;
-
 	audioBufferManager = new AudioBufferManager();
 
-	//device = std::move(audioDevice); //std::make_unique<AudioDeviceMiniaudio>(outputChannels, sampleRate, bufferFrames);
 
 	// size buffers
 	size_t bufSamples = size_t(deviceCfg->bufferFrames * deviceCfg->channels);
 
-	for (Snapshot& snap : gSnapshots)
+	for (Snapshot::Snapshot& snap : gSnapshots)
 		for (int b = 0; b < kMaxBuses; ++b)
 			snap.bus[b].resize(bufSamples, 0.0f);
 
-
 	device->SetRenderCallback(
 		[this](float* output, int frameCount) {RenderCallback(output, frameCount); });
-
-
-
 
 	// Create Master Bus
 	buses.clear();
@@ -266,7 +161,7 @@ void AudioCore::AdvancePlayheads()
 // build a fresh read‐only snapshot for render
 void AudioCore::TakeSnapshot()
 {
-	Snapshot& back = gSnapshots[gBuild];
+	Snapshot::Snapshot& back = gSnapshots[gBuild];
 
 	/* ---- reset counters (no vector clear) ---- */
 	back.voiceCount = 0;
@@ -326,7 +221,7 @@ void AudioCore::TakeSnapshot()
 					pan.push_back(1);
 				}
 
-				back.voices[back.voiceCount++] = VoiceSnap {
+				back.voices[back.voiceCount++] = Snapshot::VoiceSnap {
 					v.buffer,
 					v.playhead,
 					v.currentVol * att,   // pre‐attenuated
@@ -637,7 +532,7 @@ void AudioCore::HandleBusGain(const Command& cmd)
 void AudioCore::RenderCallback(float* out, int frames)
 {
 	/* ------- pull immutable snapshot ------- */
-	const Snapshot& s = gSnapshots[gFront.load(std::memory_order_acquire)];
+	const Snapshot::Snapshot& s = gSnapshots[gFront.load(std::memory_order_acquire)];
 
 	uint64_t blockStart = globalSampleCounter;
 	int samples = frames * deviceCfg->channels;      // inside RenderCallback
@@ -650,7 +545,7 @@ void AudioCore::RenderCallback(float* out, int frames)
 	/* ------- mix voices ------- */
 	for (uint32_t v = 0; v < s.voiceCount; ++v)
 	{
-		const VoiceSnap& vs = s.voices[v];
+		const Snapshot::VoiceSnap& vs = s.voices[v];
 
 		// causes crash with delay node... :thinking:
 		if (!vs.buf || vs.buf->Empty())  continue; // buffer not loaded...?

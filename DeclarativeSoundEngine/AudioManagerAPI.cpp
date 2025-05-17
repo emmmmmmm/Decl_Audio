@@ -1,0 +1,85 @@
+#include "pch.h"
+#include "AudioManagerAPI.hpp"
+#include "AudioManager.hpp"
+#include "Vec3.hpp"
+
+
+void AudioManager_Create(AudioConfig* cfg)
+{
+	mgr = new AudioManager(cfg, &apiToManager, &managerToApi);
+
+	audioThread = std::thread (&AudioManager::ThreadMain, mgr);
+}
+
+void AudioManager_Destroy()
+{
+	Command cmd;
+	cmd.type = CommandType::Shutdown;
+	apiToManager.push(cmd);
+	// keep in mind that join() is blocking..!
+	audioThread.join();
+	delete mgr;
+	mgr = nullptr;
+}
+
+void AudioManager_LoadBehaviorsFromFile(void* mgr, const char* path)
+{
+	Command cmd;
+	cmd.type = CommandType::LoadBehaviors;
+	cmd.value = path;
+	apiToManager.push(cmd);
+}
+
+void AudioManager_SetTag(const char* entityId, const char* tag)
+{
+	Command cmd;
+	cmd.type = CommandType::SetTag;
+	cmd.entityId = entityId;
+	cmd.value = tag;
+	apiToManager.push(cmd);
+}
+
+void AudioManager_ClearTag(const char* entityId, const char* tag)
+{
+	Command cmd;
+	cmd.type = CommandType::ClearTag;
+	cmd.entityId = entityId;
+	cmd.value = tag;
+	apiToManager.push(cmd);
+}
+
+void AudioManager_SetFloatValue(const char* entityId, const char* key, float value)
+{
+	Command cmd;
+	cmd.type = CommandType::SetValue;
+	cmd.entityId = entityId;
+	cmd.key = key;
+	cmd.value = value;
+	apiToManager.push(cmd);
+}
+void AudioManager_SetStringValue(const char* entityId, const char* key, const char* value)
+{
+	Command cmd;
+	cmd.type = CommandType::SetValue;
+	cmd.entityId = entityId;
+	cmd.key = key;
+	cmd.value = value;
+	apiToManager.push(cmd);
+}
+void AudioManager_SetVectorValue(const char* entityId, const char* key, float x,float y, float z)
+{
+	Command cmd;
+	cmd.type = CommandType::SetValue;
+	cmd.entityId = entityId;
+	cmd.key = key;
+	cmd.value = Vec3(x,y,z);
+	apiToManager.push(cmd);
+}
+void AudioManager_ClearValue(const char* entityId, const char* key)
+{
+	Command cmd;
+	cmd.type = CommandType::ClearValue;
+	cmd.entityId = entityId;
+	cmd.key = key;
+	apiToManager.push(cmd);
+}

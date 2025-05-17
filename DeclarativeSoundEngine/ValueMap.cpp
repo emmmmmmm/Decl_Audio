@@ -6,8 +6,7 @@
 
 // internal template to reduce repetition
 template<typename T>
-bool getHelper(const std::unordered_map<std::string, Value>& m,
-	const std::string& key, T& out)
+bool getHelper(const std::unordered_map<std::string, Value>& m,	const std::string& key, T& out)
 {
 	auto it = m.find(key);
 	if (it == m.end()) return false;
@@ -16,9 +15,6 @@ bool getHelper(const std::unordered_map<std::string, Value>& m,
 		return true;
 	}
 	return false;
-
-
-
 
 }
 

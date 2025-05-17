@@ -14,6 +14,10 @@
 #include "SoundManagerAPI.hpp"
 #include "Vec3.hpp"
 #include "LeafBuilder.hpp"
+#include "Voice.hpp"
+#include "Bus.hpp"
+#include "Snapshot.hpp"
+#include "MatchUtils.hpp"
 
 class SoundManager; // forward declaration
 
@@ -26,39 +30,7 @@ constexpr int  kSnapCount = 3;                   // triple-buffer
 
 
 
-struct Voice {
-	SoundHandle handle = {};
-	const AudioBuffer* buffer = {};
-	size_t       playhead = {};      // sample-frame read offset
-	float        currentVol = {};
-	float        targetVol = {};
-	float        volStep = {};
-	int          busIndex = {};
-	uint64_t startSample = {};
-	
 
-	bool loop = false;
-	const SoundNode* source = nullptr;
-
-
-	// optional: pitch fields when you add resampling
-	float currentPitch = {};
-	float targetPitch = {};
-
-	
-
-	Voice MakeSnapShot() const {
-		return *this;
-	}
-
-	// concept from ObjectFactory
-	void reset() {
-		// e.g. reset playhead, clear buffers, zero flags…
-		playhead = {};
-		buffer = {};
-		// etc.
-	}
-};
 
 
 
@@ -76,15 +48,6 @@ struct BehaviorInstance {
 	std::vector<Voice>          voices;
 
 	std::unordered_map<std::string, Expression> paramExpr;
-	
-	
-	//AudioBufferManager* bufferManager;
-
-
-
-	//static void CollectLeaves(const Node&, const ValueMap&, float, uint8_t,
-	//	std::vector<SoundLeaf>&, AudioBufferManager*, bool loop = false);
-
 
 	bool HasVoice(const SoundNode* src) const
 	{
@@ -95,7 +58,7 @@ struct BehaviorInstance {
 	void StartVoice(const LeafBuilder::Leaf& leaf, int busIdx, uint64_t currentSample, const ValueMap& params)
 	{
 
-		std::cout << "start leaf, loop: " + std::to_string(leaf.loop) <<" offset: " <<std::to_string(leaf.startSample)<< std::endl;
+		std::cout << "start voice, loop: " + std::to_string(leaf.loop) <<" offset: " <<std::to_string(leaf.startSample)<< std::endl;
 		Voice v;
 		v.buffer = leaf.buffer;
 		v.playhead = 0;
@@ -125,32 +88,6 @@ struct BehaviorInstance {
 	}
 };
 
-struct VoiceSnap {
-	const AudioBuffer*	buf;
-	size_t				playhead;
-	float				gain;
-	bool				loop;
-	uint8_t				bus;
-
-	uint64_t startSample = {};
-	// Spatialization
-	std::vector<float> pan ={};
-};
-
-
-
-/* -------- immutable snapshot -------- */
-struct Snapshot {
-	Vec3		  listenerPosition = {};
-	uint32_t      voiceCount = 0;
-	VoiceSnap     voices[kMaxVoices];
-
-	uint32_t      busCount = 1;                  // at least master
-	float         busGain[kMaxBuses]{};
-	std::vector<int> busParent{};
-
-	mutable std::vector<float> bus[kMaxBuses];  // resised once in ctor
-};
 
 
 struct EntityData {
@@ -158,23 +95,14 @@ struct EntityData {
 	std::vector<BehaviorInstance*> instances;
 };
 
-struct Bus {
-	std::vector<float> buffer;
-	Vec3               position = {};
-	Expression		   volume{ "1.0" };
 
-	struct Routing { int dst; float gain; };
-
-	std::vector<Routing> sends;     // extra fan-outs
-	int parent = 0;      // 0 = master, or another sub-mix
-};
 
 
 class AudioCore {
 	// config
 	
-	std::vector<Voice> voiceBuffer;
-	std::mutex voiceBufferMtx;
+	//std::vector<Voice> voiceBuffer;
+	//std::mutex voiceBufferMtx;
 
 	// mix‐graph
 	std::vector<Bus>                buses;           // [0]=master

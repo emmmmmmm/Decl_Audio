@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿// behaviorDef.hpp
+#pragma once
 #include <string>
 #include "Condition.hpp"
 #include "Expression.hpp"
@@ -11,7 +12,7 @@
 
 struct BehaviorDef {
 
-    uint32_t id = {};
+    uint32_t id = {}; // todo: should not actually be in use I think?
     std::string name = {};
     std::vector<std::string> matchTags;
     std::vector<Condition>   matchConditions;

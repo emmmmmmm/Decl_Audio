@@ -16,24 +16,28 @@ enum class CommandType {
 	AssetPath,
 	SetListener,
 	RemoveListener,
-	None
+	None,
+	// NEW:
+	SetTag,
+	SetTransient,
+	ClearTag,
+	SetValue,
+	ClearValue,
+	LoadBehaviors,
+	Shutdown,
 };
 
 struct Command {
 	CommandType type = CommandType::None;
 	std::string entityId = {};
 	std::string key = {};
-	
 	std::string soundName = {};
-	//float       value = 0;
-	// //std::string strValue = {};
-	Value value;
-
-	uint32_t instanceID = -1;
-	uint32_t    behaviorId = -1;
+	Value		value; 
+	uint32_t	instanceID = -1;
+	uint32_t	behaviorId = -1;
 
 	Command() = default;
-	Command(const Command&) = default;          // allow copying
+	Command(const Command&) = default;  // allow copying
 	Command& operator=(const Command&) = default;
 	Command(Command&&) = default;
 	Command& operator=(Command&&) = default;
@@ -50,10 +54,16 @@ struct Command {
 		case CommandType::PlaySuccess: return "PlaySuccess";
 		case CommandType::SetListener: return "SetListener";
 		case CommandType::RemoveListener: return "RemoveListener";
+		case CommandType::SetTag: return "SetTag";
+		case CommandType::ClearTag: return "ClearTag";
+		case CommandType::SetTransient: return "SetTransient";
+		case CommandType::SetValue: return "SetValue";
+		case CommandType::ClearValue:return "ClearValue";
+		case CommandType::LoadBehaviors:return "LoadBehaviors";
+		case CommandType::Shutdown:return "Shutdown";
 		default: return "Unknown";
 		}
 	}
-
 };
 
 

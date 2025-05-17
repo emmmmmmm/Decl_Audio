@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include "MatchUtils.hpp"
 #include <string>
 #include <vector>
 #include <memory>
@@ -6,7 +7,6 @@
 #include <array>
 #include <random>
 #include "Expression.hpp"
-#include "MatchUtils.hpp"
 #include "Log.hpp"
 
 struct Node;
@@ -160,19 +160,19 @@ struct BlendNode : Node {
 		return bn;
 	}
 	BlendWeights weights(float x) const {
-		if (blends.empty()) return BlendWeights{ {{nullptr,0},{nullptr,0}} };
+		if (blends.empty()) return BlendWeights{ {{nullptr,0.f},{nullptr,0.f}} };
 		if (x <= blends.front().at) 
-			return BlendWeights{ {{blends.front().node.get(),1},{nullptr,0}} };
+			return BlendWeights{ {{blends.front().node.get(),1.f},{nullptr,0.f}} };
 		if (x >= blends.back().at)  
-			return BlendWeights{ {{blends.back().node.get(),1},{nullptr,0}} };
+			return BlendWeights{ {{blends.back().node.get(),1.f},{nullptr,0.f}} };
 		for (size_t i = 0;i + 1 < blends.size();++i) {
 			auto& a = blends[i]; auto& b = blends[i + 1];
 			if (x >= a.at && x < b.at) {
 				float t = (x - a.at) / (b.at - a.at);
-				return BlendWeights{ {{a.node.get(),1 - t},{b.node.get(),t}} };
+				return BlendWeights{ {{a.node.get(),1.f - t},{b.node.get(),t}} };
 			}
 		}
-		return BlendWeights{ {{nullptr,0},{nullptr,0}} };
+		return BlendWeights{ {{nullptr,0.f},{nullptr,0.f}} };
 	}
 
 	void addCase(float at, Node* child) {

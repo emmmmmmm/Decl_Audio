@@ -10,21 +10,21 @@
 
 namespace LeafBuilder {
 
-	static double SamplesFromSeconds(const Expression& expr, const ValueMap& params, double sampleRate) {
+	static uint64_t SamplesFromSeconds(const Expression& expr, const ValueMap& params, uint64_t sampleRate) {
 		float seconds = expr.eval(params);
-		return seconds * sampleRate;
+		return (uint64_t) seconds * sampleRate; 
 	}
 
 	// Compute total node duration in samples (for Sequence offsetting)
-	static double ComputeDuration(const Node* node, const ValueMap& params, double sampleRate, AudioBufferManager* bufferManager) {
+	static uint64_t ComputeDuration(const Node* node, const ValueMap& params, uint64_t sampleRate, AudioBufferManager* bufferManager) {
 		switch (node->type) {
 
 		case NodeType::Sound: { // TODO: Somethings weird here with the buffers...! 
 			auto* sn = static_cast<const SoundNode*>(node);
 			AudioBuffer* buf;
 			if (bufferManager->TryGet(sn->sound, buf)) {
-				std::cout << "[ComputeDuration] buffer length: " << std::to_string(static_cast<double>(buf->GetFrameCount())) << std::endl;
-				return static_cast<double>(buf->GetFrameCount());
+				std::cout << "[ComputeDuration] buffer length: " << std::to_string(static_cast<uint64_t>(buf->GetFrameCount())) << " samples" << std::endl;
+				return static_cast<uint64_t>(buf->GetFrameCount());
 			}
 			std::cout << "[ComputeDuration] could not get bufferlength" << std::endl;
 			return 0;
@@ -35,62 +35,62 @@ namespace LeafBuilder {
 			return SamplesFromSeconds(dn->delayExpr, params, sampleRate);
 		}
 		case NodeType::Sequence: {
-			double sum = 0.0;
+			uint64_t sum = 0;
 			for (auto& child : node->children) {
 				sum += ComputeDuration(child.get(), params, sampleRate, bufferManager);
 			}
-			std::cout << "[ComputeDuration] sequence duration: " << std::to_string(sum) << std::endl;
+			std::cout << "[ComputeDuration] sequence duration: " << std::to_string(sum) << " samples" << std::endl;
 			return sum;
 		}
 		case NodeType::Parallel: {
-			double maxDur = 0.0;
+			uint64_t maxDur = 0;
 			for (auto& child : node->children) {
-				double d = ComputeDuration(child.get(), params, sampleRate, bufferManager);
+				uint64_t d = ComputeDuration(child.get(), params, sampleRate, bufferManager);
 				if (d > maxDur) maxDur = d;
 			}
-			std::cout << "[ComputeDuration] parallel duration: " << std::to_string(maxDur) << std::endl;
+			std::cout << "[ComputeDuration] parallel duration: " << std::to_string(maxDur) << " samples" << std::endl;
 			return maxDur;
 		}
 		case NodeType::Random:
 		case NodeType::Blend:
 		case NodeType::Select: {
 			// worst-case: longest child
-			double maxDur = 0.0;
+			uint64_t maxDur = 0;
 			for (auto& child : node->children) {
-				double d = ComputeDuration(child.get(), params, sampleRate, bufferManager);
+				uint64_t d = ComputeDuration(child.get(), params, sampleRate, bufferManager);
 				if (d > maxDur) maxDur = d;
 			}
 			return maxDur;
 		}
 		case NodeType::Loop: {
 			// loop is infinite
-			return std::numeric_limits<double>::infinity();
+			return std::numeric_limits<uint64_t>::infinity();
 		}
 		case NodeType::Reference: {
 			auto* rn = static_cast<const ReferenceNode*>(node);
 			if (rn->target) return ComputeDuration(rn->target, params, sampleRate, bufferManager);
-			return 0.0;
+			return 0;
 		}
 		default:
 			std::cout << "ComputeDuration: Unknown node type" << std::endl;
-			return 0.0;
+			return 0;
 		}
 	}
 
 
-	 void BuildLeaves(const Node* node,
+	void BuildLeaves(const Node* node,
 		const ValueMap& params,
-		double startSample,
+		uint64_t startSample,
 		bool inheritedLoop,
 		int bus,
 		std::vector<Leaf>& out,
 		AudioConfig* audioDeviceCfg,
 		AudioBufferManager* bufferManager) {
-			BuildLeaves(node, params, startSample, inheritedLoop, {}, {}, bus, out, audioDeviceCfg, bufferManager);
+		BuildLeaves(node, params, startSample, inheritedLoop, {}, {}, bus, out, audioDeviceCfg, bufferManager);
 	}
 
-	static void BuildLeaves(const Node* node, const ValueMap& params, double startSample, 
-		bool inheritedLoop, std::vector<Expression> inheritedVols, std::vector<Expression> inheritedPitches, int bus, 
+	static void BuildLeaves(const Node* node, const ValueMap& params, uint64_t startSample,
+		bool inheritedLoop, std::vector<Expression> inheritedVols, std::vector<Expression> inheritedPitches, int bus,
 		std::vector<Leaf>& out, AudioConfig* audioDeviceCfg, AudioBufferManager* bufferManager) {
 		if (node == nullptr)
 			return; // node not assigned
@@ -99,7 +99,7 @@ namespace LeafBuilder {
 		inheritedVols.push_back(node->volume);
 		inheritedPitches.push_back(node->pitch);
 
-		
+
 
 		switch (node->type) {
 
@@ -111,36 +111,36 @@ namespace LeafBuilder {
 				std::cerr << "Missing audio buffer: " + sn->sound << std::endl;
 				break;
 			}
-			double dur = static_cast<double>(buf->GetFrameCount());
+			uint64_t dur =buf->GetFrameCount();
 
 			float finalVol = 1.0f;
 			for (auto& e : inheritedVols)
 			{
 				finalVol *= e.eval(params);
-				std::cout << "final volume: " << std::to_string(finalVol)<< " :: "<<e.text << std::endl;
+				std::cout << "final volume: " << std::to_string(finalVol) << " :: " << e.text << std::endl;
 			}
 
 			float finalPitch = 1.0f;
 			for (auto& e : inheritedPitches)
 				finalPitch *= e.eval(params);
 
-			
-			out.push_back({ sn, buf, startSample, dur, inheritedLoop, bus , inheritedVols, inheritedPitches});
+
+			out.push_back({ sn, buf, startSample, dur, inheritedLoop, bus , inheritedVols, inheritedPitches });
 			break;
 		}
 
 		case NodeType::Delay: {
 			auto* dn = static_cast<const DelayNode*>(node);
-			double dur = SamplesFromSeconds(dn->delayExpr, params, audioDeviceCfg->sampleRate);
+			uint64_t dur = SamplesFromSeconds(dn->delayExpr, params, audioDeviceCfg->sampleRate);
 			out.push_back({ nullptr, nullptr, startSample, dur, inheritedLoop, bus , inheritedVols, inheritedPitches });
 			break;
 		}
 
 		case NodeType::Sequence: {
-			double offset = startSample;
+			uint64_t offset = startSample;
 			for (auto& child : node->children) {
 				std::cout << "sequence offset: " + std::to_string(offset) << std::endl;
-				BuildLeaves(child.get(), params, offset, inheritedLoop,inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
+				BuildLeaves(child.get(), params, offset, inheritedLoop, inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
 				// compute child duration to update offset
 				offset += ComputeDuration(child.get(), params, audioDeviceCfg->sampleRate, bufferManager);
 			}
@@ -149,14 +149,14 @@ namespace LeafBuilder {
 
 		case NodeType::Parallel:
 			for (auto& child : node->children) {
-				BuildLeaves(child.get(), params, startSample, inheritedLoop,inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
+				BuildLeaves(child.get(), params, startSample, inheritedLoop, inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
 			}
 			break;
 
 		case NodeType::Random: {
 			auto* rn = static_cast<const RandomNode*>(node);
 			size_t idx = rn->pickOnce();
-			BuildLeaves(rn->children[idx].get(), params, startSample, inheritedLoop,inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
+			BuildLeaves(rn->children[idx].get(), params, startSample, inheritedLoop, inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
 			break;
 		}
 
@@ -173,7 +173,7 @@ namespace LeafBuilder {
 					// capture current leaf count
 					size_t baseIndex = out.size();
 					// generate leaves for this branch
-					BuildLeaves(weight.first, params, startSample, inheritedLoop,inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
+					BuildLeaves(weight.first, params, startSample, inheritedLoop, inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
 
 					// scale volume on all newly added leaves
 					for (size_t i = baseIndex; i < out.size(); ++i) {
@@ -192,7 +192,7 @@ namespace LeafBuilder {
 			std::string val = "";
 			params.TryGetValue(sn->parameter, val);
 			const Node* sel = sn->pick(val);
-			if (sel) BuildLeaves(sel, params, startSample, inheritedLoop,inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
+			if (sel) BuildLeaves(sel, params, startSample, inheritedLoop, inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
 			break;
 		}
 

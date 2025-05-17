@@ -8,7 +8,7 @@
 
 class AudioBufferManager {
 public:
-	AudioBufferManager();
+	AudioBufferManager() {};
 	~AudioBufferManager();
 	bool TryGet( const std::string& path, AudioBuffer*& outBuf);
 	bool TryLoad(const std::string& path, AudioBuffer*& outBuf);

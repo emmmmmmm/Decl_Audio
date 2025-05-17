@@ -6,10 +6,7 @@
 #include "Log.hpp"
 #include <filesystem>
 
-AudioBufferManager::AudioBufferManager()
-{
-	// Constructor, nothing to init beyond default members
-}
+
 
 AudioBufferManager::~AudioBufferManager()
 {
@@ -27,7 +24,6 @@ bool AudioBufferManager::TryGet(const std::string& path, AudioBuffer*& outBuf) {
 	std::cerr << "[AudioBufferManager::TryGet] this=" << this
 		<< "  cache@=" << &cache
 		<< "  cache.size()=" << cache.size() << "\n";
-
 
 	auto it = cache.find(path);
 	if (it != cache.end()) {
@@ -52,24 +48,6 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 		return true;
 	}
 
-	
-
-
-	//if (it != cache.end()) {
-	//	// Move this path to front of LRU
-	//	lruList.remove(path);
-	//	lruList.push_front(path);
-	//	// Increment ref count
-	//	it->second.second++;
-	//	outBuf = &it->second.first;
-
-	//	LogMessage("AudioBufferManager: file aready loaded: " + path,
-	//		LogCategory::AudioBuffer, LogLevel::Debug);
-
-	//	return true;
-	//}
-
-
 	// Load new buffer
 	namespace fs = std::filesystem;
 	fs::path assetDir{ assetPath };
@@ -82,14 +60,11 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	AudioBuffer buffer(fullStr);
 
 	
-
 	if (buffer.Empty()) {
 		LogMessage("AudioBufferManager: failed to load " + path,
 			LogCategory::AudioBuffer, LogLevel::Warning);
 		outBuf = nullptr;
 		return false;
-	
-
 	}
 
 	size_t mem = buffer.GetFrameCount()
@@ -104,7 +79,7 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	);
 
 	// emplaced.first is iterator into the new element
-	auto it = emplaced.first;
+	auto& it = emplaced.first;
 
 	// LRU and memory tracking
 	lruList.push_front(path);
@@ -114,6 +89,13 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	LogMessage("AudioBufferManager: finished loading " + path,
 		LogCategory::AudioBuffer, LogLevel::Warning);
 	return true;
+}
+
+void AudioBufferManager::Unload(const std::string& path)
+{
+	cache.erase(path);
+	LogMessage("AudioBufferManager: Unloaded: " + path,
+		LogCategory::AudioBuffer, LogLevel::Warning);
 }
 
 void AudioBufferManager::PurgeUnused()
@@ -145,5 +127,5 @@ size_t AudioBufferManager::GetMemoryUsage()
 void AudioBufferManager::SetAssetpath(const std::string& path)
 {
 	assetPath = path;
-	LogMessage("updated path to assets: " + assetPath, LogCategory::AudioBuffer, LogLevel::Debug);
+	LogMessage("AudioBufferManager: updated path to assets: " + assetPath, LogCategory::AudioBuffer, LogLevel::Debug);
 }

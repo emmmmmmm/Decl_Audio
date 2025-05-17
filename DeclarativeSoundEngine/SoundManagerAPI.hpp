@@ -1,27 +1,15 @@
 #pragma once
 
 #include "declsound_export.hpp"
-#include "BehaviorDef.hpp"
 #include "Log.hpp"
+#include "AudioManagerAPI.hpp"
 class SoundManager;
 
 
 
 extern "C" {
 	
-	enum AudioBackend : int {
-		Miniaudio = 0,
-		Unity = 1
-	};
-
-	struct AudioConfig {
-		AudioBackend backend;
-		uint32_t     sampleRate;
-		uint32_t     bufferFrames;
-		uint32_t     channels;
-		//char* behaviorPath;
-		//char* audioPath;
-	};
+	
 
 
 

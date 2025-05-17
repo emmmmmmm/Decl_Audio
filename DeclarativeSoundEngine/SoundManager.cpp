@@ -143,16 +143,6 @@ void SoundManager::SendValueDiff(const std::string& entityId)
 }
 
 
-static std::string JoinTags(const std::vector<std::string>& tags) {
-	std::ostringstream oss;
-	oss << "[";
-	for (size_t i = 0; i < tags.size(); ++i) {
-		oss << tags[i];
-		if (i + 1 < tags.size()) oss << ", ";
-	}
-	oss << "]";
-	return oss.str();
-}
 
 void SoundManager::SyncBehaviorsForEntity(const std::string& entityId, const TagMap& tags, const TagMap& globalTags)
 {
