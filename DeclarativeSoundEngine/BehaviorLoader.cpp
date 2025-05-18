@@ -16,11 +16,11 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 
 
 	if (!fs::exists(folderPath)) {
-		std::cerr << "[BL][Error] folder not found: " << folderPath << "\n";
+		LogMessage("[BL][Error] folder not found: " + folderPath, LogCategory::BehaviorLoader, LogLevel::Warning);
 		return {};
 	}
 	if (!fs::is_directory(folderPath)) {
-		std::cerr << "[BL][Error] not a directory: " << folderPath << "\n";
+		LogMessage("[BL][Error] not a directory: " +folderPath , LogCategory::BehaviorLoader, LogLevel::Warning);
 		return {};
 	}
 
@@ -62,10 +62,12 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 	std::vector<std::unique_ptr<BehaviorDef>> definitions;
 	definitions.reserve(rawDefs.size());
 
+	/*
 	for (auto& rd : rawDefs) {
 		std::cerr << "[Debug] rd.id = " << rd.id << "\n";
 		std::cerr << "[Debug] rd.node =\n" << rd.node << "\n\n";
 	}
+	*/
 	
 
 	for (auto& rd : rawDefs) {
@@ -117,8 +119,8 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 			if (yamlN.IsDefined() && !yamlN.IsNull()) {
 				Node* parsed = ParserUtils::ParseNode(yamlN, ctx);
 
-				if (!parsed) 
-					std::cerr << "[Error] ParseNode(onActive) returned nullptr for " << rd.id << "\n";
+				if (!parsed)
+					LogMessage("ParseNode(onActive) returned nullptr for " + rd.id, LogCategory::BehaviorLoader, LogLevel::Warning);
 				else 
 					def->onActive.reset(parsed);
 				
@@ -172,7 +174,7 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 		LogCategory::BehaviorLoader, LogLevel::Debug
 	);
 
-
+	// Dump all Behaviors
 	/*
 	for (auto& b : behaviors) {
 		std::cerr << "[Debug] BehaviorDef '" << b.name << "'\n";

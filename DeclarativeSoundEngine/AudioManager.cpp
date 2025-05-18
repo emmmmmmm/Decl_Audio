@@ -11,6 +11,7 @@
 #include "AudioBufferManager.hpp"
 #include "BehaviorLoader.hpp"
 #include "AudioDevice.hpp"
+#include "Log.hpp"
 
 const double M_PI = 3.14159265358979323846;
 
@@ -27,7 +28,7 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 	switch (deviceCfg->backend) {
 	case AudioBackend::Miniaudio: { device = std::make_unique<AudioDeviceMiniaudio>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames); break; }
 	case AudioBackend::Unity: { device = std::make_unique<AudioDeviceUnity>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames); break; }
-	default: { std::cout << "unknown audio device!" << std::endl;break; }
+	default: { LogMessage("unknown audio device!", LogCategory::AudioManager, LogLevel::Warning);break; }
 	}
 
 	// size buffers
@@ -70,7 +71,7 @@ void AudioManager::ThreadMain() {
 
 
 	}
-	std::cout << "END OF AUDIO THREAD" << std::endl;
+	LogMessage("END OF AUDIO THREAD", LogCategory::AudioManager, LogLevel::Info);
 }
 
 
@@ -235,7 +236,7 @@ int AudioManager::GetOrCreateBus(const std::string& entityId) {
 	buses.push_back({ std::vector<float>(deviceCfg->bufferFrames * deviceCfg->channels), {} });
 	entityBus.emplace(entityId, newIndex);
 
-	std::cout << "[BUS] added new bus for entity: " << entityId << std::endl;
+	LogMessage("[BUS] added new bus for entity: " + entityId, LogCategory::AudioManager, LogLevel::Debug);
 	return newIndex;
 }
 
@@ -344,7 +345,6 @@ void AudioManager::RenderCallback(float* out, int frames)
 		// causes crash with delay node... :thinking:
 		if (!vs.buf || vs.buf->Empty())
 		{
-			std::cout << "RCB: Buffer not ready" << std::endl;
 			continue; // buffer not loaded...?
 		}
 		const float*	pcm = vs.buf->GetData();

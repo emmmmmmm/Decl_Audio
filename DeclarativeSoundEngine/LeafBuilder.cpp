@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include "AudioBufferManager.hpp"
 #include "AudioDevice.hpp"
+#include "Log.hpp"
 
 namespace LeafBuilder {
 
@@ -23,10 +24,11 @@ namespace LeafBuilder {
 			auto* sn = static_cast<const SoundNode*>(node);
 			AudioBuffer* buf;
 			if (bufferManager->TryGet(sn->sound, buf)) {
-				std::cout << "[ComputeDuration] buffer length: " << std::to_string(static_cast<uint64_t>(buf->GetFrameCount())) << " samples" << std::endl;
+				LogMessage("[ComputeDuration] buffer length: "
+					+ std::to_string(static_cast<uint64_t>(buf->GetFrameCount())) + " samples", LogCategory::Leaf, LogLevel::Debug);
 				return static_cast<uint64_t>(buf->GetFrameCount());
 			}
-			std::cout << "[ComputeDuration] could not get bufferlength" << std::endl;
+			LogMessage("[ComputeDuration] could not get bufferlength", LogCategory::Leaf, LogLevel::Warning);
 			return 0;
 			//return buf ? static_cast<double>(buf->GetFrameCount()) : 0.0;
 		}
@@ -39,7 +41,7 @@ namespace LeafBuilder {
 			for (auto& child : node->children) {
 				sum += ComputeDuration(child.get(), params, sampleRate, bufferManager);
 			}
-			std::cout << "[ComputeDuration] sequence duration: " << std::to_string(sum) << " samples" << std::endl;
+			LogMessage("[ComputeDuration] sequence duration: " + std::to_string(sum) + " samples", LogCategory::Leaf, LogLevel::Debug);
 			return sum;
 		}
 		case NodeType::Parallel: {
@@ -48,7 +50,7 @@ namespace LeafBuilder {
 				uint64_t d = ComputeDuration(child.get(), params, sampleRate, bufferManager);
 				if (d > maxDur) maxDur = d;
 			}
-			std::cout << "[ComputeDuration] parallel duration: " << std::to_string(maxDur) << " samples" << std::endl;
+			LogMessage("[ComputeDuration] parallel duration: " + std::to_string(maxDur) +" samples", LogCategory::Leaf, LogLevel::Debug);
 			return maxDur;
 		}
 		case NodeType::Random:
@@ -72,7 +74,7 @@ namespace LeafBuilder {
 			return 0;
 		}
 		default:
-			std::cout << "ComputeDuration: Unknown node type" << std::endl;
+			LogMessage("ComputeDuration: Unknown node type", LogCategory::Leaf, LogLevel::Warning);
 			return 0;
 		}
 	}
@@ -108,7 +110,7 @@ namespace LeafBuilder {
 			AudioBuffer* buf;
 			if (!bufferManager->TryLoad(sn->sound, buf))
 			{
-				std::cerr << "Missing audio buffer: " + sn->sound << std::endl;
+				LogMessage("Missing audio buffer: " + sn->sound, LogCategory::Leaf, LogLevel::Warning);
 				break;
 			}
 			uint64_t dur =buf->GetFrameCount();
@@ -138,7 +140,7 @@ namespace LeafBuilder {
 		case NodeType::Sequence: {
 			uint64_t offset = startSample;
 			for (auto& child : node->children) {
-				std::cout << "sequence offset: " + std::to_string(offset) << std::endl;
+				LogMessage("sequence offset: " + std::to_string(offset), LogCategory::Leaf, LogLevel::Trace);
 				BuildLeaves(child.get(), params, offset, inheritedLoop, inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
 				// compute child duration to update offset
 				offset += ComputeDuration(child.get(), params, audioDeviceCfg->sampleRate, bufferManager);

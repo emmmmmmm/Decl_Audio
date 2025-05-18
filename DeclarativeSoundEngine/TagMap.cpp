@@ -30,7 +30,7 @@ std::vector<std::string> TagMap::GetAllTags() const {
 void TagMap::ClearTransient() {
     if(_transient.size()>0)
         LogMessage("clearning " + std::to_string(_transient.size())
-            + " transient tags", LogCategory::SoundManager, LogLevel::Info);
+            + " transient tags", LogCategory::Entity, LogLevel::Info);
 
     _transient.clear();
 }

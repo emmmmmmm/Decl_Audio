@@ -19,26 +19,26 @@ void Entity::TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, 
 			ab.SetPhase(ActiveBehavior::Phase::Start);
 			auto newGraph = ab.GetDefinition()->onStart;
 			ab.currentNodeGraph = newGraph ? newGraph->clone() : nullptr;
-			std::cerr << "[STATE] " << ab.Name() << ": Transition to Phase::Start" << std::endl;
+			LogMessage(ab.Name()+ ": Transition to Phase::Start", LogCategory::Entity, LogLevel::Debug);
 			break;
 		}
 		case ActiveBehavior::Phase::Active: {
 			ab.SetPhase(ActiveBehavior::Phase::Active);
 			auto newGraph = ab.GetDefinition()->onActive;
 			ab.currentNodeGraph = newGraph ? newGraph->clone() : nullptr;
-			std::cerr << "[STATE] " << ab.Name() << ": Transition to Phase::Active" << std::endl;
+			LogMessage(ab.Name()+ ": Transition to Phase::Active", LogCategory::Entity, LogLevel::Debug);
 			break;
 		}
 		case ActiveBehavior::Phase::Ending: {
 			ab.SetPhase(ActiveBehavior::Phase::Ending);
 			auto newGraph = ab.GetDefinition()->onEnd;
 			ab.currentNodeGraph = newGraph ? newGraph->clone() : nullptr;
-			std::cerr << "[STATE] " << ab.Name() << ": Transition to Phase::Ended" << std::endl;
+			LogMessage(ab.Name()+ ": Transition to Phase::Ended", LogCategory::Entity, LogLevel::Debug);
 			break;
 		}
 		case ActiveBehavior::Phase::Finished: {
 			ab.SetPhase(ActiveBehavior::Phase::Finished);
-			std::cerr << "[STATE] " << ab.Name() << ": Transition to Phase::Finished" << std::endl;
+			LogMessage(ab.Name() + ": Transition to Phase::Finished", LogCategory::Entity, LogLevel::Debug);
 			ab.currentNodeGraph = nullptr;
 			return; // nothing to do here
 		}
@@ -61,13 +61,12 @@ void Entity::TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, 
 		v.startSample = leaf.startSample;
 		v.currentVol = leaf.volume(values);
 
+		LogMessage("[start voice], loop: " + std::to_string(leaf.loop)
+			+ " offset: " + std::to_string(leaf.startSample)
+			+ " volume: " + std::to_string(v.currentVol), LogCategory::Entity, LogLevel::Debug);
+
+
 		ab.AddVoice(std::move(v));
-
-		std::cout << "[start voice], loop: " + std::to_string(leaf.loop) 
-			<< " offset: " << std::to_string(leaf.startSample) 
-			<< " volume: " << std::to_string(v.currentVol)
-			<< std::endl;
-
 	}
 }
 
@@ -138,7 +137,7 @@ void Entity::Update(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags,
 			if (!voice) {
 				// should no longer happen
 				// actually, this might still be necessary, eg for sequence/looping nodes? - not sure tbh.
-				std::cerr << "Could not find voice for: "<< leaf.src->sound << std::endl;	
+				LogMessage("Could not find voice for: " + leaf.src->sound, LogCategory::Entity, LogLevel::Warning);
 				continue;
 			}
 
@@ -156,21 +155,13 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 	for (auto& def : allDefs)
 		defMap[def.name] = &def;
 
-	// 1) Gather all matching definitions
+	// Gather all matching definitions
 	// there has to be a smarter way to do this, this is ... really bad.
 	std::unordered_set<std::string> desired;
 	for (const auto& def : allDefs) {
 		auto score = MatchUtils::MatchScore(def, tags, globalTags, values, globalValues);
 
-		/*
-		std::cerr
-			<< "[Debug]   candidate " << def.name
-			<< " -> score=" << score
-			<< " id: " << def.id
-			<< "  entitytags=" << MatchUtils::JoinTags(tags.GetAllTags())
-			<< "  matchtags=" << MatchUtils::JoinTags(def.matchTags)
-			<< "\n";
-		*/
+		
 		if (score >= 0) {
 			desired.insert(def.name);
 
@@ -206,7 +197,7 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 
 	// Do ... things.
 	for (auto& def : toSpawn) {
-		std::cerr << "starting new behavior: " << def->name << std::endl;
+		LogMessage("starting new behavior: " + def->name, LogCategory::Entity, LogLevel::Debug);
 		auto& ab = activeBehaviors.emplace_back(*ActiveBehavior::Create(def, 0)); // TODO get from factory instead of creating
 
 
@@ -214,12 +205,12 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 	for (auto& ab : toRetire) {
 		if (ab->GetPhase() !=ActiveBehavior::Phase::Active) // only active state actually needs to be ended (in case it's looping) 
 			continue;
-		std::cerr << "stopping behavior: " << ab->GetDefinition()->name << std::endl;
+		LogMessage("stopping behavior: "+ ab->GetDefinition()->name, LogCategory::Entity, LogLevel::Debug);
 		TransitionToPhase(*ab, ActiveBehavior::Phase::Ending, deviceCfg, bufferManager);
 
 	}
 	for (auto& ab : toUpdate) {
-		std::cerr << "updating behavior: " << ab.first->name << std::endl;
+		LogMessage("updating behavior: " + ab.first->name, LogCategory::Entity, LogLevel::Debug);
 		// not sure if we actually need those?
 	}
 

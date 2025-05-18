@@ -28,7 +28,7 @@ bool AudioBufferManager::TryGet(const std::string& path, AudioBuffer*& outBuf) {
 		outBuf = &it->second.first;
 		return true;
 	}
-	std::cerr << "[AudioBufferManager::TryGet] Could not get buffer for path: " << path << std::endl;
+	LogMessage("Could not get buffer for path: " + path, LogCategory::AudioBuffer, LogLevel::Warning);
 	return false;
 }
 bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)

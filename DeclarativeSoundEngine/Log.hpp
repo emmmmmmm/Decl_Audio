@@ -10,15 +10,17 @@ using LogCallbackFn = void(*)(int category, int level, const char* message);
 
 
 enum class LogCategory {
-    SoundManager,
-    BehaviorLoader, BehaviorDefMgr,
+    
     CLI,
     General, 
     AudioCore, 
     AudioDevice,
     AudioBuffer,
     AudioManager,
-
+    BehaviorLoader,
+    Entity,
+    Leaf,
+    Parser,
 };
 
 enum class LogLevel {

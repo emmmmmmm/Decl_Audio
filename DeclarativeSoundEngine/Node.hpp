@@ -60,7 +60,7 @@ struct Node {
 	}
 
 	virtual void PrintChildren() {
-		std::cerr << "Node: "<< typeid(*this).name() << std::endl;
+        LogMessage("Node: " + std::string(typeid(*this).name()), LogCategory::General, LogLevel::Debug);
 		for (auto& c : children)
 			c->PrintChildren();
 	}
@@ -85,7 +85,7 @@ struct SoundNode : Node {
 		return n;
 	}
 	void PrintChildren() override {
-		std::cerr << "SoundNode! - " << sound << std::endl;
+		LogMessage("SoundNode! - " + sound, LogCategory::General, LogLevel::Debug);
 	}
 };
 
@@ -139,22 +139,11 @@ struct RandomNode : Node {
 	}
 	size_t pickOnce() const {
 
-		/*std::cerr << "[RandomNode trigger] this=" 
-			<< this << " children=" 
-			<< children.size() 
-			<< " val before random: "
-			<< std::to_string(choice)
-			<< std::endl;
-
-		for (auto& c : children)
-			std::cerr << "  child: " << typeid(*c).name() << std::endl;*/
-
+		
 		if (choice < 0 && !children.empty()) {
 			std::uniform_int_distribution<size_t> d(0, children.size() - 1);
 			choice = static_cast<int>(d(Rng()));
 		}
-		//std::cerr << "[RandomNode trigger] choice: " << std::to_string(choice) << std::endl;
-
 		return static_cast<size_t>(choice < 0 ? 0 : choice);
 	}
 };

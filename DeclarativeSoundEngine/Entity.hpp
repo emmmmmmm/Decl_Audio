@@ -15,7 +15,7 @@ class Entity {
 	std::string id{};
 	TagMap tags{};
 	ValueMap values{};
-	int busId;
+	int busId{};
 	std::vector<ActiveBehavior> activeBehaviors{};
 	public:
 		void TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, AudioConfig* deviceCfg, AudioBufferManager* bufferManager) const;

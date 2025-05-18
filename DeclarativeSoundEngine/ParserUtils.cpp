@@ -3,6 +3,7 @@
 #include "ParserUtils.hpp"
 #include "Node.hpp"
 #include <stdexcept>
+#include "Log.hpp"
 
 namespace ParserUtils {
 
@@ -24,7 +25,6 @@ namespace ParserUtils {
 		{
 			mods.volume = mapNode["volume"].as<std::string>();
 
-			//std::cout << "MODMAP: " << mods.volume.value() << std::endl;
 		}
 		if (mapNode["pitch"])    mods.pitch = mapNode["pitch"].as<std::string>();
 		if (mapNode["loop"])	 mods.loop = true;
@@ -73,14 +73,6 @@ namespace ParserUtils {
 	Node* ParseNode(const YAML::Node& yamlNode, Context& ctx) {
 		Node* node = nullptr;
 		ModifierMap mods;
-
-		/*std::cerr << "[ParseNode] entry; "
-			<< "IsNull=" << yamlNode.IsNull()
-			<< ", IsScalar=" << yamlNode.IsScalar()
-			<< ", IsSequence=" << yamlNode.IsSequence()
-			<< ", IsMap=" << yamlNode.IsMap()
-			<< "\n"
-			<< yamlNode << "\n";*/
 
 		if (yamlNode.IsScalar()) {
 			// simple string → Sound or Reference
