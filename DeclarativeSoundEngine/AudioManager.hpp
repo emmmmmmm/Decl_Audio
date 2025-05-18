@@ -15,26 +15,33 @@ struct AudioConfig;
 
 class AudioManager
 {
-
 	std::unordered_map<std::string, Entity> entities{};
-	std::vector<BehaviorDef> definitions{};
+	std::vector<BehaviorDef>				definitions{};
 
-	AudioBufferManager* bufferManager;
-	std::unique_ptr<AudioDevice> device;
-	uint64_t		globalSampleCounter = 0;
-	AudioConfig*		deviceCfg;
+	AudioBufferManager*						bufferManager;
+	std::unique_ptr<AudioDevice>			device;
+	uint64_t								globalSampleCounter = 0;
+	AudioConfig*							deviceCfg;
 
-	CommandQueue*		inQueue;
-	CommandQueue*		outQueue;
+	CommandQueue*							inQueue;
+	CommandQueue*							outQueue;
 
-	std::mutex			snapshotMutex;
-	std::vector<Voice>	voiceSnapShots;
-	std::string			currentListener = {};
+	std::mutex								snapshotMutex;
+	std::vector<Voice>						voiceSnapShots;
+	std::string								currentListener = {};
 
-	std::vector<Bus>                buses;           // [0]=master
-	std::unordered_map<std::string, int> entityBus;
+	std::vector<Bus>						buses; // [0]=master
+	std::unordered_map<std::string, int>	entityBus;
 
-	bool shouldQuit = false;
+	bool									shouldQuit = false;
+private:
+
+	std::atomic<int>						currentReadBuffer = 0;
+	std::atomic<uint32_t>					cbBlockIndex{ 0 };
+
+	std::atomic<uint32_t>					pendingFrames{ 0 };
+
+
 public:
 	AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, CommandQueue* outQueue);
 	void ThreadMain();
@@ -43,7 +50,6 @@ public:
 	void Update(float dt);
 
 	void Shutdown();
-
 
 	void TakeSnapshot();
 
@@ -56,21 +62,12 @@ public:
 	void ClearTag(Command cmd);
 	void SetValue(Command cmd);
 	void ClearValue(Command cmd);
-
-	void LoadBehaviorsFromFolder(Command cmd);
-
 	void SetAssetPath(Command cmd);
-
+	void LoadBehaviorsFromFolder(Command cmd);
 
 	void DebugPrintState();
 
 private:
-
-	std::atomic<int> currentReadBuffer = 0;
-	std::atomic<uint32_t>  cbBlockIndex{ 0 };
-
-	std::atomic<uint32_t>			pendingFrames{ 0 };
-
 	void RenderCallback(float* output, int nFrames);
 };
 

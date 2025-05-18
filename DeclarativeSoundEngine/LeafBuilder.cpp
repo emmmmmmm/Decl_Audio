@@ -5,8 +5,8 @@
 #include "Expression.hpp"
 #include "ValueMap.hpp"
 #include <stdexcept>
-#include "SoundManagerAPI.hpp"
 #include "AudioBufferManager.hpp"
+#include "AudioDevice.hpp"
 
 namespace LeafBuilder {
 
@@ -19,7 +19,7 @@ namespace LeafBuilder {
 	static uint64_t ComputeDuration(const Node* node, const ValueMap& params, uint64_t sampleRate, AudioBufferManager* bufferManager) {
 		switch (node->type) {
 
-		case NodeType::Sound: { // TODO: Somethings weird here with the buffers...! 
+		case NodeType::Sound: { 
 			auto* sn = static_cast<const SoundNode*>(node);
 			AudioBuffer* buf;
 			if (bufferManager->TryGet(sn->sound, buf)) {
@@ -117,8 +117,7 @@ namespace LeafBuilder {
 			for (auto& e : inheritedVols)
 			{
 				finalVol *= e.eval(params);
-				//std::cout << "final volume: " << sn->sound << " : " << std::to_string(finalVol) << " :: " << e.text << std::endl;
-			}
+					}
 
 			float finalPitch = 1.0f;
 			for (auto& e : inheritedPitches)
@@ -168,8 +167,6 @@ namespace LeafBuilder {
 			auto weights = bn->weights(x);
 			for (auto& weight : weights) {
 				if (weight.first && weight.second > 0) {
-
-
 					// capture current leaf count
 					size_t baseIndex = out.size();
 					// generate leaves for this branch

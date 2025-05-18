@@ -22,13 +22,6 @@ namespace MatchUtils {
 	bool TagMatches(const std::string& pattern, const std::string& actual);
 
 	int MatchScore(
-		const MatchDefinition& md,
-		const TagMap& entityMap,
-		const TagMap& globalMap,
-		const std::unordered_map<std::string, ValueMap> entityValues,
-		const std::string& entityId);
-
-	int MatchScore(
 		const BehaviorDef& def,
 		const TagMap& tags,
 		const TagMap& globalTags,

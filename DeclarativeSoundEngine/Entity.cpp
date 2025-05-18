@@ -1,10 +1,12 @@
 ﻿#include "pch.h"
 #include "Entity.hpp"
 #include "Log.hpp"
-#include "MatchUtils.hpp"
 #include <algorithm>
 #include "TagMap.hpp"
 #include "ValueMap.hpp"
+#include "ActiveBehavior.hpp"
+#include "MatchUtils.hpp"
+
 void Entity::TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, AudioConfig* deviceCfg, AudioBufferManager* bufferManager)const
 {	// stop all voices from current graph
 	ab.StopAllVoices(); 
@@ -145,19 +147,6 @@ void Entity::Update(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags,
 
 		}
 	}
-}
-
-
-// i dont think we actually need this..!
-std::vector<LeafBuilder::Leaf> Entity::BuildLeaves(AudioConfig* deviceCfg, AudioBufferManager* bufferManager)
-{
-	std::cerr << "Entity::BuildLeaves is deprecated and should not be used!" << std::endl;
-
-	std::vector<LeafBuilder::Leaf> leaves;
-	for (auto& ab : activeBehaviors)
-		LeafBuilder::BuildLeaves(ab.currentNodeGraph.get(), values, 0, false, 0, leaves, deviceCfg, bufferManager); // TODO: pass correct params
-
-	return leaves;
 }
 
 void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags, const ValueMap& globalValues, AudioConfig* deviceCfg, AudioBufferManager* bufferManager)

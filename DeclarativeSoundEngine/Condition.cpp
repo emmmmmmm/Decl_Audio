@@ -23,9 +23,8 @@ float Condition::eval( const ValueMap& entityVals, const ValueMap& globalVals) c
             // pretty much done
         }
         else {
-        // uh oh, value could not be found
+        // uh oh, value could not be found, using fallback (?)
         }
-        //float actual = entityVals.HasValue(key) ? entityVals.GetValue(key) : globalVals.GetValue(key);
 
         if (op == ">") return actual > value;
         if (op == ">=") return actual >= value;

@@ -19,7 +19,6 @@ AudioBuffer::AudioBuffer(const std::string& filePath)
         return;
     }
 
-    // 1) Init decoder for f32
     ma_decoder_config cfg = ma_decoder_config_init(
         ma_format_f32,  // floats
         0,              // native channels
@@ -34,7 +33,6 @@ AudioBuffer::AudioBuffer(const std::string& filePath)
         return;
     }
 
-    // 2) Now get true frame count
     ma_uint64 totalPCMFrameCount = 0;
     r = ma_decoder_get_length_in_pcm_frames(&decoder, &totalPCMFrameCount);
     if (r != MA_SUCCESS) {
@@ -43,7 +41,6 @@ AudioBuffer::AudioBuffer(const std::string& filePath)
             "ma_decoder_get_length_in_pcm_frames failed for: " + filePath);
     }
 
-    // 3) Capture metadata + allocate buffer
     frameCount = static_cast<uint64_t>(totalPCMFrameCount);
     sampleRate = decoder.outputSampleRate;
     channelCount = decoder.outputChannels;
@@ -55,7 +52,6 @@ AudioBuffer::AudioBuffer(const std::string& filePath)
 
     samples.resize(frameCount * channelCount);
 
-    // 4) Read in a loop until EOF
     ma_uint64 totalRead = 0;
     while (totalRead < frameCount) {
         ma_uint64 thisRead = 0;
@@ -77,7 +73,7 @@ AudioBuffer::AudioBuffer(const std::string& filePath)
         totalRead += thisRead;
     }
 
-    // 5) Shrink if short
+
     if (totalRead != frameCount) {
         samples.resize(totalRead * channelCount);
         frameCount = totalRead;

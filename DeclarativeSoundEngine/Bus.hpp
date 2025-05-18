@@ -9,6 +9,6 @@ struct Bus {
 
 	struct Routing { int dst; float gain; };
 
-	std::vector<Routing> sends;     // extra fan-outs
-	int parent = 0;      // 0 = master, or another sub-mix
+	std::vector<Routing> sends;     // extra fan-outs // TBD
+	int parent = 0;					// 0 = master, or another sub-mix
 };

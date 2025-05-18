@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <concepts>
 
-// 1) Define the concept
+// 1) "The definition of a concept"
 template<typename T>
 concept IResettable = requires(T t) {
     { t.reset() } -> std::same_as<void>;

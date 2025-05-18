@@ -5,7 +5,6 @@
 #include "Vec3.hpp"
 
 
-
 using Value = std::variant<float, std::string, Vec3, bool>;
 
 

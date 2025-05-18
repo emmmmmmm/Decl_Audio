@@ -9,28 +9,29 @@ class ActiveBehavior
 {
 public:
 	enum class Phase { Init, Start, Active, Ending, Finished };
-	std::shared_ptr<Node>	currentNodeGraph; // or per-phase, as needed
+	std::shared_ptr<Node>	currentNodeGraph; 
 
 private:
 	std::vector<Voice>		voices;
 	uint32_t				instanceId = {};
 	Phase					phase{ Phase::Init };
-	const BehaviorDef*		definition;
+	const BehaviorDef* definition;
 	uint64_t				startSample;
 
 public:
 	ActiveBehavior(const BehaviorDef* def, uint64_t startSample)
-		: definition(def), phase(Phase::Init), startSample(startSample){ }
+		: definition(def), phase(Phase::Init), startSample(startSample) {
+	}
 
 	const Phase GetPhase()				const { return phase; }
-	const void SetPhase(Phase newPhase)	  { phase=newPhase; }
+	const void SetPhase(Phase newPhase) { phase = newPhase; }
 	const BehaviorDef* GetDefinition()	const { return definition; }
-	
+
 	bool HasVoice(const SoundNode* src) const;
 	std::vector<Voice>& GetVoices() { return voices; }
 	Voice* FindVoiceForLeaf(const LeafBuilder::Leaf& leaf);
 	Voice* AddVoice(Voice&& v);
-	std::string Name() const				 { return GetDefinition()->name; }
+	std::string Name() const { return GetDefinition()->name; }
 
 	void StopAllVoices();		// TODO
 	void RemoveFinishedVoices();// TODO
@@ -39,7 +40,7 @@ public:
 	{
 		return new ActiveBehavior(def, startSample);
 	}
-	
+
 	// concept from ObjectFactory
 	void reset() {
 		instanceId = {};
@@ -56,15 +57,12 @@ public:
 
 
 private:
-
-
-
-	/*Utility*/
+	
 	static inline bool VoiceFinished(const Voice& v)
 	{
 		if (!v.buffer)return true; //!??
 		return !v.loop && v.playhead >= v.buffer->GetFrameCount();
 	}
 
-	
+
 };

@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "AudioManager.hpp"
 #include <variant>
+#include <chrono>
 #include "Entity.hpp"
 #include "Voice.hpp"
 #include "Bus.hpp"
@@ -9,7 +10,7 @@
 #include "AudioDeviceUnity.hpp"
 #include "AudioBufferManager.hpp"
 #include "BehaviorLoader.hpp"
-#include <chrono>
+#include "AudioDevice.hpp"
 
 const double M_PI = 3.14159265358979323846;
 
@@ -115,7 +116,8 @@ void AudioManager::Update(float dt)
 }
 
 void AudioManager::Shutdown() {
-	shouldQuit = true; // stops the looping thread function
+	shouldQuit = true; 
+	// stops the looping thread function
 	// what do we actually need to do here?
 	// maybe unload buffers / cleanup voices? 
 	// we should do most required things already on destruction, but ... can a thing selfdestruct??

@@ -32,11 +32,10 @@ float Expression::eval(const ValueMap& params) const {
 		float lhs = 0;
 
 		if (!params.TryGetValue(m[1], lhs)) {
-			std::cout << " [EXPRESSION::EVAL] could not get value: " << m[1] << " / " << text << std::endl;
+			LogMessage("[EXPRESSION::EVAL] could not get value : " + text, LogCategory::General, LogLevel::Warning);
 		}
 		char op = m[2].str()[0];
 		float rhs = std::stof(m[3]);
-		//std::cout << " [EXPRESSION::EVAL]: " << std::to_string(lhs) << " / " << std::to_string(rhs) << std::endl;
 		switch (op) {
 		case '+': return lhs + rhs;
 		case '-': return lhs - rhs;
@@ -51,8 +50,7 @@ float Expression::eval(const ValueMap& params) const {
 		float rhs = 0.0f;
 		params.TryGetValue(m[3], rhs);
 
-		std::cout << " [EXPRESSION::EVAL]: " << std::to_string(lhs) << " / " << std::to_string(rhs) << std::endl;
-		// rhs = params.HasValue(m[3]) ? params.GetValue(m[3]) : 0.0f;
+		LogMessage("[EXPRESSION::EVAL]: " + std::to_string(lhs) + " / " + std::to_string(rhs), LogCategory::General, LogLevel::Warning);
 		switch (op) {
 		case '+': return lhs + rhs;
 		case '-': return lhs - rhs;

@@ -1,15 +1,15 @@
 ﻿#pragma once
-#include "MatchUtils.hpp"
 #include <string>
 #include <vector>
 #include <memory>
 #include <optional>
 #include <array>
 #include <random>
-#include "Expression.hpp"
-#include "Log.hpp"
 #include <typeinfo>
 #include <iostream>
+#include "Expression.hpp"
+#include "Log.hpp"
+#include "MatchUtils.hpp"
 struct Node;
 using BlendWeights = std::array<std::pair<const Node*, float>, 2>;
 

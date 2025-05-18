@@ -16,7 +16,7 @@ struct Voice {
 	const SoundNode* source = nullptr;
 
 
-	// optional: pitch fields when you add resampling
+	// TBD, for pitching/resampling
 	float currentPitch = {};
 	float targetPitch = {};
 

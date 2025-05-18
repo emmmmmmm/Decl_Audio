@@ -2,7 +2,6 @@
 #include "BehaviorDef.hpp"
 #include <vector>
 #include <string>
-#include "ASTNode.hpp"
 #include "Condition.hpp"
 #include "Expression.hpp"
 

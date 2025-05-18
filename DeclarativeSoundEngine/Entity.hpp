@@ -19,7 +19,6 @@ class Entity {
 	std::vector<ActiveBehavior> activeBehaviors{};
 	public:
 		void TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, AudioConfig* deviceCfg, AudioBufferManager* bufferManager) const;
-			/*checks if we need to spawn new behaviors, stop old ones, and/or update active ones. */
 		void Update(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags, const ValueMap& globalValues, AudioConfig* deviceCfg, AudioBufferManager* bufferManager);
 
 		void SetTag(const std::string& tag)					{ tags.AddTag(tag); }
@@ -33,14 +32,11 @@ class Entity {
 		TagMap& GetTags()									{ return tags; }
 		ValueMap& GetValues()								{ return values; }
 		std::vector<ActiveBehavior>& GetBehaviors() { return activeBehaviors; }
-		/*returns a vector of leaves to be stored in the tripplebuffer for mixing*/
-		// that's bs, we would want to return the voices instead, ... right? ...riiiight?
 
-		std::vector<LeafBuilder::Leaf> BuildLeaves(AudioConfig* deviceCfg, AudioBufferManager* bufferManager);
 		void SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags, const ValueMap& globalValues, AudioConfig* deviceCfg, AudioBufferManager* bufferManager);
-		void SetBus(int id) {
+		
+		inline void SetBus(int id) {
 			busId = id;
 		}
-	//Snapshot GenerateSnapshot();
 };
 

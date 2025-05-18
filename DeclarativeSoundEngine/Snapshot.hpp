@@ -9,6 +9,7 @@ namespace Snapshot {
 	constexpr int  kSnapCount = 3;                   // triple-buffer
 
 
+	// single voice snapshot
 	struct VoiceSnap {
 		const AudioBuffer* buf{};
 		size_t				playhead{};
@@ -21,7 +22,7 @@ namespace Snapshot {
 
 
 
-	/* -------- immutable snapshot -------- */
+	// full immutable snapshot 
 	struct Snapshot {
 		Vec3				listenerPosition = {};
 		uint32_t			voiceCount = 0;

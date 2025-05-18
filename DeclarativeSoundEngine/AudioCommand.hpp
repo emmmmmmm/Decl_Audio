@@ -6,18 +6,9 @@
 #include "RingBuffer.hpp"
 
 enum class CommandType {
-	StartBehavior,
-	StopBehavior,
-	ValueUpdate,
-	BusGainUpdate,
-	Log,
-	PlaySuccess,
-	RefreshDefinitions,
-	AssetPath,
-	SetListener,
-	RemoveListener,
 	None,
-	// NEW:
+	Log,
+	AssetPath,
 	SetTag,
 	SetTransient,
 	ClearTag,
@@ -44,16 +35,8 @@ struct Command {
 
 	std::string GetTypeName() {
 		switch (type) {
-		case CommandType::StartBehavior: return "StartBehavior";
-		case CommandType::StopBehavior: return "StopBehavior";
-		case CommandType::ValueUpdate: return "ValueUpdate";
-		case CommandType::BusGainUpdate: return "BusGainUpdate";
-		case CommandType::RefreshDefinitions: return "RefreshDefinitions";
 		case CommandType::AssetPath: return "AssetPath";
 		case CommandType::Log: return "Log";
-		case CommandType::PlaySuccess: return "PlaySuccess";
-		case CommandType::SetListener: return "SetListener";
-		case CommandType::RemoveListener: return "RemoveListener";
 		case CommandType::SetTag: return "SetTag";
 		case CommandType::ClearTag: return "ClearTag";
 		case CommandType::SetTransient: return "SetTransient";

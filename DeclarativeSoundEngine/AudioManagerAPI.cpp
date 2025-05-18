@@ -2,6 +2,7 @@
 #include "AudioManagerAPI.hpp"
 #include "AudioManager.hpp"
 #include "Vec3.hpp"
+#include "AudioDevice.hpp"
 
 CommandQueue apiToManager;
 CommandQueue managerToApi;

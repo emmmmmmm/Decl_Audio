@@ -5,10 +5,11 @@
 #include "Node.hpp"
 #include "ValueMap.hpp"
 #include "AudioBuffer.hpp"
-#include "SoundManagerAPI.hpp" 
 #include "AudioBufferManager.hpp"
 #include "Expression.hpp"
 #include "ValueMap.hpp"
+
+struct AudioConfig;
 
 namespace LeafBuilder {
 

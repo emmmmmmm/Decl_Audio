@@ -1,6 +1,5 @@
 ﻿#include "pch.h"
 #include "MatchUtils.hpp"
-#include "IBehaviorDefinition.hpp"
 #include "TagMap.hpp"
 #include "ValueMap.hpp"
 #include "BehaviorDef.hpp"
@@ -45,41 +44,6 @@ namespace MatchUtils {
 		return !std::getline(act, aseg, '.');
 	}
 
-	int MatchScore(
-		const MatchDefinition& md,
-		const TagMap& entityMap,
-		const TagMap& globalMap,
-		const std::unordered_map<std::string, ValueMap> entityValues,
-		const std::string& entityId) {
-		int score = 0;
-		auto allTags = entityMap.GetAllTags();
-		const auto& globalTags = globalMap.GetAllTags();
-		allTags.insert(allTags.end(), globalTags.begin(), globalTags.end());
-
-		for (const auto& required : md.matchTags) {
-			bool matched = false;
-			for (const auto& actual : allTags) {
-				if (TagMatches(required, actual)) {
-					matched = true;
-					score += 10 + TagSpecificity(required);
-					break;
-				}
-			}
-			if (!matched) return -1;
-		}
-
-		static const ValueMap emptyVals;
-		const ValueMap& entityVals = entityValues.count(entityId) ? entityValues.at(entityId) : emptyVals;
-		const ValueMap& globalVals = entityValues.count("global") ? entityValues.at("global") : emptyVals;
-
-		for (const auto& condition : md.matchConditions) {
-			if (!condition.eval(entityVals, globalVals)) {
-				return -1;
-			}
-		}
-
-		return score;
-	}
 
 	int MatchScore(const BehaviorDef& def, const TagMap& tags, const TagMap& globalTags, const ValueMap& values, const ValueMap& globalValues) {
 

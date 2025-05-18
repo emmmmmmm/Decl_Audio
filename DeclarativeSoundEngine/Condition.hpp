@@ -4,8 +4,6 @@
 #include <unordered_map>
 #include "ValueMap.hpp"
 
-/// Wraps your existing boolean condition evaluator
-
 struct Condition {
     std::string text;
 

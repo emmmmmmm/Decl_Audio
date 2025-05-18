@@ -14,7 +14,7 @@ Voice* ActiveBehavior::FindVoiceForLeaf(const LeafBuilder::Leaf& leaf) {
 	for (auto& v : voices) {
 		if (v.buffer == leaf.buffer
 			&& v.source == leaf.src
-			/* optionally more fields: e.g., busIndex, pitch, etc. */
+			// this should be sufficient, but could add more fields like busIndex, pitch, etc.
 			) {
 			return &v;
 		}

@@ -18,15 +18,12 @@ AudioBufferManager::~AudioBufferManager()
 	lruList.clear();
 }
 bool AudioBufferManager::TryGet(const std::string& path, AudioBuffer*& outBuf) {
-	//	std::lock_guard<std::mutex> lock(mutex);
 	// already cached?
-
 	auto it = cache.find(path);
 	if (it != cache.end()) {
 		// Move this path to front of LRU
 		lruList.remove(path);
 		lruList.push_front(path);
-		// Increment ref count
 		it->second.second++;
 		outBuf = &it->second.first;
 		return true;
@@ -40,7 +37,6 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	std::lock_guard<std::mutex> lock(mutex);
 	// already cached?
 	if (TryGet(path, outBuf)) {
-		//LogMessage("AudioBufferManager: file aready loaded: " + path, LogCategory::AudioBuffer, LogLevel::Debug);
 		return true;
 	}
 
@@ -49,7 +45,6 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	fs::path assetDir{ assetPath };
 	fs::path fileName{ path };
 
-	// join them:
 	fs::path fullPath = assetDir / fileName;
 
 	std::string fullStr = fullPath.string();
@@ -68,16 +63,14 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 		* sizeof(float);
 
 
-	// emplace a pair<AudioBuffer,int>
 	auto emplaced = cache.emplace(
 		path,
 		std::make_pair(std::move(buffer), 1)
 	);
 
-	// emplaced.first is iterator into the new element
 	auto& it = emplaced.first;
 
-	// LRU and memory tracking
+
 	lruList.push_front(path);
 	currentMemoryUsage += mem;
 	outBuf = &it->second.first;
@@ -101,11 +94,11 @@ void AudioBufferManager::PurgeUnused()
 		const std::string& path = *it;
 		auto cacheIt = cache.find(path);
 		if (cacheIt != cache.end() && cacheIt->second.second == 0) {
-			// Evict
+
 			size_t memoryUsed = cacheIt->second.first.GetFrameCount() * cacheIt->second.first.GetChannelCount() * sizeof(float);
 			currentMemoryUsage -= memoryUsed;
 			cache.erase(cacheIt);
-			// Remove from LRU (convert reverse_iterator to normal)
+
 			it = std::make_reverse_iterator(lruList.erase(std::next(it).base()));
 		}
 		else {
@@ -123,5 +116,5 @@ size_t AudioBufferManager::GetMemoryUsage()
 void AudioBufferManager::SetAssetpath(const std::string& path)
 {
 	assetPath = path;
-	LogMessage("AudioBufferManager: updated path to assets: " + assetPath, LogCategory::AudioBuffer, LogLevel::Debug);
+	LogMessage("AudioBufferManager: updated asset path: " + assetPath, LogCategory::AudioBuffer, LogLevel::Debug);
 }

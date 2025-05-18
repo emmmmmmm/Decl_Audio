@@ -3,6 +3,19 @@
 #include "AudioBuffer.hpp"
 #include <functional>
 
+
+enum AudioBackend : int {
+	Miniaudio = 0,
+	Unity = 1
+};
+
+struct AudioConfig {
+	AudioBackend backend;
+	uint32_t     sampleRate;
+	uint32_t     bufferFrames;
+	uint32_t     channels;
+};
+
 using SoundHandle = uint32_t;
 
 struct AudioDevice {

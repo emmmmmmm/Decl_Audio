@@ -5,33 +5,9 @@
 #include <thread>
 
 class AudioManager;
-
+struct AudioConfig;
 
 extern "C" {
-
-	enum AudioBackend : int {
-		Miniaudio = 0,
-		Unity = 1
-	};
-
-	struct AudioConfig {
-		AudioBackend backend;
-		uint32_t     sampleRate;
-		uint32_t     bufferFrames;
-		uint32_t     channels;
-	};
-
-	/*
-	 // we need: 
-		- create an audiomanager
-		- detach it on a new thread
-			- for this we need to keep some kind of reference to the queues though!
-		- create commands when we get api calls
-		- send those commands to audiomanager
-
-	*/
-
-
 
 	DECLSOUND_API void AudioManager_Create(AudioConfig* cfg);
 	DECLSOUND_API void AudioManager_Destroy();
