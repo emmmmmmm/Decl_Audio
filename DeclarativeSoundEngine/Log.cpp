@@ -57,7 +57,7 @@ static const char* ToString(LogCategory category) {
 }
 
 
-void LogSetMinimumLevel(LogCategory category, LogLevel level) {
+extern "C" DECLSOUND_API void AudioManager_LogSetMinimumLevel(LogCategory category, LogLevel level) {
 	minimumLevels[category] = level;
 }
 
@@ -76,13 +76,13 @@ void LogMessageC(const char* message, int category, int level) {
 }
 
 // i don't think we're actally using this?
-extern "C" DECLSOUND_API void SoundAPI_SetLogCallback(LogCallbackFn cb) {
+extern "C" DECLSOUND_API void AudioManager_SetLogCallback(LogCallbackFn cb) {
 	g_logCallback.store(cb, std::memory_order_release);
 }
 
 
 extern "C" DECLSOUND_API
-bool SoundAPI_PollLog(int* outCat, int* outLvl, char* outMsg, int maxLen)
+bool AudioManager_PollLog(int* outCat, int* outLvl, char* outMsg, int maxLen)
 {
 	std::lock_guard<std::mutex> lk(g_mtx);
 	if (g_buffer.empty()) 

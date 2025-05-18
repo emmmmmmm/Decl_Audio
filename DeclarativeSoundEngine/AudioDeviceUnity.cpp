@@ -39,7 +39,7 @@ void AudioDeviceUnity::SetRenderCallback(std::function<void(float*, int)> cb) {
     s_RenderCallback = std::move(cb);
 }
 
-extern "C" DECLSOUND_API void SoundAPI_FillBuffer(float* outBuffer, int frames, int channels) {
+extern "C" DECLSOUND_API void AudioManager_FillBuffer(float* outBuffer, int frames, int channels) {
     if (!s_RenderCallback) {
         // silence
         memset(outBuffer, 0, sizeof(float) * size_t(frames) * channels);

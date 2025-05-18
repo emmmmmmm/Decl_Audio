@@ -107,6 +107,14 @@ void AudioManager_ClearValue(const char* entityId, const char* key)
 	apiToManager.push(cmd);
 }
 
+void AudioManager_ClearEntity(const char* entityId)
+{
+	Command cmd;
+	cmd.type = CommandType::ClearEntity;
+	cmd.entityId = entityId;
+	apiToManager.push(cmd);
+}
+
 void AudioManager_DebugPrintState()
 {
 	mgr->DebugPrintState();

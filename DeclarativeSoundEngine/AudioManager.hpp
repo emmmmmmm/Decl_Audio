@@ -63,6 +63,7 @@ public:
 	void SetValue(Command cmd);
 	void ClearValue(Command cmd);
 	void SetAssetPath(Command cmd);
+	void ClearEntity(Command cmd);
 	void LoadBehaviorsFromFolder(Command cmd);
 
 	void DebugPrintState();

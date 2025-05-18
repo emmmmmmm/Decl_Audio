@@ -14,6 +14,7 @@ enum class CommandType {
 	ClearTag,
 	SetValue,
 	ClearValue,
+	ClearEntity,
 	LoadBehaviors,
 	Shutdown,
 };
@@ -44,6 +45,7 @@ struct Command {
 		case CommandType::ClearValue:return "ClearValue";
 		case CommandType::LoadBehaviors:return "LoadBehaviors";
 		case CommandType::Shutdown:return "Shutdown";
+		case CommandType::ClearEntity:return "ClearEntity";
 		default: return "Unknown";
 		}
 	}

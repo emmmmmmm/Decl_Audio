@@ -31,7 +31,7 @@ class Entity {
 
 		TagMap& GetTags()									{ return tags; }
 		ValueMap& GetValues()								{ return values; }
-		std::vector<ActiveBehavior>& GetBehaviors() { return activeBehaviors; }
+		std::vector<ActiveBehavior>& GetBehaviors()			{ return activeBehaviors; }
 
 		void SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags, const ValueMap& globalValues, AudioConfig* deviceCfg, AudioBufferManager* bufferManager);
 		

@@ -101,6 +101,7 @@ void AudioManager::Update(float dt)
 		case CommandType::LoadBehaviors:LoadBehaviorsFromFolder(cmd);break;
 		case CommandType::Shutdown:		Shutdown();			break;
 		case CommandType::AssetPath:	SetAssetPath(cmd);	break;
+		case CommandType::ClearEntity:	ClearEntity(cmd);	break;
 		default: LogMessage("UNKNOWN COMMAND: " + cmd.GetTypeName(), LogCategory::AudioManager, LogLevel::Debug);
 
 		}
@@ -284,7 +285,10 @@ void AudioManager::SetAssetPath(Command cmd)
 	const auto* path = std::get_if<std::string>(&cmd.value);
 	bufferManager->SetAssetpath(*path);
 }
-
+void AudioManager::ClearEntity(Command cmd) {
+	// TODO: Clear this Entity
+	entities.erase(cmd.entityId); // THATS PROBABLY A VERY BAD IDEA
+}
 
 
 void AudioManager::DebugPrintState()

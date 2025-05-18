@@ -23,6 +23,7 @@ extern "C" {
 	DECLSOUND_API void AudioManager_SetStringValue(const char* entityId, const char* key, const char* value);
 	DECLSOUND_API void AudioManager_SetVectorValue(const char* entityId, const char* key, float x, float y, float z);
 	DECLSOUND_API void AudioManager_ClearValue(const char* entityId, const char* key);
+	DECLSOUND_API void AudioManager_ClearEntity(const char* entityId);
 	// etc
 
 	DECLSOUND_API void AudioManager_DebugPrintState();
