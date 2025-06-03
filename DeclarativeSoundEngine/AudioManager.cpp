@@ -22,7 +22,10 @@ namespace {
 AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, CommandQueue* outQueue)
 	:deviceCfg(deviceCfg), inQueue(inQueue), outQueue(outQueue) {
 
+	LogMessage("INIT", LogCategory::AudioManager, LogLevel::Debug);
+
 	bufferManager = new AudioBufferManager();
+	LogMessage("... create audio device", LogCategory::AudioManager, LogLevel::Debug);
 
 	// create audio device
 	switch (deviceCfg->backend) {
@@ -31,24 +34,33 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 	default: { LogMessage("unknown audio device!", LogCategory::AudioManager, LogLevel::Warning);break; }
 	}
 
+	LogMessage("... create buffers", LogCategory::AudioManager, LogLevel::Debug);
+
 	// size buffers
 	size_t bufSamples = size_t(deviceCfg->bufferFrames * deviceCfg->channels);
 
 	for (Snapshot::Snapshot& snap : gSnapshots)
 		for (int b = 0; b < Snapshot::kMaxBuses; ++b)
 			snap.bus[b].resize(bufSamples, 0.0f);
+	LogMessage("... set callback", LogCategory::AudioManager, LogLevel::Debug);
 
 	// set callback
 	device->SetRenderCallback(
 		[this](float* output, int frameCount) {RenderCallback(output, frameCount); });
+	
+	
+	LogMessage("... create master bus", LogCategory::AudioManager, LogLevel::Debug);
 
 	// Create Master Bus at buses[0]
 	buses.clear();
 	buses.push_back({ std::vector<float>(deviceCfg->bufferFrames * deviceCfg->channels),{} }); // master
+	LogMessage("... Init Done.", LogCategory::AudioManager, LogLevel::Debug);
 
 }
 
 void AudioManager::ThreadMain() {
+	// TODO: We still get stuck when quitting from unity, need to rethink how we get out of this loop!
+	LogMessage("BEGINNING OF AUDIO THREAD", LogCategory::AudioManager, LogLevel::Info);
 	uint32_t lastSeen = 0; // block counter
 
 	using Clock = std::chrono::steady_clock;
@@ -57,6 +69,7 @@ void AudioManager::ThreadMain() {
 	while (!shouldQuit) {
 		uint32_t head = cbBlockIndex.load(std::memory_order_acquire);
 		if (head == lastSeen) {
+			if (shouldQuit) break;
 			std::this_thread::yield();
 			continue;
 		}
@@ -89,7 +102,8 @@ void AudioManager::Update(float dt)
 	// can we really do this without a lock? :thinking:
 	while (inQueue->pop(cmd)) {
 		LogMessage(
-			"ProcessCommands: " + cmd.GetTypeName() + "  (queue length: " + std::to_string(inQueue->Length()) + " / " + std::to_string(commandsToDrain) + ")",
+			"ProcessCommands: "
+			+ cmd.GetTypeName() + "  (queue length: " + std::to_string(inQueue->Length()) + " / " + std::to_string(commandsToDrain) + ")",
 			LogCategory::AudioManager, LogLevel::Debug);
 
 		switch (cmd.type) {
@@ -118,7 +132,8 @@ void AudioManager::Update(float dt)
 }
 
 void AudioManager::Shutdown() {
-	shouldQuit = true; 
+	shouldQuit.store(true, std::memory_order_release); 
+	cbBlockIndex.fetch_add(1, std::memory_order_release);     // Force the spin to observe a new block
 	// stops the looping thread function
 	// what do we actually need to do here?
 	// maybe unload buffers / cleanup voices? 
@@ -251,6 +266,8 @@ void AudioManager::SetTag(Command cmd) {
 
 	if (*tag == "listener")
 		currentListener = cmd.entityId;
+
+	LogMessage("Tag set: e: " + entityId + " t: " + *tag, LogCategory::AudioManager, LogLevel::Debug);
 }
 void AudioManager::SetTransient(Command cmd) {
 	std::string entityId = cmd.entityId;
@@ -268,6 +285,7 @@ void AudioManager::SetValue(Command cmd) {
 	std::string entityId = cmd.entityId;
 	auto& entity = entities[entityId];
 	entity.SetValue(cmd.key, cmd.value);
+
 }
 void AudioManager::ClearValue(Command cmd) {
 	std::string entityId = cmd.entityId;
@@ -294,12 +312,12 @@ void AudioManager::ClearEntity(Command cmd) {
 void AudioManager::DebugPrintState()
 {
 	for (auto& e : entities) {
-		std::cout << e.first << ":" << std::endl;
-		std::cout << "  tags:" << std::endl;;
+		LogMessage(e.first + ":", LogCategory::AudioManager, LogLevel::Debug);
+		LogMessage( "  tags:", LogCategory::AudioManager, LogLevel::Debug);
 		for (auto& tag : e.second.GetTags().GetAllTags()) {
-			std::cout << "    - " << tag << std::endl;
+			LogMessage( "    - "+tag, LogCategory::AudioManager, LogLevel::Debug);
 		}
-		std::cout << "  vals:" << std::endl;
+		LogMessage( "  vals:", LogCategory::AudioManager, LogLevel::Debug);
 
 		for (auto& val : e.second.GetValues().GetAllValues()) {
 			auto n = val.first;
@@ -307,22 +325,22 @@ void AudioManager::DebugPrintState()
 			auto fv = 0.f;
 			auto vv = Vec3{};
 			if (e.second.GetValues().TryGetValue(n, sv)) {
-				std::cout << "    - " << n << ": " << sv << std::endl;
+				LogMessage( "    - " + n + ": " + sv, LogCategory::AudioManager, LogLevel::Debug);
 			}
 			if (e.second.GetValues().TryGetValue(n, fv)) {
-				std::cout << "    - " << n << ": " << std::to_string(fv) << std::endl;
+				LogMessage( "    - " + n + ": " + std::to_string(fv), LogCategory::AudioManager, LogLevel::Debug);
 			}
 			if (e.second.GetValues().TryGetValue(n, vv)) {
-				std::cout << "    - " << n << ": " << "("
-					<< std::to_string(vv.x) << ", "
-					<< std::to_string(vv.y) << ", "
-					<< std::to_string(vv.z) << ")" << std::endl;
+				LogMessage( "    - " + n + ": " + "("
+					+ std::to_string(vv.x) + ", "
+					+ std::to_string(vv.y) + ", "
+					+ std::to_string(vv.z) + ")", LogCategory::AudioManager, LogLevel::Debug);
 			}
 		}
 
-		std::cout << "  behaviors: " << std::endl;
+		LogMessage( "  behaviors: ", LogCategory::AudioManager, LogLevel::Debug);
 		for (auto& ab : e.second.GetBehaviors()) {
-			std::cout << "    - " << ab.Name() << std::endl;
+			LogMessage( "    - " + ab.Name(), LogCategory::AudioManager, LogLevel::Debug);
 		}
 	}
 }

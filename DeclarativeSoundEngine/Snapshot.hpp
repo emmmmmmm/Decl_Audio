@@ -4,9 +4,9 @@
 #include "Vec3.hpp"
 
 namespace Snapshot {
-	constexpr int  kMaxVoices = 256;                 // worst-case active voices
-	constexpr int  kMaxBuses = 16;                  // master + sub-buses
-	constexpr int  kSnapCount = 3;                   // triple-buffer
+	constexpr int  kMaxVoices = 256;            // worst-case active voices
+	constexpr int  kMaxBuses = 16;				// master + sub-buses
+	constexpr int  kSnapCount = 3;				// triple-buffer
 
 
 	// single voice snapshot

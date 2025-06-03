@@ -58,6 +58,8 @@ static void RunBlendNodeTest() {
 			break;				// exit after 5 seconds
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
+	AudioManager_Destroy();
+	std::cout << "END" << std::endl;
 }
 
 static void RunSelectNodeTest() {
@@ -87,6 +89,8 @@ static void RunSelectNodeTest() {
 			break;				// exit after 5 seconds
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
+	AudioManager_Destroy();
+	std::cout << "END" << std::endl;
 }
 
 static void RunParallelNodeTest() {
@@ -117,6 +121,8 @@ static void RunParallelNodeTest() {
 			break;				// exit after 5 seconds
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
+	AudioManager_Destroy();
+	std::cout << "END" << std::endl;
 }
 static void RunSequenceNodeTest() {
 	LogMessage("=== Sequence Node Test ===", LogCategory::CLI, LogLevel::Info);
@@ -146,6 +152,8 @@ static void RunSequenceNodeTest() {
 			break;				// exit after 5 seconds
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
+	AudioManager_Destroy();
+	std::cout << "END" << std::endl;
 }
 
 
@@ -177,12 +185,13 @@ static void RunRandomNodeTest() {
 		}
 
 
-		//AudioManager_DebugPrintState();
 
 		if (elapsed.count() >= testDuration)
 			break;				// exit after 5 seconds
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
+	AudioManager_Destroy();
+	std::cout << "END" << std::endl;
 }
 
 

@@ -52,8 +52,7 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 
 
 	if (buffer.Empty()) {
-		LogMessage("AudioBufferManager: failed to load " + path,
-			LogCategory::AudioBuffer, LogLevel::Warning);
+		LogMessage("failed to load " + path, LogCategory::AudioBuffer, LogLevel::Warning);
 		outBuf = nullptr;
 		return false;
 	}
@@ -75,16 +74,14 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	currentMemoryUsage += mem;
 	outBuf = &it->second.first;
 
-	LogMessage("AudioBufferManager: finished loading " + path,
-		LogCategory::AudioBuffer, LogLevel::Warning);
+	LogMessage("finished loading " + path, LogCategory::AudioBuffer, LogLevel::Warning);
 	return true;
 }
 
 void AudioBufferManager::Unload(const std::string& path)
 {
 	cache.erase(path);
-	LogMessage("AudioBufferManager: Unloaded: " + path,
-		LogCategory::AudioBuffer, LogLevel::Warning);
+	LogMessage("Unloaded: " + path, LogCategory::AudioBuffer, LogLevel::Warning);
 }
 
 void AudioBufferManager::PurgeUnused()
@@ -116,5 +113,5 @@ size_t AudioBufferManager::GetMemoryUsage()
 void AudioBufferManager::SetAssetpath(const std::string& path)
 {
 	assetPath = path;
-	LogMessage("AudioBufferManager: updated asset path: " + assetPath, LogCategory::AudioBuffer, LogLevel::Debug);
+	LogMessage("updated asset path: " + assetPath, LogCategory::AudioBuffer, LogLevel::Debug);
 }

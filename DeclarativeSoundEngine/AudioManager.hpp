@@ -33,7 +33,7 @@ class AudioManager
 	std::vector<Bus>						buses; // [0]=master
 	std::unordered_map<std::string, int>	entityBus;
 
-	bool									shouldQuit = false;
+	std::atomic<bool>						shouldQuit{ false };
 private:
 
 	std::atomic<int>						currentReadBuffer = 0;

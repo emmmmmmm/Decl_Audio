@@ -190,10 +190,10 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 		if (!desired.count(ab.GetDefinition()->name))
 			toRetire.push_back(&ab);
 
-	std::vector<std::pair<BehaviorDef*, ActiveBehavior*>> toUpdate;
+	/*std::vector<std::pair<BehaviorDef*, ActiveBehavior*>> toUpdate;
 	for (auto& ab : activeBehaviors)
 		if (desired.count(ab.GetDefinition()->name))
-			toUpdate.emplace_back(defMap[ab.GetDefinition()->name], &ab);
+			toUpdate.emplace_back(defMap[ab.GetDefinition()->name], &ab);*/
 
 	// Do ... things.
 	for (auto& def : toSpawn) {
@@ -209,11 +209,6 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 		TransitionToPhase(*ab, ActiveBehavior::Phase::Ending, deviceCfg, bufferManager);
 
 	}
-	for (auto& ab : toUpdate) {
-		LogMessage("updating behavior: " + ab.first->name, LogCategory::Entity, LogLevel::Debug);
-		// not sure if we actually need those?
-	}
-
 
 	// Step 4: Remove finished behaviors
 	activeBehaviors.erase(

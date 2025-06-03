@@ -12,7 +12,6 @@ extern "C" {
 	DECLSOUND_API void AudioManager_Create(AudioConfig* cfg);
 	DECLSOUND_API void AudioManager_Destroy();
 
-	// behavior loading
 	DECLSOUND_API void AudioManager_LoadBehaviorsFromFile(const char* behaviorPath, const char* assetPath);
 
 

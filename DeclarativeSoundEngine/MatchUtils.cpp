@@ -10,7 +10,7 @@ namespace MatchUtils {
 	bool PatternMatch(const std::string& pat, const std::string& val)
 	{
 		size_t star = pat.find('*');
-		if (star == std::string::npos)          // no wildcard → exact
+		if (star == std::string::npos)          // no wildcard -> exact
 			return pat == val;
 
 		const std::string pre = pat.substr(0, star);

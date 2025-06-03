@@ -74,7 +74,7 @@ namespace LeafBuilder {
 			return 0;
 		}
 		default:
-			LogMessage("ComputeDuration: Unknown node type", LogCategory::Leaf, LogLevel::Warning);
+			LogMessage("[ComputeDuration]: Unknown node type", LogCategory::Leaf, LogLevel::Warning);
 			return 0;
 		}
 	}

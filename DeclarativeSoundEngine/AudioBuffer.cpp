@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <filesystem>
 
-// We're using miniaudio for decoding. Make sure to include miniaudio.h and link against it.
+// We're using miniaudio for decoding.
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
 #include <iostream>

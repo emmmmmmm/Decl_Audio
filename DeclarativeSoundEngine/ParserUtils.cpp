@@ -75,7 +75,7 @@ namespace ParserUtils {
 		ModifierMap mods;
 
 		if (yamlNode.IsScalar()) {
-			// simple string → Sound or Reference
+			// simple string -> Sound or Reference
 			std::string val = yamlNode.as<std::string>();
 			auto it = ctx.definitions.find(val);
 			if (it != ctx.definitions.end()) {
@@ -106,7 +106,7 @@ namespace ParserUtils {
 				children = ExtractChildren(def);
 			}
 			else {
-				// def is a sequence or scalar → it *is* the children
+				// def is a sequence or scalar -> it *is* the children
 				children = def;
 			}
 

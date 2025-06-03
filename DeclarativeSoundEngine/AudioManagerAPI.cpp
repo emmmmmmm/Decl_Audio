@@ -4,7 +4,7 @@
 #include "Vec3.hpp"
 #include "AudioDevice.hpp"
 
-CommandQueue apiToManager;
+CommandQueue apiToManager; // unused
 CommandQueue managerToApi;
 
 AudioManager* mgr = nullptr;
@@ -20,10 +20,11 @@ void AudioManager_Create(AudioConfig* cfg)
 
 void AudioManager_Destroy()
 {
-	Command cmd;
-	cmd.type = CommandType::Shutdown;
-	apiToManager.push(cmd);
+	//Command cmd;
+	//cmd.type = CommandType::Shutdown;
+	//apiToManager.push(cmd);
 	// keep in mind that join() is blocking..!
+	mgr->Shutdown();
 	audioThread.join();
 	delete mgr;
 	mgr = nullptr;

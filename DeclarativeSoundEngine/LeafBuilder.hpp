@@ -15,14 +15,14 @@ namespace LeafBuilder {
 
     // Represents a playback instruction for AudioCore
     struct Leaf {
-        const SoundNode*    src;     // unique identity in graph
-        const AudioBuffer*  buffer;   // null for delay
-        uint64_t            startSample;       // when (in samples) to begin
-        uint64_t            durationSamples;   // for delay or sound length
-        //float               volume;            // evaluated volume
-        //float               pitch;             // evaluated pitch
-        bool                loop;              // should this leaf loop
-        int                 bus;               // output bus
+        const SoundNode*    src;                // unique identity in graph
+        const AudioBuffer*  buffer;             // null for delay
+        uint64_t            startSample;        // when (in samples) to begin
+        uint64_t            durationSamples;    // for delay or sound length
+        //float               volume;           // evaluated volume
+        //float               pitch;            // evaluated pitch
+        bool                loop;               // should this leaf loop
+        int                 bus;                // output bus
         std::vector<Expression> volExprs{};
         std::vector<Expression> pitchExprs{};
 

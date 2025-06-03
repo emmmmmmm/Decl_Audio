@@ -20,7 +20,7 @@ AudioDeviceMiniaudio::AudioDeviceMiniaudio(int channels, int sampleRate, int buf
 	dc.playback.channels = channels;
 	dc.sampleRate = sampleRate;
 	dc.periodSizeInFrames = bufferFrames;		// e.g. 2048
-	dc.periods = 2;								// gives you a total backend buffer of ~4096 frames
+	dc.periods = 2;	
 
 
 	
@@ -40,9 +40,7 @@ AudioDeviceMiniaudio::~AudioDeviceMiniaudio() {
 }
 
 SoundHandle AudioDeviceMiniaudio::Play(AudioBuffer* buf, float volume, float pitch, bool loop) {
-	// we’re driving PCM manually in render-callback—no per-voice backend here.
-	// but if you did use ma_engine, you might do:
-	// return ma_engine_play_sound(&engine_, buf->GetData(), buf->GetFrameCount(), cfg, nullptr);
+	// Obsolete! we’re driving PCM manually in render-callback—no per-voice backend here.
 	return 0;
 }
 

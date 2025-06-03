@@ -43,5 +43,4 @@ void LogFunctionCall(const std::source_location& loc = std::source_location::cur
 
 extern "C"  DECLSOUND_API void AudioManager_SetLogCallback(LogCallbackFn cb);
 
-extern "C" DECLSOUND_API
-bool AudioManager_PollLog(int* outCat, int* outLvl, char* outMsg, int maxLen);
+extern "C" DECLSOUND_API bool AudioManager_PollLog(int* outCat, int* outLvl, char* outMsg, int maxLen);

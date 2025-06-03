@@ -16,11 +16,11 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 
 
 	if (!fs::exists(folderPath)) {
-		LogMessage("[BL][Error] folder not found: " + folderPath, LogCategory::BehaviorLoader, LogLevel::Warning);
+		LogMessage("folder not found: " + folderPath, LogCategory::BehaviorLoader, LogLevel::Warning);
 		return {};
 	}
 	if (!fs::is_directory(folderPath)) {
-		LogMessage("[BL][Error] not a directory: " +folderPath , LogCategory::BehaviorLoader, LogLevel::Warning);
+		LogMessage("not a directory: " +folderPath , LogCategory::BehaviorLoader, LogLevel::Warning);
 		return {};
 	}
 
@@ -31,7 +31,7 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 			try {
 				YAML::Node root = YAML::LoadFile(entry.path().string());
 				LogMessage(
-					"[BehaviorLoader] loading file " + entry.path().filename().string() + " -> " +
+					"loading file " + entry.path().filename().string() + " -> " +
 					(root.IsSequence() ? "sequence of " + std::to_string(root.size()) + "" :
 						"single map"),
 					LogCategory::BehaviorLoader, LogLevel::Debug
@@ -62,14 +62,6 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 	std::vector<std::unique_ptr<BehaviorDef>> definitions;
 	definitions.reserve(rawDefs.size());
 
-	/*
-	for (auto& rd : rawDefs) {
-		std::cerr << "[Debug] rd.id = " << rd.id << "\n";
-		std::cerr << "[Debug] rd.node =\n" << rd.node << "\n\n";
-	}
-	*/
-	
-
 	for (auto& rd : rawDefs) {
 		auto def = std::make_unique<BehaviorDef>();
 		def->name = rd.id;
@@ -81,7 +73,7 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 		// pull matchTags
 		if (auto tagsN = rd.node["matchTags"]) {
 			if (!tagsN.IsSequence()) {
-				LogMessage("[BehaviorLoader] warning: matchTags for " + def->name + " is not a sequence", LogCategory::BehaviorLoader, LogLevel::Warning);
+				LogMessage("warning: matchTags for " + def->name + " is not a sequence", LogCategory::BehaviorLoader, LogLevel::Warning);
 			}
 			else {
 				for (const auto& t : tagsN) {
@@ -89,10 +81,10 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 				}
 			}
 		}
-		// build your internal matchConditions (whatever that is in your code)
+		// build the internal matchConditions
 		if (auto condsN = rd.node["matchConditions"]) {
 			if (!condsN.IsSequence()) {
-				LogMessage("[BehaviorLoader] warning: matchConditions for " + def->name + " is not a sequence", LogCategory::BehaviorLoader, LogLevel::Warning);
+				LogMessage("warning: matchConditions for " + def->name + " is not a sequence", LogCategory::BehaviorLoader, LogLevel::Warning);
 			}
 			else {
 				for (const auto& t : condsN) {
