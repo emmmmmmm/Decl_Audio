@@ -48,7 +48,7 @@ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
 	fs::path fullPath = assetDir / fileName;
 
 	std::string fullStr = fullPath.string();
-	AudioBuffer buffer(fullStr);
+	AudioBuffer buffer(fullStr, deviceSampleRate);
 
 
 	if (buffer.Empty()) {

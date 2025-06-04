@@ -8,7 +8,7 @@
 
 class AudioBufferManager {
 public:
-	AudioBufferManager() {};
+	AudioBufferManager(uint32_t deviceSampleRate) : deviceSampleRate(deviceSampleRate) {};
 	~AudioBufferManager();
 	bool TryGet( const std::string& path, AudioBuffer*& outBuf);
 	bool TryLoad(const std::string& path, AudioBuffer*& outBuf);
@@ -22,4 +22,5 @@ private:
 	std::list<std::string> lruList;
 	size_t currentMemoryUsage{};
 	std::string assetPath{};
+	uint32_t deviceSampleRate{};
 };

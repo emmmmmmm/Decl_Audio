@@ -24,7 +24,7 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 
 	LogMessage("INIT", LogCategory::AudioManager, LogLevel::Debug);
 
-	bufferManager = new AudioBufferManager();
+	bufferManager = new AudioBufferManager(deviceCfg->sampleRate);
 	LogMessage("... create audio device", LogCategory::AudioManager, LogLevel::Debug);
 
 	// create audio device
@@ -264,6 +264,8 @@ void AudioManager::TakeSnapshot()
 
 					// stereo azimuth panning
 					float az = std::atan2(dx, dz);
+					
+					
 					panL = std::clamp(0.5f - az / float(M_PI), 0.f, 1.f);
 					panR = 1.f - panL;
 					pan.push_back(panL); // TODO: MULTICHANNEL
@@ -562,6 +564,9 @@ void AudioManager::RenderCallback(float* out, int frames) {
 		
 		// 1 voice currently renders at around 2 µs on a 256 frames buffer
 	}
+
+
+
 
 
 	// around 10 times slower than current implementation.

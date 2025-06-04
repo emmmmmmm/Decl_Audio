@@ -1,0 +1,382 @@
+diff --git a/DeclarativeSoundEngine/AudioBuffer.cpp b/DeclarativeSoundEngine/AudioBuffer.cpp
+index 5421ca129dae7513580c2bde3ee5d00fb84a0661..5c4a67475fe540cbbea7503259905b54e88c9c47 100644
+--- a/DeclarativeSoundEngine/AudioBuffer.cpp
++++ b/DeclarativeSoundEngine/AudioBuffer.cpp
+@@ -1,37 +1,37 @@
+ ﻿#include "pch.h"
+ #include "AudioBuffer.hpp"
+ #include <stdexcept>
+ #include <filesystem>
+ 
+ // We're using miniaudio for decoding.
+ #define MINIAUDIO_IMPLEMENTATION
+ #include "miniaudio.h"
+ #include <iostream>
+ #include "Log.hpp"
+ 
+-AudioBuffer::AudioBuffer(const std::string& filePath)
++AudioBuffer::AudioBuffer(const std::string& filePath, uint32_t targetSampleRate)
+     : sampleRate(0), channelCount(0), frameCount(0)
+ {
+     using namespace std::filesystem;
+     if (!exists(filePath)) {
+         LogMessage("AudioBuffer: file not found: " + filePath,
+             LogCategory::AudioCore, LogLevel::Error);
+         return;
+     }
+ 
+     ma_decoder_config cfg = ma_decoder_config_init(
+         ma_format_f32,  // floats
+         0,              // native channels
+         0               // native sample rate
+     );
+     ma_decoder decoder;
+     ma_result r = ma_decoder_init_file(filePath.c_str(), &cfg, &decoder);
+     if (r != MA_SUCCESS) {
+         LogMessage("ma_decoder_init_file failed: " +
+             std::string(ma_result_description(r)),
+             LogCategory::AudioCore, LogLevel::Error);
+         return;
+     }
+ 
+     ma_uint64 totalPCMFrameCount = 0;
+     r = ma_decoder_get_length_in_pcm_frames(&decoder, &totalPCMFrameCount);
+@@ -59,69 +59,95 @@ AudioBuffer::AudioBuffer(const std::string& filePath)
+             &decoder,
+             samples.data() + totalRead * channelCount,
+             frameCount - totalRead,
+             &thisRead
+         );
+         if (r != MA_SUCCESS) {
+             ma_decoder_uninit(&decoder);
+             throw std::runtime_error(
+                 "Decoding error " + std::to_string(r) + " for " + filePath
+             );
+         }
+         if (thisRead == 0) {
+             break;  // EOF
+         }
+         totalRead += thisRead;
+     }
+ 
+ 
+     if (totalRead != frameCount) {
+         samples.resize(totalRead * channelCount);
+         frameCount = totalRead;
+     }
+ 
+     ma_decoder_uninit(&decoder);
+ 
++    if (targetSampleRate != 0 && targetSampleRate != sampleRate) {
++        LogMessage(
++            "Sample rate mismatch for " + filePath + ": " +
++            std::to_string(sampleRate) + " -> " +
++            std::to_string(targetSampleRate),
++            LogCategory::AudioBuffer, LogLevel::Warning);
++
++        uint64_t newFrameCount = static_cast<uint64_t>(
++            (static_cast<double>(frameCount) * targetSampleRate) / sampleRate);
++        std::vector<float> resampled(newFrameCount * channelCount);
++        for (uint64_t i = 0; i < newFrameCount; ++i) {
++            double srcPos = (static_cast<double>(i) * frameCount) / newFrameCount;
++            uint64_t pos0 = static_cast<uint64_t>(srcPos);
++            double frac = srcPos - pos0;
++            uint64_t pos1 = std::min(pos0 + 1, frameCount - 1);
++            for (uint16_t c = 0; c < channelCount; ++c) {
++                float s0 = samples[pos0 * channelCount + c];
++                float s1 = samples[pos1 * channelCount + c];
++                resampled[i * channelCount + c] = s0 + static_cast<float>(frac) * (s1 - s0);
++            }
++        }
++        samples.swap(resampled);
++        frameCount = newFrameCount;
++        sampleRate = targetSampleRate;
++    }
++
+     LogMessage("Loaded " + filePath + ": frames=" +
+         std::to_string(frameCount) + " ch=" +
+         std::to_string(channelCount) + " SR=" +
+         std::to_string(sampleRate),
+         LogCategory::AudioCore, LogLevel::Info);
+ 
+ 
+ }
+ 
+ 
+ uint32_t AudioBuffer::GetSampleRate() const {
+ 	return sampleRate;
+ }
+ 
+ uint16_t AudioBuffer::GetChannelCount() const {
+ 	return channelCount;
+ }
+ 
+ uint64_t AudioBuffer::GetFrameCount() const {
+ 	return frameCount;
+ }
+ 
+ const float* AudioBuffer::GetData() const {
+ 	return samples.data();
+ }
+ 
+ void AudioBuffer::ReadSamples(float* dest, uint64_t offsetFrame, uint64_t frameCountToRead) const {
+ 	if (offsetFrame + frameCountToRead > frameCount) {
+ 		throw std::out_of_range("ReadSamples range exceeds buffer length");
+ 	}
+ 	uint64_t startSample = offsetFrame * channelCount;
+ 	uint64_t sampleCount = frameCountToRead * channelCount;
+ 	std::memcpy(dest, samples.data() + startSample, sampleCount * sizeof(float));
+ }
+ 
+ const bool AudioBuffer::Empty()  const
+ {
+ 	return frameCount == 0;
+ }
+ 
+-const AudioBuffer* AudioBuffer::Get(const std::string& filePath) 
++const AudioBuffer* AudioBuffer::Get(const std::string& filePath, uint32_t targetSampleRate)
+ {
+-    return  new AudioBuffer(filePath);
++    return  new AudioBuffer(filePath, targetSampleRate);
+ }
+diff --git a/DeclarativeSoundEngine/AudioBuffer.hpp b/DeclarativeSoundEngine/AudioBuffer.hpp
+index 9e90fb5e2a7a70425b8a22e4973dcd9a5cd25df7..fd91dca2705f1177210037c7e7aadc74286ca8f5 100644
+--- a/DeclarativeSoundEngine/AudioBuffer.hpp
++++ b/DeclarativeSoundEngine/AudioBuffer.hpp
+@@ -1,20 +1,20 @@
+ #pragma once
+ #include <string>
+ #include <vector>
+ 
+ class AudioBuffer {
+ public:
+-	AudioBuffer(const std::string& filePath);
++        AudioBuffer(const std::string& filePath, uint32_t targetSampleRate = 0);
+ 	uint32_t    GetSampleRate() const;
+ 	uint16_t    GetChannelCount() const;
+ 	uint64_t    GetFrameCount() const;
+ 	const float*      GetData() const;
+ 	void        ReadSamples(float* dest, uint64_t offset, uint64_t frames) const;
+ 	const bool Empty() const;
+-	const static AudioBuffer* Get(const std::string& filePath);
++        const static AudioBuffer* Get(const std::string& filePath, uint32_t targetSampleRate = 0);
+ private:
+ 	std::vector<float> samples;  // interleaved
+ 	uint32_t sampleRate;
+ 	uint16_t channelCount;
+ 	uint64_t frameCount;
+ };
+\ No newline at end of file
+diff --git a/DeclarativeSoundEngine/AudioBufferManager.cpp b/DeclarativeSoundEngine/AudioBufferManager.cpp
+index c582ee04c285e7f0c09d0779e95b1893bf6f0ac0..2d9ef522e4a955d9780cf0e301fe0d0d75a5092f 100644
+--- a/DeclarativeSoundEngine/AudioBufferManager.cpp
++++ b/DeclarativeSoundEngine/AudioBufferManager.cpp
+@@ -1,76 +1,79 @@
+ #include "pch.h"
+ #include "AudioBufferManager.hpp"
+ #include <stdexcept>
+ #include <algorithm>
+ #include <iostream>
+ #include "Log.hpp"
+ #include <filesystem>
+ 
++AudioBufferManager::AudioBufferManager(uint32_t deviceSampleRate)
++    : deviceSampleRate(deviceSampleRate) {}
++
+ 
+ 
+ AudioBufferManager::~AudioBufferManager()
+ {
+ 	LogMessage("~AudioBufferManager", LogCategory::AudioBuffer, LogLevel::Debug);
+ 
+ 	// Cleanup all buffers
+ 	std::lock_guard<std::mutex> lock(mutex);
+ 	cache.clear();
+ 	lruList.clear();
+ }
+ bool AudioBufferManager::TryGet(const std::string& path, AudioBuffer*& outBuf) {
+ 	// already cached?
+ 	auto it = cache.find(path);
+ 	if (it != cache.end()) {
+ 		// Move this path to front of LRU
+ 		lruList.remove(path);
+ 		lruList.push_front(path);
+ 		it->second.second++;
+ 		outBuf = &it->second.first;
+ 		return true;
+ 	}
+ 	LogMessage("Could not get buffer for path: " + path, LogCategory::AudioBuffer, LogLevel::Warning);
+ 	return false;
+ }
+ bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)
+ {
+ 
+ 	std::lock_guard<std::mutex> lock(mutex);
+ 	// already cached?
+ 	if (TryGet(path, outBuf)) {
+ 		return true;
+ 	}
+ 
+ 	// Load new buffer
+ 	namespace fs = std::filesystem;
+ 	fs::path assetDir{ assetPath };
+ 	fs::path fileName{ path };
+ 
+ 	fs::path fullPath = assetDir / fileName;
+ 
+ 	std::string fullStr = fullPath.string();
+-	AudioBuffer buffer(fullStr);
++        AudioBuffer buffer(fullStr, deviceSampleRate);
+ 
+ 
+ 	if (buffer.Empty()) {
+ 		LogMessage("failed to load " + path, LogCategory::AudioBuffer, LogLevel::Warning);
+ 		outBuf = nullptr;
+ 		return false;
+ 	}
+ 
+ 	size_t mem = buffer.GetFrameCount()
+ 		* buffer.GetChannelCount()
+ 		* sizeof(float);
+ 
+ 
+ 	auto emplaced = cache.emplace(
+ 		path,
+ 		std::make_pair(std::move(buffer), 1)
+ 	);
+ 
+ 	auto& it = emplaced.first;
+ 
+ 
+ 	lruList.push_front(path);
+ 	currentMemoryUsage += mem;
+ 	outBuf = &it->second.first;
+ 
+diff --git a/DeclarativeSoundEngine/AudioBufferManager.hpp b/DeclarativeSoundEngine/AudioBufferManager.hpp
+index 344717c72de689099233c76fb3ac8e61c7b7ebe8..da900afbb59d7a8c4b24db1cfeb92472bfdaccc5 100644
+--- a/DeclarativeSoundEngine/AudioBufferManager.hpp
++++ b/DeclarativeSoundEngine/AudioBufferManager.hpp
+@@ -1,25 +1,26 @@
+ #pragma once
+ #include <string>
+ #include <unordered_map>
+ #include "AudioBuffer.hpp"
+ #include <future>
+ #include <optional>
+ 
+ 
+ class AudioBufferManager {
+ public:
+-	AudioBufferManager() {};
++        AudioBufferManager(uint32_t deviceSampleRate) : deviceSampleRate(deviceSampleRate) {};
+ 	~AudioBufferManager();
+ 	bool TryGet( const std::string& path, AudioBuffer*& outBuf);
+ 	bool TryLoad(const std::string& path, AudioBuffer*& outBuf);
+ 	void         Unload(const std::string& path);
+ 	void         PurgeUnused();
+ 	size_t       GetMemoryUsage();
+ 	void SetAssetpath(const std::string& path);
+ private:
+ 	std::mutex mutex;
+ 	std::unordered_map<std::string, std::pair<AudioBuffer, int /*refcount*/>> cache;
+-	std::list<std::string> lruList;
+-	size_t currentMemoryUsage{};
+-	std::string assetPath{};
++        std::list<std::string> lruList;
++        size_t currentMemoryUsage{};
++        std::string assetPath{};
++        uint32_t deviceSampleRate{};
+ };
+diff --git a/DeclarativeSoundEngine/AudioManager.cpp b/DeclarativeSoundEngine/AudioManager.cpp
+index d91f84fb6e6839b2c5dba28ac705ba3c93f497d4..4814dbad31c792b770035f26b1632db902a9cd8d 100644
+--- a/DeclarativeSoundEngine/AudioManager.cpp
++++ b/DeclarativeSoundEngine/AudioManager.cpp
+@@ -2,51 +2,51 @@
+ #include "AudioManager.hpp"
+ #include <variant>
+ #include <chrono>
+ #include "Entity.hpp"
+ #include "Voice.hpp"
+ #include "Bus.hpp"
+ #include "Snapshot.hpp"
+ #include "AudioDeviceMiniAudio.hpp"
+ #include "AudioDeviceUnity.hpp"
+ #include "AudioBufferManager.hpp"
+ #include "BehaviorLoader.hpp"
+ #include "AudioDevice.hpp"
+ #include "Log.hpp"
+ 
+ const double M_PI = 3.14159265358979323846;
+ 
+ namespace {
+ 	Snapshot::Snapshot gSnapshots[Snapshot::kSnapCount];   // single, file-local definition
+ }
+ 
+ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, CommandQueue* outQueue)
+ 	:deviceCfg(deviceCfg), inQueue(inQueue), outQueue(outQueue) {
+ 
+ 	LogMessage("INIT", LogCategory::AudioManager, LogLevel::Debug);
+ 
+-	bufferManager = new AudioBufferManager();
++        bufferManager = new AudioBufferManager(deviceCfg->sampleRate);
+ 	LogMessage("... create audio device", LogCategory::AudioManager, LogLevel::Debug);
+ 
+ 	// create audio device
+ 	switch (deviceCfg->backend) {
+ 	case AudioBackend::Miniaudio: { device = std::make_unique<AudioDeviceMiniaudio>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames); break; }
+ 	case AudioBackend::Unity: { device = std::make_unique<AudioDeviceUnity>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames); break; }
+ 	default: { LogMessage("unknown audio device!", LogCategory::AudioManager, LogLevel::Warning);break; }
+ 	}
+ 
+ 	LogMessage("... create buffers", LogCategory::AudioManager, LogLevel::Debug);
+ 
+ 	// size buffers
+ 	size_t bufSamples = size_t(deviceCfg->bufferFrames * deviceCfg->channels);
+ 
+ 	for (Snapshot::Snapshot& snap : gSnapshots)
+ 		for (int b = 0; b < Snapshot::kMaxBuses; ++b)
+ 			snap.bus[b].resize(bufSamples, 0.0f);
+ 	LogMessage("... set callback", LogCategory::AudioManager, LogLevel::Debug);
+ 
+ 	// set callback
+ 	device->SetRenderCallback(
+ 		[this](float* output, int frameCount) {RenderCallback(output, frameCount); });
+ 	
+ 	
+ 	LogMessage("... create master bus", LogCategory::AudioManager, LogLevel::Debug);
+diff --git a/README.md b/README.md
+index 50c819bff702c7d24aeb08fbf07777153e0057ec..5568630043f3d215d6a1779c2bb48505bc8b5477 100644
+--- a/README.md
++++ b/README.md
+@@ -101,29 +101,31 @@ No hardcoded decisions in game code. Just describe state—Decl figures out the
+ 
+ ---
+ 
+ ### 🔍 Features
+ 
+ * **Declarative `.audio` event format**
+   Describe playback logic in structured YAML-like text files—no scripting required for common sound behaviors.
+ 
+ * **Logic nodes**
+   Includes `play`, `random`, `layer`, `sequence`, `loop`, and more—chainable and nestable.
+ 
+ * **Expressions**
+   Full support for mathematical expressions, conditionals, and logic inside parameter values.
+ 
+ * **Inheritance**
+   Base events can be extended or selectively overridden by variants.
+ 
+ * **Entity/Tag-based routing**
+   Sound behavior is driven by tags and world state—minimal coupling to gameplay code.
+ 
+ * **Minimal API footprint**
+   Push values and tags—Decl resolves all logic and playback internally.
+ 
+ * **Spatialization-ready**
+   Position and listener data routed via entity tags and metadata—no engine-specific calls needed.
++* **Sample rate checking**
++  Audio buffers compare their decoded sample rate with the device's rate when loaded. If they differ, a warning is logged and the buffer is resampled so playback speed remains correct.
+ 
+ ---
+ 
+ More examples, integration guides, and tooling coming soon.

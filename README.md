@@ -11,9 +11,9 @@ This means minimal audio logic in game code: just keep the sound engine updated 
 In a typical integration, your game loop sends state updates like:
 
 ```cpp
-SoundManager::SetTag(entityId, "entity.player");
-SoundManager::SetGlobalValue(entityId, "speed", 4.3f);
-SoundManager::SetTransient(entityId, "foot.contact.left");
+AudioManager_SetTag(entityId, "entity.player");
+AudioManager_SetFloatValue(entityId, "speed", 4.3f);
+AudioManager_SetTransientTag(entityId, "foot.contact.left");
 ```
 
 The `.audio` files define behavior reactively:
@@ -123,6 +123,39 @@ No hardcoded decisions in game code. Just describe state—Decl figures out the 
 
 * **Spatialization-ready**
   Position and listener data routed via entity tags and metadata—no engine-specific calls needed.
+
+* **Sample rate checking**
+  Audio buffers compare their decoded sample rate with the device's rate when loaded. If they differ, a warning is logged and the buffer is resampled so playback speed remains correct.
+
+
+### API Functions
+
+The engine exposes a compact C interface. After creating the manager you mostly
+push tags and values to drive playback:
+
+````c
+void AudioManager_Create(AudioConfig* cfg);
+void AudioManager_Destroy();
+void AudioManager_LoadBehaviorsFromFile(const char* behaviorPath,
+                                        const char* assetPath);
+
+void AudioManager_SetTag(const char* entityId, const char* tag);
+void AudioManager_SetTransientTag(const char* entityId, const char* tag);
+void AudioManager_ClearTag(const char* entityId, const char* tag);
+
+void AudioManager_SetFloatValue(const char* entityId, const char* key, float value);
+void AudioManager_SetStringValue(const char* entityId, const char* key,
+                                 const char* value);
+void AudioManager_SetVectorValue(const char* entityId, const char* key,
+                                 float x, float y, float z);
+void AudioManager_ClearValue(const char* entityId, const char* key);
+void AudioManager_ClearEntity(const char* entityId);
+
+void AudioManager_LogSetMinimumLevel(LogCategory category, LogLevel level);
+void AudioManager_SetLogCallback(LogCallbackFn cb);
+bool AudioManager_PollLog(int* outCat, int* outLvl, char* outMsg, int maxLen);
+
+````
 
 ---
 

@@ -1,0 +1,383 @@
+diff --git a/DeclarativeSoundEngine/AudioDevice.hpp b/DeclarativeSoundEngine/AudioDevice.hpp
+index 369e1666b1b94d0d7edba45d70a091a38014b565..68661aae95af411217598632f40ea37fce89cca4 100644
+--- a/DeclarativeSoundEngine/AudioDevice.hpp
++++ b/DeclarativeSoundEngine/AudioDevice.hpp
+@@ -1,29 +1,30 @@
+ // AudioDevice.hpp
+ #pragma once
+ #include "AudioBuffer.hpp"
+ #include <functional>
+ 
+ 
+ enum AudioBackend : int {
+ 	Miniaudio = 0,
+ 	Unity = 1
+ };
+ 
+ struct AudioConfig {
+ 	AudioBackend backend;
+ 	uint32_t     sampleRate;
+ 	uint32_t     bufferFrames;
+ 	uint32_t     channels;
+ };
+ 
+ using SoundHandle = uint32_t;
+ 
+ struct AudioDevice {
+-	virtual ~AudioDevice() = default;
+-	virtual SoundHandle Play(AudioBuffer* buffer, float volume, float pitch, bool loop) = 0;
+-	virtual void Stop(SoundHandle handle) = 0;
+-	virtual void SetVolume(SoundHandle handle, float volume) = 0;
+-	virtual void SetPitch(SoundHandle handle, float pitch) = 0;
+-	virtual void SetRenderCallback(std::function<void(float*, int)> cb) = 0;
++        virtual ~AudioDevice() = default;
++        virtual SoundHandle Play(AudioBuffer* buffer, float volume, float pitch, bool loop) = 0;
++        virtual void Stop(SoundHandle handle) = 0;
++        virtual void SetVolume(SoundHandle handle, float volume) = 0;
++        virtual void SetPitch(SoundHandle handle, float pitch) = 0;
++        virtual void SetRenderCallback(std::function<void(float*, int)> cb) = 0;
++        virtual uint32_t GetBufferFrames() const = 0;
+ 
+ };
+\ No newline at end of file
+diff --git a/DeclarativeSoundEngine/AudioDeviceMiniAudio.cpp b/DeclarativeSoundEngine/AudioDeviceMiniAudio.cpp
+index 6f409f578fa330caf8c48e80bc5fab97f58058dc..c092ebd64284e8ca5106ac4b4fd81a81271d4fd6 100644
+--- a/DeclarativeSoundEngine/AudioDeviceMiniAudio.cpp
++++ b/DeclarativeSoundEngine/AudioDeviceMiniAudio.cpp
+@@ -1,54 +1,59 @@
+ 
+ // AudioDeviceMiniaudio.cpp
+ 
+ #include "pch.h"
+ #include "AudioDeviceMiniAudio.hpp"
+ #include "Log.hpp"
++#include <string>
+ 
+ AudioDeviceMiniaudio::AudioDeviceMiniaudio(int channels, int sampleRate, int bufferFrames) {
+ 	ma_engine_config cfg = ma_engine_config_init();
+ 	cfg.listenerCount = 1;          // stereo
+ 	cfg.sampleRate = sampleRate;
+ 	cfg.channels = channels;
+ 	// setup the data callback:
+ 	cfg.dataCallback = nullptr;     // well open a raw device instead of engine_playSource
+ 
+ 	ma_context_init(nullptr, 0, nullptr, &context_);
+ 	
+ 	ma_device_config dc = ma_device_config_init(ma_device_type_playback);
+ 	dc.playback.format = ma_format_f32;
+ 	dc.playback.channels = channels;
+ 	dc.sampleRate = sampleRate;
+ 	dc.periodSizeInFrames = bufferFrames;		// e.g. 2048
+ 	dc.periods = 2;	
+ 
+ 
+ 	
+ 	dc.dataCallback = AudioDeviceMiniaudio::dataCallback;
+ 	dc.pUserData = this;
+ 	
+ 	ma_device_init(&context_, &dc, &device_);
++        bufferFrames_ = device_.playback.internalPeriodSizeInFrames;
++        if (bufferFrames_ != dc.periodSizeInFrames) {
++                LogMessage("[Miniaudio] Requested period " + std::to_string(dc.periodSizeInFrames) + " got " + std::to_string(bufferFrames_), LogCategory::AudioDevice, LogLevel::Info);
++        }
+ 	ma_device_start(&device_);
+ 
+ 	
+ 	LogMessage("AudioDeviceMiniaudio::AudioDeviceMiniaudio: DONE.", LogCategory::AudioDevice, LogLevel::Debug);
+ }
+ 
+ AudioDeviceMiniaudio::~AudioDeviceMiniaudio() {
+ 	ma_device_uninit(&device_);
+ 	ma_context_uninit(&context_);
+ }
+ 
+ SoundHandle AudioDeviceMiniaudio::Play(AudioBuffer* buf, float volume, float pitch, bool loop) {
+ 	// Obsolete! were driving PCM manually in render-callbackno per-voice backend here.
+ 	return 0;
+ }
+ 
+ void AudioDeviceMiniaudio::Stop(SoundHandle) { /* no-op for manual mix */ }
+ void AudioDeviceMiniaudio::SetVolume(SoundHandle, float) { /* track in Voice */ }
+ void AudioDeviceMiniaudio::SetPitch(SoundHandle, float) { /* track in Voice */ }
+ 
+ void AudioDeviceMiniaudio::SetRenderCallback(std::function<void(float*, int)> cb) {
+ 	std::lock_guard<std::mutex> lk(cbMutex_);
+ 	renderCb_ = std::move(cb);
+ }
+diff --git a/DeclarativeSoundEngine/AudioDeviceMiniAudio.hpp b/DeclarativeSoundEngine/AudioDeviceMiniAudio.hpp
+index 2e1a71914d3a23507c424eaaefe767827c0a373d..37a5bec82900d92d1b8fa23d6b4e1dc66812ab38 100644
+--- a/DeclarativeSoundEngine/AudioDeviceMiniAudio.hpp
++++ b/DeclarativeSoundEngine/AudioDeviceMiniAudio.hpp
+@@ -1,39 +1,41 @@
+ // AudioDeviceMiniaudio.hpp
+ #pragma once
+ #include "AudioDevice.hpp"
+ #include "miniaudio.h"
+ #include <functional>
+ #include <mutex>
+ #include <unordered_map>
+ 
+ class AudioDeviceMiniaudio : public AudioDevice {
+ public:
+     AudioDeviceMiniaudio(int channels, int sampleRate, int bufferFrames);
+     ~AudioDeviceMiniaudio();
+ 
+     SoundHandle Play(AudioBuffer* buf, float volume, float pitch, bool loop)    override;
+     void Stop(SoundHandle handle)                                               override;
+     void SetVolume(SoundHandle, float)                                          override;
+     void SetPitch(SoundHandle, float)                                           override;
+     void SetRenderCallback(std::function<void(float*, int)> cb)                 override;
++    uint32_t GetBufferFrames() const override { return bufferFrames_; }
+ 
+ private:
+     ma_engine engine_{};
+     ma_context context_{};
+     ma_device device_{};
+     std::function<void(float*, int)> renderCb_;
+     std::mutex                   cbMutex_;
++    uint32_t                     bufferFrames_{};
+ 
+     static void dataCallback(ma_device* pDevice, void* pOutput, const void*, ma_uint32 frameCount) {
+         auto* self = static_cast<AudioDeviceMiniaudio*>(pDevice->pUserData);
+         float* out = static_cast<float*>(pOutput);
+         std::lock_guard<std::mutex> lk(self->cbMutex_);
+         if (self->renderCb_) {
+             self->renderCb_(out, frameCount);
+         }
+         else {
+             // silence if no callback set
+             std::fill(out, out + frameCount * pDevice->playback.channels, 0.f);
+         }
+     }
+ };
+diff --git a/DeclarativeSoundEngine/AudioDeviceUnity.cpp b/DeclarativeSoundEngine/AudioDeviceUnity.cpp
+index ead307258ee8938a342ca507f594aeafcbe225aa..e060c7a4a4fc6111587a26197ea83a012bd26eb1 100644
+--- a/DeclarativeSoundEngine/AudioDeviceUnity.cpp
++++ b/DeclarativeSoundEngine/AudioDeviceUnity.cpp
+@@ -1,38 +1,39 @@
+ #include "pch.h"
+ #include "AudioDeviceUnity.hpp"
+ #include "Log.hpp"
+ #include "UnityAudioPluginBridge.h"    // Unity's audio plugin SDK
+ #include <cstring>
+ 
+ 
+ static AudioDeviceUnity* s_Device = nullptr;
+ static std::function<void(float*, int)> s_RenderCallback;
+ 
+ AudioDeviceUnity::AudioDeviceUnity(int channels, int sampleRate, int bufferFrames) {
+     LogMessage("[UnityDevice] init.", LogCategory::AudioDevice, LogLevel::Debug);
+     s_Device = this;
++    bufferFrames_ = bufferFrames;
+ }
+ 
+ AudioDeviceUnity::~AudioDeviceUnity() {
+     LogMessage("[UnityDevice] shutdown.", LogCategory::AudioDevice, LogLevel::Debug);
+     s_Device = nullptr;
+ }
+ 
+ SoundHandle AudioDeviceUnity::Play(AudioBuffer* buf, float volume, float pitch, bool loop) {
+     // No-op: Unity drives mixing directly
+     return SoundHandle();
+ }
+ 
+ void AudioDeviceUnity::Stop(SoundHandle handle) {
+     // No-op
+ }
+ 
+ void AudioDeviceUnity::SetVolume(SoundHandle handle, float volume) {
+     // No-op
+ }
+ 
+ void AudioDeviceUnity::SetPitch(SoundHandle handle, float pitch) {
+     // No-op
+ }
+ 
+ void AudioDeviceUnity::SetRenderCallback(std::function<void(float*, int)> cb) {
+diff --git a/DeclarativeSoundEngine/AudioDeviceUnity.hpp b/DeclarativeSoundEngine/AudioDeviceUnity.hpp
+index 076d664f62b371695f8cec2579a8bee244929993..a5c986421af768820500ec26fed8e3eed4f68bae 100644
+--- a/DeclarativeSoundEngine/AudioDeviceUnity.hpp
++++ b/DeclarativeSoundEngine/AudioDeviceUnity.hpp
+@@ -1,15 +1,18 @@
+ #pragma once
+ #include "AudioDevice.hpp"
+ 
+ 
+ class AudioDeviceUnity : public AudioDevice {
+ public:
+ 	AudioDeviceUnity(int channels, int sampleRate, int bufferFrames);
+ 	~AudioDeviceUnity();
+ 
+ 	SoundHandle Play(AudioBuffer* buf, float volume, float pitch, bool loop)	override;
+ 	void Stop(SoundHandle handle)												override;
+ 	void SetVolume(SoundHandle, float)											override;
+ 	void SetPitch(SoundHandle, float)											override;
+ 	void SetRenderCallback(std::function<void(float*, int)> cb)					override;
++        uint32_t GetBufferFrames() const override { return bufferFrames_; }
++private:
++        uint32_t bufferFrames_{};
+ };
+\ No newline at end of file
+diff --git a/DeclarativeSoundEngine/AudioManager.cpp b/DeclarativeSoundEngine/AudioManager.cpp
+index d91f84fb6e6839b2c5dba28ac705ba3c93f497d4..1bc167e08be5704d8885d78ea065bcf30ea8d483 100644
+--- a/DeclarativeSoundEngine/AudioManager.cpp
++++ b/DeclarativeSoundEngine/AudioManager.cpp
+@@ -1,81 +1,90 @@
+ ﻿#include "pch.h"
+ #include "AudioManager.hpp"
+ #include <variant>
+ #include <chrono>
++#include <string>
+ #include "Entity.hpp"
+ #include "Voice.hpp"
+ #include "Bus.hpp"
+ #include "Snapshot.hpp"
+ #include "AudioDeviceMiniAudio.hpp"
+ #include "AudioDeviceUnity.hpp"
+ #include "AudioBufferManager.hpp"
+ #include "BehaviorLoader.hpp"
+ #include "AudioDevice.hpp"
+ #include "Log.hpp"
+ 
+ const double M_PI = 3.14159265358979323846;
+ 
+ namespace {
+ 	Snapshot::Snapshot gSnapshots[Snapshot::kSnapCount];   // single, file-local definition
+ }
+ 
+ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, CommandQueue* outQueue)
+ 	:deviceCfg(deviceCfg), inQueue(inQueue), outQueue(outQueue) {
+ 
+ 	LogMessage("INIT", LogCategory::AudioManager, LogLevel::Debug);
+ 
+ 	bufferManager = new AudioBufferManager();
+ 	LogMessage("... create audio device", LogCategory::AudioManager, LogLevel::Debug);
+ 
+ 	// create audio device
+ 	switch (deviceCfg->backend) {
+ 	case AudioBackend::Miniaudio: { device = std::make_unique<AudioDeviceMiniaudio>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames); break; }
+ 	case AudioBackend::Unity: { device = std::make_unique<AudioDeviceUnity>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames); break; }
+ 	default: { LogMessage("unknown audio device!", LogCategory::AudioManager, LogLevel::Warning);break; }
+ 	}
+ 
+-	LogMessage("... create buffers", LogCategory::AudioManager, LogLevel::Debug);
++        LogMessage("... create buffers", LogCategory::AudioManager, LogLevel::Debug);
+ 
+-	// size buffers
+-	size_t bufSamples = size_t(deviceCfg->bufferFrames * deviceCfg->channels);
++        uint32_t realFrames = device->GetBufferFrames();
++        if (realFrames != deviceCfg->bufferFrames) {
++                LogMessage(
++                        "[AudioDevice] requested period " + std::to_string(deviceCfg->bufferFrames) +
++                        " got " + std::to_string(realFrames),
++                        LogCategory::AudioDevice, LogLevel::Info);
++        }
++
++        // size buffers
++        size_t bufSamples = size_t(realFrames * deviceCfg->channels);
+ 
+ 	for (Snapshot::Snapshot& snap : gSnapshots)
+ 		for (int b = 0; b < Snapshot::kMaxBuses; ++b)
+ 			snap.bus[b].resize(bufSamples, 0.0f);
+ 	LogMessage("... set callback", LogCategory::AudioManager, LogLevel::Debug);
+ 
+ 	// set callback
+ 	device->SetRenderCallback(
+ 		[this](float* output, int frameCount) {RenderCallback(output, frameCount); });
+ 	
+ 	
+ 	LogMessage("... create master bus", LogCategory::AudioManager, LogLevel::Debug);
+ 
+ 	// Create Master Bus at buses[0]
+ 	buses.clear();
+-	buses.push_back({ std::vector<float>(deviceCfg->bufferFrames * deviceCfg->channels),{} }); // master
++        buses.push_back({ std::vector<float>(realFrames * deviceCfg->channels),{} }); // master
+ 	LogMessage("... Init Done.", LogCategory::AudioManager, LogLevel::Debug);
+ 
+ }
+ 
+ void AudioManager::ThreadMain() {
+ 	// TODO: We still get stuck when quitting from unity, need to rethink how we get out of this loop!
+ 	LogMessage("BEGINNING OF AUDIO THREAD", LogCategory::AudioManager, LogLevel::Info);
+ 	uint32_t lastSeen = 0; // block counter
+ 
+ 	using Clock = std::chrono::steady_clock;
+ 	auto start = Clock::now();
+ 
+ 	while (!shouldQuit) {
+ 		uint32_t head = cbBlockIndex.load(std::memory_order_acquire);
+ 		if (head == lastSeen) {
+ 			if (shouldQuit) break;
+ 			std::this_thread::yield();
+ 			continue;
+ 		}
+ 		lastSeen = head;
+ 
+ 
+ 		auto now = Clock::now();
+ 		std::chrono::duration<float> elapsed = now - start;
+ 
+@@ -223,56 +232,57 @@ void AudioManager::TakeSnapshot()
+ 
+ 	currentReadBuffer.store(backIndex, std::memory_order_release);
+ }
+ 
+ 
+ void AudioManager::AdvancePlayheads()
+ {
+ 	uint32_t step = pendingFrames.exchange(0, std::memory_order_acquire);
+ 	if (step == 0) return;
+ 
+ 	for (auto& [eid, ed] : entities)
+ 		for (auto& inst : ed.GetBehaviors())
+ 			for (auto& v : inst.GetVoices()) {
+ 				if (!v.buffer) continue;
+ 				if (v.buffer->Empty()) continue; // TODO: buffer not ready. but this would offset our start, right? not sure how to properly handle this tbh...?
+ 				size_t len = v.buffer->GetFrameCount();
+ 				if (v.loop)
+ 					v.playhead = (v.playhead + step) % len;
+ 				else
+ 					v.playhead = (std::min)(v.playhead + step, len);
+ 			}
+ }
+ 
+ 
+ int AudioManager::GetOrCreateBus(const std::string& entityId) {
+-	auto it = entityBus.find(entityId);
+-	if (it != entityBus.end()) return it->second;
+-	// allocate new sub‐bus
+-	int newIndex = (int)buses.size();
+-	buses.push_back({ std::vector<float>(deviceCfg->bufferFrames * deviceCfg->channels), {} });
+-	entityBus.emplace(entityId, newIndex);
++        auto it = entityBus.find(entityId);
++        if (it != entityBus.end()) return it->second;
++        // allocate new sub‐bus
++        int newIndex = (int)buses.size();
++        uint32_t frames = device->GetBufferFrames();
++        buses.push_back({ std::vector<float>(frames * deviceCfg->channels), {} });
++        entityBus.emplace(entityId, newIndex);
+ 
+ 	LogMessage("[BUS] added new bus for entity: " + entityId, LogCategory::AudioManager, LogLevel::Debug);
+ 	return newIndex;
+ }
+ 
+ 
+ void AudioManager::SetTag(Command cmd) {
+ 	std::string entityId = cmd.entityId;
+ 	auto* tag = std::get_if<std::string>(&cmd.value);
+ 	auto& entity = entities[entityId]; // create if missing
+ 	entity.SetBus(GetOrCreateBus(entityId));
+ 	entity.SetTag(*tag);
+ 
+ 	if (*tag == "listener")
+ 		currentListener = cmd.entityId;
+ 
+ 	LogMessage("Tag set: e: " + entityId + " t: " + *tag, LogCategory::AudioManager, LogLevel::Debug);
+ }
+ void AudioManager::SetTransient(Command cmd) {
+ 	std::string entityId = cmd.entityId;
+ 	auto* tag = std::get_if<std::string>(&cmd.value);
+ 	auto& entity = entities[entityId];
+ 	entity.SetTransientTag(*tag);
+ }
+ void AudioManager::ClearTag(Command cmd) {

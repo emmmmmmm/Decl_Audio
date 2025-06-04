@@ -1,0 +1,174 @@
+diff --git a/DeclarativeSoundEngine/AudioManager.cpp b/DeclarativeSoundEngine/AudioManager.cpp
+index d91f84fb6e6839b2c5dba28ac705ba3c93f497d4..323ad602885eaeefab7dc2d680928dd556ccd9c7 100644
+--- a/DeclarativeSoundEngine/AudioManager.cpp
++++ b/DeclarativeSoundEngine/AudioManager.cpp
+@@ -159,74 +159,80 @@ void AudioManager::TakeSnapshot()
+ 		back.busParent[i] = buses[i].parent;
+ 	}
+ 
+ 	// listener position (fallback to origin)
+ 	Vec3 listenerPos{ 0,0,0 };
+ 	if (!currentListener.empty()) {
+ 		auto it = entities.find(currentListener);
+ 		if (it != entities.end()) {
+ 			it->second.GetValues().TryGetValue("position", listenerPos);
+ 		}
+ 	}
+ 
+ 	back.listenerPosition = listenerPos;
+ 
+ 	
+ 	// flatten voices
+ 	for (auto& [eid, ed] : entities)
+ 
+ 		for (auto& inst : ed.GetBehaviors()) {
+ 			for (auto& v : inst.GetVoices()) {
+ 				if (back.voiceCount >= Snapshot::kMaxVoices) 
+ 					continue;
+ 				Vec3 srcPos;
+ 				bool isSpatial = ed.GetValues().TryGetValue("position", srcPos);
+ 				float att = 1.f;
+-				float panL = 1.f, panR = 1.f;
+-				std::vector<float> pan;
++                                float panL = 1.f, panR = 1.f;
++                                std::vector<float> pan;
+ 				if (isSpatial) {
+ 
+ 					float dx = srcPos.x - listenerPos.x;
+ 					float dy = srcPos.y - listenerPos.y;
+ 					float dz = srcPos.z - listenerPos.z;
+ 
+ 					float dist = std::sqrt(dx * dx + dz * dz + dy * dy);
+ 					float radius = 20.0f; // fallthrough default value
+ 					ed.GetValues().TryGetValue("radius", radius); // TODO check if radius>0!
+ 					att = std::clamp(1.f - dist / radius, 0.f, 1.f);
+ 
+ 					// stereo azimuth panning
+ 					float az = std::atan2(dx, dz);
+-					panL = std::clamp(0.5f - az / float(M_PI), 0.f, 1.f);
+-					panR = 1.f - panL;
+-					pan.push_back(panL); // TODO: MULTICHANNEL
+-					pan.push_back(panR);
+-				}
+-				else {
+-					pan.push_back(1); // TODO: MULTICHANNEL
+-					pan.push_back(1);
+-				}
++                                        panL = std::clamp(0.5f - az / float(M_PI), 0.f, 1.f);
++                                        panR = 1.f - panL;
++                                        pan.push_back(panL); // TODO: MULTICHANNEL
++                                        pan.push_back(panR);
++                                }
++                                else {
++                                        pan.push_back(1); // TODO: MULTICHANNEL
++                                        pan.push_back(1);
++                                }
++
++                                // Ensure pan vector matches device channel count
++                                if (pan.size() < deviceCfg->channels)
++                                        pan.resize(deviceCfg->channels, 1.f);
++                                else if (pan.size() > deviceCfg->channels)
++                                        pan.resize(deviceCfg->channels);
+ 
+ 
+ 				back.voices[back.voiceCount++] = Snapshot::VoiceSnap{
+ 					v.buffer,
+ 					v.playhead,
+ 					v.currentVol * att,   // pre‐attenuated
+ 					v.loop,
+ 					uint8_t(v.busIndex),
+ 					v.startSample,
+ 					pan
+ 				};
+ 			}
+ 		}
+ 
+ 	AdvancePlayheads();
+ 
+ 	currentReadBuffer.store(backIndex, std::memory_order_release);
+ }
+ 
+ 
+ void AudioManager::AdvancePlayheads()
+ {
+ 	uint32_t step = pendingFrames.exchange(0, std::memory_order_acquire);
+ 	if (step == 0) return;
+ 
+@@ -353,63 +359,64 @@ void AudioManager::RenderCallback(float* out, int frames)
+ 	const Snapshot::Snapshot& s = gSnapshots[front];
+ 
+ 	uint64_t blockStart = globalSampleCounter;
+ 	int samples = frames * deviceCfg->channels;      
+ 
+ 	// clear bus buffers
+ 	for (uint32_t b = 0; b < s.busCount; ++b)
+ 		std::fill(s.bus[b].begin(), s.bus[b].end(), 0.0f);
+ 
+ 	// mix voices
+ 	for (uint32_t v = 0; v < s.voiceCount; ++v)
+ 	{
+ 		const Snapshot::VoiceSnap& vs = s.voices[v];
+ 
+ 		// causes crash with delay node... :thinking:
+ 		if (!vs.buf || vs.buf->Empty())
+ 		{
+ 			continue; // buffer not loaded...?
+ 		}
+ 		const float*	pcm = vs.buf->GetData();
+ 		int				ch = vs.buf->GetChannelCount();
+ 		size_t			len = vs.buf->GetFrameCount();
+ 		size_t			basePos = size_t(vs.playhead);
+ 
+ 
+-		float* busBuf = s.bus[vs.bus].data();
+-		for (int i = 0; i < frames; ++i) {
+-			size_t pos = basePos + size_t(i);
+-			float s0 = 0.f;
+-
+-			if (pos < len) 
+-				s0 = pcm[pos * ch] * vs.gain;
+-			else if (vs.loop) 
+-				s0 = pcm[(pos % len) * ch] * vs.gain;
+-
+-			for (uint32_t c = 0; c < deviceCfg->channels; ++c)
+-				busBuf[i * deviceCfg->channels + c] += s0 * vs.pan[c]; // TODO: ChannelMatrix
+-		}
++                float* busBuf = s.bus[vs.bus].data();
++                // pan vector must match device channels
++                assert(vs.pan.size() == deviceCfg->channels);
++                for (int i = 0; i < frames; ++i) {
++                        size_t pos = basePos + size_t(i);
++                        for (uint32_t c = 0; c < deviceCfg->channels; ++c) {
++                                float s0 = 0.f;
++                                if (pos < len)
++                                        s0 = pcm[pos * ch + (c % ch)];
++                                else if (vs.loop && len)
++                                        s0 = pcm[(pos % len) * ch + (c % ch)];
++                                busBuf[i * deviceCfg->channels + c] += s0 * vs.pan[c] * vs.gain; // map output ch to src ch via c%ch
++                        }
++                }
+ 	}
+ 
+ 	for (uint32_t b = 0; b < s.busCount; ++b) {
+ 		float maxSample = 0;
+ 		for (float f : s.bus[b])
+ 			maxSample = (std::max)(maxSample, std::abs(f));
+ 	}
+ 
+ 
+ 	// fold busses onto master bus (master = buses[0])
+ 	for (int b = int(s.busCount) - 1; b > 0; --b) {
+ 		float gain = s.busGain[b];
+ 		int parent = parent = s.busParent[b];
+ 		float* src = s.bus[b].data();
+ 		float* dst = s.bus[parent].data();
+ 		for (int i = 0; i < samples; ++i)
+ 			dst[i] += src[i] * gain;
+ 	}
+ 
+ 	// copy to device
+ 	std::memcpy(out, s.bus[0].data(), size_t(frames * deviceCfg->channels) * sizeof(float));
+ 
+ 	// advance counters
+ 	pendingFrames.fetch_add(frames, std::memory_order_relaxed);
+ 	globalSampleCounter += frames; // this might be a little redundant

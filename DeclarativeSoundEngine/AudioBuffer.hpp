@@ -4,7 +4,7 @@
 
 class AudioBuffer {
 public:
-	AudioBuffer(const std::string& filePath);
+	AudioBuffer(const std::string& filePath, uint32_t targetSampleRate = 0);
 	uint32_t    GetSampleRate() const;
 	uint16_t    GetChannelCount() const;
 	uint64_t    GetFrameCount() const;
@@ -12,7 +12,7 @@ public:
 	size_t GetSampleCount() const;
 	void        ReadSamples(float* dest, uint64_t offset, uint64_t frames) const;
 	const bool Empty() const;
-	const static AudioBuffer* Get(const std::string& filePath);
+	const static AudioBuffer* Get(const std::string& filePath, uint32_t targetSampleRate = 0);
 
 
 

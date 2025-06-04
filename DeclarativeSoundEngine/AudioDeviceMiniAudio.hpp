@@ -18,17 +18,20 @@ public:
     void SetRenderCallback(std::function<void(float*, int)> cb)                 override;
    // int GetBufferSize() override;
 private:
-    ma_engine engine_{};
-    ma_context context_{};
-    ma_device device_{};
-    std::function<void(float*, int)> renderCb_;
-    std::mutex                   cbMutex_;
+    ma_engine                           engine_{};
+    ma_context                          context_{};
+    ma_device                           device_{};
+    bool                                contextInitialized_{ false };
+    bool                                deviceInitialized_{ false };
+    bool                                processingEnabled_{ true };
+    std::function<void(float*, int)>    renderCb_;
+    std::mutex                          cbMutex_;
 
     static void dataCallback(ma_device* pDevice, void* pOutput, const void*, ma_uint32 frameCount) {
         auto* self = static_cast<AudioDeviceMiniaudio*>(pDevice->pUserData);
         float* out = static_cast<float*>(pOutput);
         std::lock_guard<std::mutex> lk(self->cbMutex_);
-        if (self->renderCb_) {
+        if (self->processingEnabled_ && self->renderCb_) {
             self->renderCb_(out, frameCount);
         }
         else {

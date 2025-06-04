@@ -9,7 +9,7 @@
 #include <iostream>
 #include "Log.hpp"
 
-AudioBuffer::AudioBuffer(const std::string& filePath)
+AudioBuffer::AudioBuffer(const std::string& filePath, uint32_t targetSampleRate)
     : sampleRate(0), channelCount(0), frameCount(0)
 {
     using namespace std::filesystem;
@@ -81,6 +81,32 @@ AudioBuffer::AudioBuffer(const std::string& filePath)
 
     ma_decoder_uninit(&decoder);
 
+    if (targetSampleRate != 0 && targetSampleRate != sampleRate) {
+        LogMessage(
+            "Sample rate mismatch for " + filePath + ": " +
+            std::to_string(sampleRate) + " -> " +
+            std::to_string(targetSampleRate),
+            LogCategory::AudioBuffer, LogLevel::Warning);
+
+        uint64_t newFrameCount = static_cast<uint64_t>(
+            (static_cast<double>(frameCount) * targetSampleRate) / sampleRate);
+        std::vector<float> resampled(newFrameCount * channelCount);
+        for (uint64_t i = 0; i < newFrameCount; ++i) {
+            double srcPos = (static_cast<double>(i) * frameCount) / newFrameCount;
+            uint64_t pos0 = static_cast<uint64_t>(srcPos);
+            double frac = srcPos - pos0;
+            uint64_t pos1 = (std::min)(pos0 + 1, frameCount - 1);
+            for (uint16_t c = 0; c < channelCount; ++c) {
+                float s0 = samples[pos0 * channelCount + c];
+                float s1 = samples[pos1 * channelCount + c];
+                resampled[i * channelCount + c] = s0 + static_cast<float>(frac) * (s1 - s0);
+            }
+        }
+        samples.swap(resampled);
+        frameCount = newFrameCount;
+        sampleRate = targetSampleRate;
+    }
+
     LogMessage("Loaded " + filePath + ": frames=" +
         std::to_string(frameCount) + " ch=" +
         std::to_string(channelCount) + " SR=" +
@@ -122,7 +148,7 @@ const bool AudioBuffer::Empty()  const
 	return frameCount == 0;
 }
 
-const AudioBuffer* AudioBuffer::Get(const std::string& filePath) 
+const AudioBuffer* AudioBuffer::Get(const std::string& filePath, uint32_t targetSampleRate)
 {
-    return  new AudioBuffer(filePath);
+    return  new AudioBuffer(filePath, targetSampleRate);
 }

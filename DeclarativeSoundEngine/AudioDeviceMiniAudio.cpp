@@ -1,4 +1,3 @@
-
 // AudioDeviceMiniaudio.cpp
 
 #include "pch.h"
@@ -6,36 +5,59 @@
 #include "Log.hpp"
 
 AudioDeviceMiniaudio::AudioDeviceMiniaudio(int channels, int sampleRate, int bufferFrames) {
-	ma_engine_config cfg = ma_engine_config_init();
-	cfg.listenerCount = 1;          // stereo
-	cfg.sampleRate = sampleRate;
-	cfg.channels = channels;
-	// setup the data callback:
-	cfg.dataCallback = nullptr;     // we’ll open a raw device instead of engine_playSource
+    ma_engine_config cfg = ma_engine_config_init();
+    cfg.listenerCount = 1;          // stereo
+    cfg.sampleRate = sampleRate;
+    cfg.channels = channels;
+    // setup the data callback:
+    cfg.dataCallback = nullptr;     // well open a raw device instead of engine_playSource
 
-	ma_context_init(nullptr, 0, nullptr, &context_);
-	
-	ma_device_config dc = ma_device_config_init(ma_device_type_playback);
-	dc.playback.format = ma_format_f32;
-	dc.playback.channels = channels;
-	dc.sampleRate = sampleRate;
-	dc.periodSizeInFrames = bufferFrames;		// e.g. 2048
-	dc.periods = 2;	
+    ma_result r = ma_context_init(nullptr, 0, nullptr, &context_);
+    if (r != MA_SUCCESS) {
+        LogMessage("ma_context_init failed: " + std::string(ma_result_description(r)), LogCategory::AudioDevice, LogLevel::Error);
+        processingEnabled_ = false;
+        return;
+    }
+    contextInitialized_ = true;
 
-	
-	dc.dataCallback = AudioDeviceMiniaudio::dataCallback;
-	dc.pUserData = this;
-	
-	ma_device_init(&context_, &dc, &device_);
-	ma_device_start(&device_);
+    ma_device_config dc = ma_device_config_init(ma_device_type_playback);
+    dc.playback.format = ma_format_f32;
+    dc.playback.channels = channels;
+    dc.sampleRate = sampleRate;
+    dc.periodSizeInFrames = bufferFrames;           // e.g. 2048
+    dc.periods = 2;
 
-	
-	LogMessage("AudioDeviceMiniaudio::AudioDeviceMiniaudio: DONE.", LogCategory::AudioDevice, LogLevel::Debug);
+
+
+    dc.dataCallback = AudioDeviceMiniaudio::dataCallback;
+    dc.pUserData = this;
+
+    r = ma_device_init(&context_, &dc, &device_);
+    if (r != MA_SUCCESS) {
+        LogMessage("ma_device_init failed: " + std::string(ma_result_description(r)), LogCategory::AudioDevice, LogLevel::Error);
+        processingEnabled_ = false;
+        return;
+    }
+    deviceInitialized_ = true;
+
+    r = ma_device_start(&device_);
+    if (r != MA_SUCCESS) {
+        LogMessage("ma_device_start failed: " + std::string(ma_result_description(r)), LogCategory::AudioDevice, LogLevel::Error);
+        processingEnabled_ = false;
+        return;
+    }
+
+
+    LogMessage("AudioDeviceMiniaudio::AudioDeviceMiniaudio: DONE.", LogCategory::AudioDevice, LogLevel::Debug);
 }
 
 AudioDeviceMiniaudio::~AudioDeviceMiniaudio() {
-	ma_device_uninit(&device_);
-	ma_context_uninit(&context_);
+    if (deviceInitialized_) {
+        ma_device_uninit(&device_);
+    }
+    if (contextInitialized_) {
+        ma_context_uninit(&context_);
+    }
 }
 
 SoundHandle AudioDeviceMiniaudio::Play(AudioBuffer* buf, float volume, float pitch, bool loop) {
