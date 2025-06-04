@@ -44,7 +44,7 @@ private:
 
 public:
 	AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, CommandQueue* outQueue);
-	void BufferTest();
+
 	void ThreadMain();
 	~AudioManager();
 

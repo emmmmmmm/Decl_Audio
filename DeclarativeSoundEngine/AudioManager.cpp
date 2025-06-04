@@ -37,8 +37,13 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 	LogMessage("... create buffers", LogCategory::AudioManager, LogLevel::Debug);
 
 	// size buffers
-	size_t bufSamples = size_t(deviceCfg->bufferFrames * deviceCfg->channels);
+	uint32_t realFrames = device->GetBufferFrames();
+	if (realFrames != deviceCfg->bufferFrames) {
+		LogMessage("[AudioDevice] requested period " + std::to_string(deviceCfg->bufferFrames) +
+			" got " + std::to_string(realFrames), LogCategory::AudioDevice, LogLevel::Info);
+	}
 
+	size_t bufSamples = size_t(realFrames * deviceCfg->channels);
 	for (Snapshot::Snapshot& snap : gSnapshots)
 		for (int b = 0; b < Snapshot::kMaxBuses; ++b)
 			//snap.bus[b].resize(bufSamples, 0.0f);
@@ -55,72 +60,14 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 
 	// Create Master Bus at buses[0]
 	buses.clear();
-	buses.push_back({ std::vector<float>(deviceCfg->bufferFrames * deviceCfg->channels),{} }); // master
+	buses.push_back({ std::vector<float>(realFrames * deviceCfg->channels),{} }); // master
 	LogMessage("... Init Done.", LogCategory::AudioManager, LogLevel::Debug);
 
 	LogMessage("... starting buffertest.", LogCategory::AudioManager, LogLevel::Debug);
 
 
-
-
-	// BufferTest();
-
 }
-void AudioManager::BufferTest() {
 
-
-	const int numVoices = 255;
-	const int frames = deviceCfg->bufferFrames;
-	const int channels = deviceCfg->channels;
-	std::vector<float> outBuffer(frames * channels);  // This will be your "fake audio output"
-
-	// create a dummy buffer
-	auto dummyBuf = new AudioBuffer("");
-	dummyBuf->channelCount = channels;
-	dummyBuf->frameCount = frames * 2;  // give it some length
-	dummyBuf->samples.resize(frames * 2 * channels, 0.25f);  // fill with audible dummy data
-
-	// set as loaded
-	//dummyBuf->loaded = true;
-
-	// get snapshot reference
-	int backIndex = 1 - currentReadBuffer.load();
-	int frontIndex = currentReadBuffer.load(std::memory_order_acquire);
-	auto& snap = gSnapshots[frontIndex];
-
-	snap.voiceCount = numVoices;
-
-	for (int i = 0; i < numVoices; ++i) {
-		snap.voices[i].buf = dummyBuf;
-		snap.voices[i].playhead = i * 7 % dummyBuf->GetFrameCount(); // staggered
-		snap.voices[i].gain = 0.8f;
-		snap.voices[i].loop = true;
-		snap.voices[i].bus = GetOrCreateBus(std::to_string(i + 1));
-		snap.voices[i].startSample = 0;
-		snap.voices[i].pan[0] = (i % 2 == 0) ? 1.0f : 0.7f;
-		snap.voices[i].pan[1] = 1.0f - snap.voices[i].pan[0];
-
-	}
-	snap.busCount = numVoices + 1;
-	const int bufferSize = frames * channels;
-
-	for (int i = 1; i < snap.busCount; ++i) {
-		snap.busParent[i] = 0;        // all sub-buses fold into master
-		snap.busGain[i] = 1.0f;       // no attenuation
-	}
-	snap.busParent[0] = 0;            // master bus is its own parent
-	snap.busGain[0] = 1.0f;           // unity gain
-
-
-	currentReadBuffer.store(frontIndex, std::memory_order_release);
-
-	for (int i = 0;i < 100;i++) {
-
-		RenderCallback(outBuffer.data(), frames);
-	}
-
-
-}
 
 void AudioManager::ThreadMain() {
 	// TODO: We still get stuck when quitting from unity, need to rethink how we get out of this loop!
@@ -327,7 +274,8 @@ int AudioManager::GetOrCreateBus(const std::string& entityId) {
 	if (it != entityBus.end()) return it->second;
 	// allocate new sub‐bus
 	int newIndex = (int)buses.size();
-	buses.push_back({ std::vector<float>(deviceCfg->bufferFrames * deviceCfg->channels), {} });
+	uint32_t frames = device->GetBufferFrames();
+	buses.push_back({ std::vector<float>(frames * deviceCfg->channels), {} });
 	entityBus.emplace(entityId, newIndex);
 
 	//LogMessage("[BUS] added new bus for entity: " + entityId, LogCategory::AudioManager, LogLevel::Debug);
@@ -559,7 +507,11 @@ void AudioManager::RenderCallback(float* out, int frames) {
 			LogMessage("RenderCallback OVERRUN: " + std::to_string(elapsedMicros) + "µs (budget: " + std::to_string(timeBudget) + "µs)", LogCategory::AudioManager, LogLevel::Warning);
 		}
 		else {
-			LogMessage("RenderCallback: " + std::to_string(elapsedMicros) + "µs", LogCategory::AudioManager, LogLevel::Debug);
+			LogMessage("RenderCallback: " + std::to_string(elapsedMicros) + "µs"
+				+" bufferFrames: "+std::to_string(frames)
+				+" bufferSize: "+std::to_string(bufferSize)
+				+" config buffer size: "+std::to_string(deviceCfg->bufferFrames)
+				, LogCategory::AudioManager, LogLevel::Debug);
 		}
 		
 		// 1 voice currently renders at around 2 µs on a 256 frames buffer

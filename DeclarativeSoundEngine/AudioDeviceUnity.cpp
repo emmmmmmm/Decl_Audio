@@ -10,6 +10,7 @@ static std::function<void(float*, int)> s_RenderCallback;
 
 AudioDeviceUnity::AudioDeviceUnity(int channels, int sampleRate, int bufferFrames) {
     LogMessage("[UnityDevice] init.", LogCategory::AudioDevice, LogLevel::Debug);
+    bufferFrames_ = bufferFrames;
     s_Device = this;
 }
 

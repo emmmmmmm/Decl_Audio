@@ -26,5 +26,6 @@ struct AudioDevice {
 	virtual void SetPitch(SoundHandle handle, float pitch) = 0;
 	virtual void SetRenderCallback(std::function<void(float*, int)> cb) = 0;
 	//virtual int GetBufferSize() = 0;
+	virtual  uint32_t GetBufferFrames() const =0;
 
 };

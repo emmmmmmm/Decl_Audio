@@ -28,7 +28,6 @@ AudioDeviceMiniaudio::AudioDeviceMiniaudio(int channels, int sampleRate, int buf
     dc.periods = 2;
 
 
-
     dc.dataCallback = AudioDeviceMiniaudio::dataCallback;
     dc.pUserData = this;
 
@@ -37,6 +36,11 @@ AudioDeviceMiniaudio::AudioDeviceMiniaudio(int channels, int sampleRate, int buf
         LogMessage("ma_device_init failed: " + std::string(ma_result_description(r)), LogCategory::AudioDevice, LogLevel::Error);
         processingEnabled_ = false;
         return;
+    }
+
+    bufferFrames_ = device_.playback.internalPeriodSizeInFrames;
+    if (bufferFrames_ != dc.periodSizeInFrames) {
+        LogMessage("[Miniaudio] Requested period " + std::to_string(dc.periodSizeInFrames) + " got " + std::to_string(bufferFrames_), LogCategory::AudioDevice, LogLevel::Info);
     }
     deviceInitialized_ = true;
 
@@ -73,5 +77,4 @@ void AudioDeviceMiniaudio::SetRenderCallback(std::function<void(float*, int)> cb
 	std::lock_guard<std::mutex> lk(cbMutex_);
 	renderCb_ = std::move(cb);
 }
-
 

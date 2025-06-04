@@ -17,6 +17,7 @@ public:
     void SetPitch(SoundHandle, float)                                           override;
     void SetRenderCallback(std::function<void(float*, int)> cb)                 override;
    // int GetBufferSize() override;
+    uint32_t GetBufferFrames() const override { return bufferFrames_; }
 private:
     ma_engine                           engine_{};
     ma_context                          context_{};
@@ -26,6 +27,8 @@ private:
     bool                                processingEnabled_{ true };
     std::function<void(float*, int)>    renderCb_;
     std::mutex                          cbMutex_;
+
+    uint32_t bufferFrames_{};
 
     static void dataCallback(ma_device* pDevice, void* pOutput, const void*, ma_uint32 frameCount) {
         auto* self = static_cast<AudioDeviceMiniaudio*>(pDevice->pUserData);
