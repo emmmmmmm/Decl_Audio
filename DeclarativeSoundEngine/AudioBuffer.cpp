@@ -106,6 +106,7 @@ uint64_t AudioBuffer::GetFrameCount() const {
 const float* AudioBuffer::GetData() const {
 	return samples.data();
 }
+size_t AudioBuffer::GetSampleCount() const { return samples.size(); }
 
 void AudioBuffer::ReadSamples(float* dest, uint64_t offsetFrame, uint64_t frameCountToRead) const {
 	if (offsetFrame + frameCountToRead > frameCount) {

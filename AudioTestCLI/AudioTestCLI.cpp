@@ -22,9 +22,9 @@ const char* behaviorPath = "C:/Users/manuel/source/repos/DeclarativeSoundEngine/
 
 static AudioConfig GetTestConfig() {
 	AudioConfig cfg{};
-	cfg.bufferFrames = 1024;
+	cfg.bufferFrames = 256;
 	cfg.channels = 2;
-	cfg.sampleRate = 44100;
+	cfg.sampleRate = 48000;
 	cfg.backend = AudioBackend::Miniaudio;
 	return cfg;
 }
@@ -249,7 +249,8 @@ static void RunInteractiveTest() {
 			std::string cmd; iss >> cmd;
 			if (cmd == "exit") {
 				running = false;
-				break;
+				AudioManager_Destroy();
+				//break;
 			}
 			else if (cmd == "tag") {
 				std::string entity, tag;

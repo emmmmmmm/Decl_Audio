@@ -4,33 +4,37 @@
 #include "Vec3.hpp"
 
 namespace Snapshot {
-	constexpr int  kMaxVoices = 256;            // worst-case active voices
-	constexpr int  kMaxBuses = 16;				// master + sub-buses
-	constexpr int  kSnapCount = 3;				// triple-buffer
+	constexpr int  kMaxVoices = 256;
+	constexpr int  kMaxBuses  = 256;
+	constexpr int  kSnapCount = 3;
+	constexpr int kMaxVoicesPerBus = 128; // upper bound, or choose smaller if you know max voices/bus
 
 
-	// single voice snapshot
+	// TODO: RESTRUCTURE TO HAVE A BUS->VOICE reference available. Then use that for mixing.
+
+
 	struct VoiceSnap {
-		const AudioBuffer* buf{};
-		size_t				playhead{};
-		float				gain{};
-		bool				loop{};
-		uint8_t				bus{};
-		uint64_t			startSample = {};
-		std::vector<float>	pan = {}; // Spatialization
+		const AudioBuffer* buf = nullptr;
+		size_t				playhead = 0;
+		float				gain = 1.0f;
+		bool				loop = false;
+		uint8_t				bus = 0;
+		uint64_t			startSample = 0;
+		float				pan[2] = {1.0f, 1.0f};  // Stereo fixed
 	};
 
-
-
-	// full immutable snapshot 
 	struct Snapshot {
 		Vec3				listenerPosition = {};
 		uint32_t			voiceCount = 0;
-		VoiceSnap			voices[kMaxVoices];
-		uint32_t			busCount = 1;                  // at least master
+		VoiceSnap			voices[kMaxVoices];         // contiguous, flat
+		uint32_t			busCount = 1;
 		float				busGain[kMaxBuses]{};
-		std::vector<int>	busParent{};
+		int					busParent[kMaxBuses]{};     // flattened from vector
+		mutable float		bus[kMaxBuses][4096]{};     // optionally fixed-size
+		
+		uint32_t			numVoicesInBus[kMaxBuses] = {};
+		uint32_t			voicesByBus[kMaxBuses][kMaxVoicesPerBus] = {};
 
-		mutable std::vector<float> bus[kMaxBuses];  // resised once in ctor
+		// Note: You can re-enable vector-backed bus buffers if dynamic size is needed
 	};
 }

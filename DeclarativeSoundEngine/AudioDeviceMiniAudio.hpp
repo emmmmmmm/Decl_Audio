@@ -16,7 +16,7 @@ public:
     void SetVolume(SoundHandle, float)                                          override;
     void SetPitch(SoundHandle, float)                                           override;
     void SetRenderCallback(std::function<void(float*, int)> cb)                 override;
-
+   // int GetBufferSize() override;
 private:
     ma_engine engine_{};
     ma_context context_{};

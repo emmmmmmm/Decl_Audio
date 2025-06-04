@@ -44,6 +44,7 @@ private:
 
 public:
 	AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, CommandQueue* outQueue);
+	void BufferTest();
 	void ThreadMain();
 	~AudioManager();
 
@@ -70,5 +71,6 @@ public:
 
 private:
 	void RenderCallback(float* output, int nFrames);
+	void RenderCallbackOld(float* out, int frames);
 };
 
