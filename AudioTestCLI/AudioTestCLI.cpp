@@ -22,7 +22,7 @@ const char* behaviorPath = "C:/Users/manuel/source/repos/DeclarativeSoundEngine/
 
 static AudioConfig GetTestConfig() {
 	AudioConfig cfg{};
-	cfg.bufferFrames = 256;
+	cfg.bufferFrames = 512;
 	cfg.channels = 2;
 	cfg.sampleRate = 48000;
 	cfg.backend = AudioBackend::Miniaudio;
