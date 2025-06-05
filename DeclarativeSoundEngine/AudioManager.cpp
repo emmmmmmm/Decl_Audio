@@ -12,8 +12,8 @@
 #include "BehaviorLoader.hpp"
 #include "AudioDevice.hpp"
 #include "Log.hpp"
-
-const double M_PI = 3.14159265358979323846;
+#include <cstring>
+#include <numbers>
 
 namespace {
 	Snapshot::Snapshot gSnapshots[Snapshot::kSnapCount];   // single, file-local definition
@@ -213,7 +213,7 @@ void AudioManager::TakeSnapshot()
 					float az = std::atan2(dx, dz);
 					
 					
-					panL = std::clamp(0.5f - az / float(M_PI), 0.f, 1.f);
+                                       panL = std::clamp(0.5f - az / std::numbers::pi_v<float>, 0.f, 1.f);
 					panR = 1.f - panL;
 					pan.push_back(panL); // TODO: MULTICHANNEL
 					pan.push_back(panR);

@@ -4,6 +4,7 @@
 #include "AudioBuffer.hpp"
 #include <future>
 #include <optional>
+#include <list>
 
 
 class AudioBufferManager {
