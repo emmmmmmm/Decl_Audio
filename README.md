@@ -160,3 +160,9 @@ bool AudioManager_PollLog(int* outCat, int* outLvl, char* outMsg, int maxLen);
 ---
 
 More examples, integration guides, and tooling coming soon.
+
+
+# Build instructions
+mkdir build && cd build
+cmake ..
+cmake --build . --config Debug
