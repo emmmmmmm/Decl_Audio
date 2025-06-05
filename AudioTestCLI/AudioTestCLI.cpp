@@ -6,6 +6,8 @@
 #include <functional>
 #include <sstream>
 #include <chrono>
+#include <cstdlib>
+#include <string>
 
 #include "BehaviorDef.hpp" 
 #include "BehaviorLoader.hpp"
@@ -21,12 +23,19 @@ const char* behaviorPath = "C:/Users/manuel/source/repos/DeclarativeSoundEngine/
 
 
 static AudioConfig GetTestConfig() {
-	AudioConfig cfg{};
-	cfg.bufferFrames = 512;
-	cfg.channels = 2;
-	cfg.sampleRate = 48000;
-	cfg.backend = AudioBackend::Miniaudio;
-	return cfg;
+        AudioConfig cfg{};
+        cfg.bufferFrames = 512;
+        cfg.channels = 2;
+        cfg.sampleRate = 48000;
+        cfg.backend = AudioBackend::Miniaudio;
+
+        const char* env = std::getenv("DECLSOUND_BACKEND");
+        if (env) {
+                std::string v = env;
+                if (v == "stub") cfg.backend = AudioBackend::Stub;
+                else if (v == "unity") cfg.backend = AudioBackend::Unity;
+        }
+        return cfg;
 }
 
 

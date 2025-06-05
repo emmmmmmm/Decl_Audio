@@ -161,6 +161,18 @@ bool AudioManager_PollLog(int* outCat, int* outLvl, char* outMsg, int maxLen);
 
 More examples, integration guides, and tooling coming soon.
 
+## Selecting an audio backend
+
+The engine supports multiple backends. By default the CLI tool uses the
+`Miniaudio` backend which requires audio hardware. You can override this
+behavior using the `DECLSOUND_BACKEND` environment variable:
+
+```
+export DECLSOUND_BACKEND=stub   # run without audio hardware
+```
+
+Valid values are `miniaudio`, `unity`, and `stub`.
+
 
 # Build instructions
 mkdir build && cd build
