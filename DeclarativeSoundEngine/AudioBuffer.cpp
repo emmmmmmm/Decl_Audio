@@ -2,6 +2,8 @@
 #include "AudioBuffer.hpp"
 #include <stdexcept>
 #include <filesystem>
+#include <cstring>
+#include <algorithm>
 
 // We're using miniaudio for decoding.
 #define MINIAUDIO_IMPLEMENTATION
