@@ -5,8 +5,9 @@
 
 
 enum AudioBackend : int {
-	Miniaudio = 0,
-	Unity = 1
+        Miniaudio = 0,
+        Unity = 1,
+        Stub = 2
 };
 
 struct AudioConfig {

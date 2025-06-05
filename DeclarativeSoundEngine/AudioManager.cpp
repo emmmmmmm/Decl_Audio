@@ -8,6 +8,7 @@
 #include "Snapshot.hpp"
 #include "AudioDeviceMiniAudio.hpp"
 #include "AudioDeviceUnity.hpp"
+#include "AudioDeviceStub.hpp"
 #include "AudioBufferManager.hpp"
 #include "BehaviorLoader.hpp"
 #include "AudioDevice.hpp"
@@ -29,10 +30,23 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 
 	// create audio device
 	switch (deviceCfg->backend) {
-	case AudioBackend::Miniaudio: { device = std::make_unique<AudioDeviceMiniaudio>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames); break; }
-	case AudioBackend::Unity: { device = std::make_unique<AudioDeviceUnity>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames); break; }
-	default: { LogMessage("unknown audio device!", LogCategory::AudioManager, LogLevel::Warning);break; }
-	}
+        case AudioBackend::Miniaudio: {
+                device = std::make_unique<AudioDeviceMiniaudio>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames);
+                break;
+        }
+        case AudioBackend::Unity: {
+                device = std::make_unique<AudioDeviceUnity>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames);
+                break;
+        }
+        case AudioBackend::Stub: {
+                device = std::make_unique<AudioDeviceStub>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames);
+                break;
+        }
+        default: {
+                LogMessage("unknown audio device!", LogCategory::AudioManager, LogLevel::Warning);
+                break;
+        }
+        }
 
 	LogMessage("... create buffers", LogCategory::AudioManager, LogLevel::Debug);
 
