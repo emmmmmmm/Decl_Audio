@@ -59,12 +59,15 @@ t- id: weather_base.audio
 # Footstep event
 - id: footstep
   matchTags:
-    - entity.*
+    - entity.player
     - foot.contact.*
   parameters:
     volume: "1.0"
   onStart:
-    sound: step_gravel.wav
+    random:
+      sounds:
+        - player_step_gravel_01.wav 
+        - player_step_gravel_02.wav
   # onActive:
   #   layer:
   #     sound: step_gravel_loop.wav
