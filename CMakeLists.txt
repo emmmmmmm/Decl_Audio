@@ -50,13 +50,16 @@ add_library(DeclarativeSoundEngine SHARED
     DeclarativeSoundEngine/ParserUtils.cpp
     DeclarativeSoundEngine/TagMap.cpp
     DeclarativeSoundEngine/ValueMap.cpp
-    DeclarativeSoundEngine/dllmain.cpp
     DeclarativeSoundEngine/pch.cpp
 )
 
 target_include_directories(DeclarativeSoundEngine PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/DeclarativeSoundEngine
 )
+
+if(WIN32)
+    target_sources(DeclarativeSoundEngine PRIVATE DeclarativeSoundEngine/dllmain.cpp)
+endif()
 
 target_compile_definitions(DeclarativeSoundEngine PRIVATE DECLSOUND_BUILD_DLL)
 target_link_libraries(DeclarativeSoundEngine PRIVATE yaml-cpp miniaudio)

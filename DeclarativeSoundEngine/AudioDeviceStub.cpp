@@ -5,8 +5,14 @@
 
 #include "Log.hpp"
 
+#include <cstring>
 
-SoundHandle AudioDeviceStub::Play(AudioBuffer* buffer,	float volume, float pitch,	bool loop) {
+AudioDeviceStub::AudioDeviceStub(int /*channels*/, int /*sampleRate*/, int bufferFrames) {
+    bufferFrames_ = bufferFrames;
+}
+
+
+SoundHandle AudioDeviceStub::Play(AudioBuffer* buffer, float volume, float pitch, bool loop) {
 	auto h = nextHandle++;
 	LogMessage("AudioDeviceStub::Play handle=" + std::to_string(h)
 		+ " vol=" + std::to_string(volume)
@@ -33,3 +39,8 @@ void AudioDeviceStub::SetPitch(SoundHandle handle,
 		+ " pitch=" + std::to_string(pitch),
 		LogCategory::CLI, LogLevel::Info);
 }
+void AudioDeviceStub::SetRenderCallback(std::function<void(float*, int)> cb) {
+    cb_ = std::move(cb);
+}
+
+

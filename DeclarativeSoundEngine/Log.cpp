@@ -7,6 +7,7 @@
 #include <format>
 #include <chrono>
 #include <string>
+#include <cstring>
 
 using namespace std::chrono_literals;
 
