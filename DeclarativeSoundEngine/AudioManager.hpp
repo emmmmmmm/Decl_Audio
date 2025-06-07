@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include "AudioCommand.hpp"
 #include "AudioDevice.hpp"
+#include "Entity.hpp"
 
 
 
