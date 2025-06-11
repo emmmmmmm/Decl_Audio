@@ -222,4 +222,5 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 		activeBehaviors.end()
 	);
 
+	// if activeBehaviors is empty, we should remove this entity
 }

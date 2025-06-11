@@ -31,6 +31,7 @@ enum class LogLevel {
 	Error
 };
 
+// TODO: Move all exposed api functions to AudioManagerAPI!
 
 extern "C" DECLSOUND_API void AudioManager_LogSetMinimumLevel(LogCategory category, LogLevel level);
 extern "C" DECLSOUND_API void LogMessageC(const char* message, int category, int level);

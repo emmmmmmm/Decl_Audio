@@ -12,7 +12,7 @@
 
 struct BehaviorDef {
 
-    uint32_t id = {}; // todo: should not actually be in use I think?
+    uint32_t id = {}; 
     std::string name = {};
     std::vector<std::string> matchTags;
     std::vector<Condition>   matchConditions;

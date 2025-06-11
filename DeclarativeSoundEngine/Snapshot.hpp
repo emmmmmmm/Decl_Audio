@@ -9,10 +9,6 @@ namespace Snapshot {
 	constexpr int  kSnapCount = 3;
 	constexpr int kMaxVoicesPerBus = 128; // upper bound, or choose smaller if you know max voices/bus
 
-
-	// TODO: RESTRUCTURE TO HAVE A BUS->VOICE reference available. Then use that for mixing.
-
-
 	struct VoiceSnap {
 		const AudioBuffer* buf = nullptr;
 		size_t				playhead = 0;
@@ -35,6 +31,5 @@ namespace Snapshot {
 		uint32_t			numVoicesInBus[kMaxBuses] = {};
 		uint32_t			voicesByBus[kMaxBuses][kMaxVoicesPerBus] = {};
 
-		// Note: You can re-enable vector-backed bus buffers if dynamic size is needed
 	};
 }
