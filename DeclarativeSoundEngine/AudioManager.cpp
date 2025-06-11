@@ -16,6 +16,31 @@
 #include <cstring>
 #include <numbers>
 
+
+/*
+ * TODO: 
+ * 
+ * - asset packing / loading: 
+ *		we'd want to pack all audio and behaviors in a soundbank-ish file
+ *		also: convert to a specified format, maybe depending on platform
+ *		-> specify path to this file in config
+ * 
+ * - update tagmatching: 
+ *		we should investigate if there's a more analytical approach to this, 
+ *		we don't want to iterate over ALL behaviors/entities every Update!
+ * 
+ * - fix the issue with crackles on low buffer sizes
+ *		there's a missalignment somewhere regarding buffersizes, we need to sort this
+ * 
+ * - replace miniaudio with custom backend?
+ * 
+ * - test / debug expressions!
+ *		I'm not really sure if those actually work as expected right now...
+ * 
+ * - ??
+ */
+
+
 namespace {
 	Snapshot::Snapshot gSnapshots[Snapshot::kSnapCount];   // single, file-local definition
 }
@@ -65,7 +90,6 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 	LogMessage("... set callback", LogCategory::AudioManager, LogLevel::Debug);
 
 	// set callback
-	// TODO: REENABLE
 	device->SetRenderCallback(
 		[this](float* output, int frameCount) {RenderCallback(output, frameCount); });
 
@@ -154,7 +178,7 @@ void AudioManager::Update(float dt)
 	for (auto& entityValue : entities) {
 		entityValue.second.Update(definitions, globalTags, globalValues, deviceCfg, bufferManager);
 	}
-
+	// todo: remove entities that don't have any activebehaviors here?
 }
 
 void AudioManager::Shutdown() {
@@ -304,6 +328,7 @@ void AudioManager::SetTag(Command cmd) {
 	entity.SetBus(GetOrCreateBus(entityId));
 	entity.SetTag(*tag);
 
+	// TODO: rethink listeners!
 	if (*tag == "listener")
 		currentListener = cmd.entityId;
 
@@ -320,6 +345,9 @@ void AudioManager::ClearTag(Command cmd) {
 	auto* tag = std::get_if<std::string>(&cmd.value);
 	auto& entity = entities[entityId];
 	entity.ClearTag(*tag);
+
+	if (*tag == "listener")
+		currentListener = "";
 }
 void AudioManager::SetValue(Command cmd) {
 	std::string entityId = cmd.entityId;
@@ -345,7 +373,8 @@ void AudioManager::SetAssetPath(Command cmd)
 }
 void AudioManager::ClearEntity(Command cmd) {
 	// TODO: Clear this Entity
-	entities.erase(cmd.entityId); // THATS PROBABLY A VERY BAD IDEA
+	entities.erase(cmd.entityId); // TODO THATS PROBABLY A VERY BAD IDEA
+	// actually we need to stop all sounds, and only then remove the entity?
 }
 
 
