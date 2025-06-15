@@ -16,7 +16,7 @@ namespace Snapshot {
 		bool				loop = false;
 		uint8_t				bus = 0;
 		uint64_t			startSample = 0;
-		float				pan[2] = {1.0f, 1.0f};  // Stereo fixed
+		std::vector<float>	panMask = {};
 	};
 
 	struct Snapshot {

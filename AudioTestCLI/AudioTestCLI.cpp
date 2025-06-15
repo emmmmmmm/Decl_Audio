@@ -29,12 +29,12 @@ static AudioConfig GetTestConfig() {
         cfg.sampleRate = 48000;
         cfg.backend = AudioBackend::Miniaudio;
 
-        const char* env = std::getenv("DECLSOUND_BACKEND");
+        /*const char* env = std::getenv("DECLSOUND_BACKEND");
         if (env) {
                 std::string v = env;
                 if (v == "stub") cfg.backend = AudioBackend::Stub;
                 else if (v == "unity") cfg.backend = AudioBackend::Unity;
-        }
+        }*/
         return cfg;
 }
 
@@ -239,11 +239,12 @@ static void RunInteractiveTest() {
 	auto cfg = GetTestConfig();
 	AudioManager_Create(&cfg);
 	AudioManager_LoadBehaviorsFromFile(behaviorPath, assetPath);
-	AudioManager_SetTag("l", "listener");
+	AudioManager_SetTag("listener", "listener");
 	AudioManager_SetVectorValue("l", "position", 0, 0, 0);
 	AudioManager_SetTag("player", "entity.tester");
 	AudioManager_SetVectorValue("player", "position", 5, 0, 0);
 	AudioManager_SetTag("player", "test.random");
+	//AudioManager_SetQuatValue("listener","rotation", 0, 0, 1, 0); // rotate listener 180 degs around up axis
 
 	std::atomic<bool> running{ true };
 
@@ -345,7 +346,7 @@ static void RunInteractiveTest() {
 
 int main() {
 
-	//RunInteractiveTest(); // <- this. is. so. cool! xD
+	RunInteractiveTest(); // <- this. is. so. cool! xD
 
 	RunRandomNodeTest();
 	//RunBlendNodeTest();

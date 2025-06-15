@@ -212,7 +212,7 @@ namespace ParserUtils {
 		}
 
 		else {
-			throw std::runtime_error("Invalid YAML node type");
+			throw std::runtime_error("Invalid YAML node type"); // TODO: gracefully handle this case (with sensible debugs)
 		}
 		// apply modifiers
 		if (mods.volume)

@@ -4,7 +4,7 @@
 #include "AudioCommand.hpp"
 #include "AudioDevice.hpp"
 #include "Entity.hpp"
-
+#include "SpeakerLayout.hpp"
 
 
 struct Bus;
@@ -42,6 +42,7 @@ private:
 
 	std::atomic<uint32_t>					pendingFrames{ 0 };
 
+	SpeakerLayout speakerLayout;
 
 public:
 	AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, CommandQueue* outQueue);

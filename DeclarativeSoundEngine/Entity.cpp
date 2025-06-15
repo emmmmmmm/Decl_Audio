@@ -150,7 +150,7 @@ void Entity::Update(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags,
 
 void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags, const ValueMap& globalValues, AudioConfig* deviceCfg, AudioBufferManager* bufferManager)
 {
-	// Build name -> BehaviorDef* map (just once)
+	// Build name -> BehaviorDef* map (just once) // TODO
 	std::unordered_map<std::string, BehaviorDef*> defMap;
 	for (auto& def : allDefs)
 		defMap[def.name] = &def;
@@ -162,8 +162,9 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 		auto score = MatchUtils::MatchScore(def, tags, globalTags, values, globalValues);
 
 		
-		if (score >= 0) {
+		if (score > 0) {
 			desired.insert(def.name);
+			//LogMessage("desired: " + def.name + " // score: " + std::to_string(score), LogCategory::Entity, LogLevel::Debug);
 
 		}
 	}
