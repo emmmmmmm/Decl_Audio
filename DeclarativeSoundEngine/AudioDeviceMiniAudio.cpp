@@ -24,7 +24,7 @@ AudioDeviceMiniaudio::AudioDeviceMiniaudio(int channels, int sampleRate, int buf
     dc.playback.format = ma_format_f32;
     dc.playback.channels = channels;
     dc.sampleRate = sampleRate;
-    dc.periodSizeInFrames = 0; //bufferFrames;           // e.g. 2048
+    dc.periodSizeInFrames = bufferFrames;           // e.g. 2048
     dc.periods = 3;
 
 

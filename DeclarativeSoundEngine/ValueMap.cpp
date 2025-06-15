@@ -30,6 +30,11 @@ void ValueMap::SetValue(const std::string& key, const Vec3& value) {
 	values.insert_or_assign(key, Value{ value });
 }
 
+void ValueMap::SetValue(const std::string& key, const Quat& value)
+{
+	values.insert_or_assign(key, Value{ value });
+}
+
 void ValueMap::SetValue(const std::string& key, const Value& value) {
 	values.insert_or_assign(key, value);
 }
@@ -51,6 +56,11 @@ bool ValueMap::TryGetValue(const std::string& key, std::string& out) const {
 }
 
 bool ValueMap::TryGetValue(const std::string& key, Vec3& out) const {
+	return getHelper(values, key, out);
+}
+
+bool ValueMap::TryGetValue(const std::string& key, Quat& out) const
+{
 	return getHelper(values, key, out);
 }
 

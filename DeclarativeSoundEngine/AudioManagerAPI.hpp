@@ -21,6 +21,8 @@ extern "C" {
 	DECLSOUND_API void AudioManager_SetFloatValue(const char* entityId, const char* key, float value);
 	DECLSOUND_API void AudioManager_SetStringValue(const char* entityId, const char* key, const char* value);
 	DECLSOUND_API void AudioManager_SetVectorValue(const char* entityId, const char* key, float x, float y, float z);
+	DECLSOUND_API void AudioManager_SetQuatValue(const char* entityId, const char* key, float a, float b, float c, float d);
+	DECLSOUND_API void AudioManager_SetTransform(const char* entityId, float x, float y, float z, float a, float b, float c, float d); // position/quaternion
 	DECLSOUND_API void AudioManager_ClearValue(const char* entityId, const char* key);
 	DECLSOUND_API void AudioManager_ClearEntity(const char* entityId);
 	// etc

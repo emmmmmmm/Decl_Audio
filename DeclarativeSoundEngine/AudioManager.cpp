@@ -2,6 +2,8 @@
 #include "AudioManager.hpp"
 #include <variant>
 #include <chrono>
+#include <cstring>
+#include <numbers>
 #include "Entity.hpp"
 #include "Voice.hpp"
 #include "Bus.hpp"
@@ -13,12 +15,12 @@
 #include "BehaviorLoader.hpp"
 #include "AudioDevice.hpp"
 #include "Log.hpp"
-#include <cstring>
-#include <numbers>
+#include "SpeakerLayout.hpp"
 
 
 /*
  * TODO: 
+ * - Listener orientation!
  * 
  * - asset packing / loading: 
  *		we'd want to pack all audio and behaviors in a soundbank-ish file
@@ -38,6 +40,9 @@
  *		I'm not really sure if those actually work as expected right now...
  * 
  * - ??
+ * 
+ * - it could be cool if we could a) specify a path for sounds, instead of only filenames, and
+ * - also, it'd be cool if we could *only* specify a folder, and it'd just use all sounds in the folder?
  */
 
 
@@ -94,6 +99,16 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 		[this](float* output, int frameCount) {RenderCallback(output, frameCount); });
 
 
+
+	// TODO: make this more ... "dynamic"?
+	if(deviceCfg->channels == 2)
+		speakerLayout = SpeakerLayout::Stereo();
+	if(deviceCfg->channels == 6)
+		speakerLayout = SpeakerLayout::FivePointOne();
+	
+
+
+
 	LogMessage("... create master bus", LogCategory::AudioManager, LogLevel::Debug);
 
 	// Create Master Bus at buses[0]
@@ -138,10 +153,15 @@ void AudioManager::ThreadMain() {
 }
 
 
-
 AudioManager::~AudioManager() {
 	LogMessage("~AudioCore", LogCategory::AudioManager, LogLevel::Debug);
 	delete bufferManager;
+	entities.clear();
+	for (auto &snap : gSnapshots) {
+		snap = Snapshot::Snapshot();
+	}
+
+
 }
 
 void AudioManager::Update(float dt)
@@ -190,7 +210,6 @@ void AudioManager::Shutdown() {
 	// we should do most required things already on destruction, but ... can a thing selfdestruct??
 }
 
-// build a fresh read‐only snapshot for render
 void AudioManager::TakeSnapshot()
 {
 
@@ -214,14 +233,14 @@ void AudioManager::TakeSnapshot()
 
 	// listener position (fallback to origin)
 	Vec3 listenerPos{ 0,0,0 };
+	Quat listenerRot;
 	if (!currentListener.empty()) {
 		auto it = entities.find(currentListener);
 		if (it != entities.end()) {
 			it->second.GetValues().TryGetValue("position", listenerPos);
+			it->second.GetValues().TryGetValue("rotation", listenerRot);
 		}
 	}
-
-	back.listenerPosition = listenerPos;
 
 
 	// flatten voices
@@ -232,33 +251,26 @@ void AudioManager::TakeSnapshot()
 				if (back.voiceCount >= Snapshot::kMaxVoices)
 					continue;
 				Vec3 srcPos;
+				Quat srcRotation = quaternion::Identity<float>();
 				bool isSpatial = ed.GetValues().TryGetValue("position", srcPos);
+				
 				float att = 1.f;
-				float panL = 1.f, panR = 1.f;
-				std::vector<float> pan;
+				std::vector<float> panMask;
+
 				if (isSpatial) {
-
-					float dx = srcPos.x - listenerPos.x;
-					float dy = srcPos.y - listenerPos.y;
-					float dz = srcPos.z - listenerPos.z;
-
-					float dist = std::sqrt(dx * dx + dz * dz + dy * dy);
-					float radius = 20.0f; // fallthrough default value
-					ed.GetValues().TryGetValue("radius", radius); // TODO check if radius>0!
+					Vec3 d = Vec3::subtract(srcPos, listenerPos);
+					float dist = d.magnitude();
+					float radius = 20.0f;
+					ed.GetValues().TryGetValue("radius", radius);
 					att = std::clamp(1.f - dist / radius, 0.f, 1.f);
 
-					// stereo azimuth panning
-					float az = std::atan2(dx, dz);
-					
-					
-                                       panL = std::clamp(0.5f - az / std::numbers::pi_v<float>, 0.f, 1.f);
-					panR = 1.f - panL;
-					pan.push_back(panL); // TODO: MULTICHANNEL
-					pan.push_back(panR);
+					panMask = ComputePanMask(srcPos, listenerPos, listenerRot, speakerLayout);
+					for (auto& gain : panMask)
+						gain *= att; // apply attenuation per channel
 				}
 				else {
-					pan.push_back(1); // TODO: MULTICHANNEL
-					pan.push_back(1);
+					// Non-spatial: full volume on all channels
+					panMask.resize(speakerLayout.speakers.size(), 1.f);
 				}
 
 
@@ -269,8 +281,7 @@ void AudioManager::TakeSnapshot()
 					v.loop,
 					uint8_t(v.busIndex),
 					v.startSample,
-					pan[0],
-					pan[1]
+					std::move(panMask) 
 				};
 			}
 		}
@@ -416,6 +427,8 @@ void AudioManager::DebugPrintState()
 
 
 void AudioManager::RenderCallback(float* out, int frames) {
+	if (shouldQuit)
+		return;
 	auto t0 = std::chrono::high_resolution_clock::now();
 	const auto& s = gSnapshots[currentReadBuffer.load()];
 	int bufferSize = frames * deviceCfg->channels; // e.g. 2048 frames × 2 = 4096
@@ -434,16 +447,17 @@ void AudioManager::RenderCallback(float* out, int frames) {
 		// 2b) Mix each voice in bus B
 		uint32_t nVoices = s.numVoicesInBus[B];
 		for (uint32_t vi = 0; vi < nVoices; ++vi) {
-			uint32_t vIndex = s.voicesByBus[B][vi];        // which entry in s.voices[]
-			const auto& vs = s.voices[vIndex];
-			const float* pcm = vs.buf->GetData();
-			size_t        ph = vs.playhead;               // in frames
-			float         gL = vs.gain * vs.pan[0];
-			float         gR = vs.gain * vs.pan[1];
-			size_t totalFrames = vs.buf->GetFrameCount();   // e.g. 4096
-			size_t totalSamples = vs.buf->GetSampleCount();   // e.g. 22050×2 = 44100
-			size_t bufferFrames = frames;                              // how many frames to render now
-			size_t bufferSize = bufferFrames * deviceCfg->channels;  // e.g. 2048×2 = 4096 floats
+			uint32_t		vIndex = s.voicesByBus[B][vi];        // which entry in s.voices[]
+			const auto&		vs = s.voices[vIndex];
+			const float*	pcm = vs.buf->GetData();
+			size_t			ph = vs.playhead;               // in frames
+			
+			const std::vector<float>& mask = vs.panMask;
+
+			size_t totalFrames =	vs.buf->GetFrameCount();   // e.g. 4096
+			size_t totalSamples =	vs.buf->GetSampleCount();   // e.g. 22050×2 = 44100
+			size_t bufferFrames =	frames;                              // how many frames to render now
+			size_t bufferSize =		bufferFrames * deviceCfg->channels;  // e.g. 2048×2 = 4096 floats
 
 			int srcChannels = vs.buf->GetChannelCount();
 			int dstChannels = deviceCfg->channels;
@@ -470,25 +484,23 @@ void AudioManager::RenderCallback(float* out, int frames) {
 			size_t dstIndex = 0;         // write offset in busBuf (in floats)
 			size_t srcIndex = samplePosInFloats; // read offset in pcm[] (in floats)
 
-
+			float invSrcChannels = 1.0f / float(srcChannels);
 			for (size_t f = 0; f < firstChunkFrames; ++f) {
-				if (srcChannels == 1) {
-					// Mono source: read one float, apply pan/gain, write to each dst channel
-					float s = pcm[srcIndex + 0];
-					busBuf[dstIndex + 0] += s * gL;  // left
-					busBuf[dstIndex + 1] += s * gR;  // right
-					srcIndex += 1;                      // advance source by 1 float
-					dstIndex += dstChannels;            // advance dest by 2 floats
+				// Step 1: Read input frame (1 to N floats)
+				const float* frame = &pcm[srcIndex];
+
+				// Step 2: For each output channel, accumulate signal
+				for (int c = 0; c < dstChannels; ++c) {
+					float mix = 0.f;
+					for (int sc = 0; sc < srcChannels; ++sc) {
+						mix += frame[sc];
+					}
+					mix *= invSrcChannels;
+					busBuf[dstIndex + c] += mix * vs.gain * vs.panMask[c];
 				}
-				else {
-					// Stereo source: read two floats, apply per-channel gain
-					float sL = pcm[srcIndex + 0] * gL;
-					float sR = pcm[srcIndex + 1] * gR;
-					busBuf[dstIndex + 0] += sL;
-					busBuf[dstIndex + 1] += sR;
-					srcIndex += 2;     // advance source by 2 floats
-					dstIndex += dstChannels; // usually +2
-				}
+
+				srcIndex += srcChannels;
+				dstIndex += dstChannels;
 			}
 
 			// 4) Did we fill all bufferFrames already?
@@ -505,26 +517,22 @@ void AudioManager::RenderCallback(float* out, int frames) {
 
 			// PHASE 2: wrap ph → 0 in source, then mix “remainingFrames” from start
 			srcIndex = 0;  // now read from the very start of pcm[]
-			for (size_t f = 0; f < remainingFrames; ++f) {
-				if (srcChannels == 1) {
-					float s = pcm[srcIndex + 0];
-					busBuf[dstIndex + 0] += s * gL;
-					busBuf[dstIndex + 1] += s * gR;
-					srcIndex += 1;
-					dstIndex += dstChannels;
+			for (size_t f = 0; f < firstChunkFrames; ++f) {
+				// Step 1: Read input frame (1 to N floats)
+				const float* frame = &pcm[srcIndex];
+
+				// Step 2: For each output channel, accumulate signal
+				for (int c = 0; c < dstChannels; ++c) {
+					float mix = 0.f;
+					for (int sc = 0; sc < srcChannels; ++sc) {
+						mix += frame[sc];
+					}
+					mix *= invSrcChannels;
+					busBuf[dstIndex + c] += mix * vs.gain * vs.panMask[c];
 				}
-				else {
-					float sL = pcm[srcIndex + 0] * gL;
-					float sR = pcm[srcIndex + 1] * gR;
-					busBuf[dstIndex + 0] += sL;
-					busBuf[dstIndex + 1] += sR;
-					srcIndex += 2;
-					dstIndex += dstChannels;
-				}
-				// If we wrapped past the end of pcm[], clamp or wrap again:
-				if (srcIndex >= bufferSize) {
-					srcIndex %= bufferSize;
-				}
+
+				srcIndex += srcChannels;
+				dstIndex += dstChannels;
 			}
 		}
 		// 2c) Fold sub‐bus B into master
@@ -546,7 +554,7 @@ void AudioManager::RenderCallback(float* out, int frames) {
 		double elapsedMicros = elapsed.count();  // duration in microseconds
 
 		double timeBudget = double(frames) * 1'000'000.0 / deviceCfg->sampleRate;
-		if (elapsedMicros > timeBudget) {
+		/*if (elapsedMicros > timeBudget) {
 			LogMessage("RenderCallback OVERRUN: " + std::to_string(elapsedMicros) + "µs (budget: " + std::to_string(timeBudget) + "µs)", LogCategory::AudioManager, LogLevel::Warning);
 		}
 		else {
@@ -556,180 +564,8 @@ void AudioManager::RenderCallback(float* out, int frames) {
 				+" config buffer size: "+std::to_string(deviceCfg->bufferFrames)
 				, LogCategory::AudioManager, LogLevel::Debug);
 		}
-		
+		*/
 		// 1 voice currently renders at around 2 µs on a 256 frames buffer
 	}
 
 
-
-
-
-	// around 10 times slower than current implementation.
-	void AudioManager::RenderCallbackOld(float* out, int frames)
-	{
-		auto t0 = std::chrono::high_resolution_clock::now();
-
-		auto t_sn0 = std::chrono::high_resolution_clock::now();
-		// load snapshot
-		int front = currentReadBuffer.load(std::memory_order_acquire);
-		const Snapshot::Snapshot& s = gSnapshots[front];
-		auto t_sn1 = std::chrono::high_resolution_clock::now();
-		LogMessage("load snapshot time: " + std::to_string((t_sn1 - t_sn0).count()) + "ns", LogCategory::AudioManager, LogLevel::Debug);
-
-		/*
-		if (s.voiceCount == 0) {
-			std::memset(out, 0, frames * deviceCfg->channels * sizeof(float));
-			pendingFrames.fetch_add(frames, std::memory_order_relaxed);
-			globalSampleCounter += frames;
-			cbBlockIndex.fetch_add(1, std::memory_order_release);
-			return;
-		}
-		*/
-
-
-
-		uint64_t blockStart = globalSampleCounter;
-		int samples = frames * deviceCfg->channels;
-		auto t_fill0 = std::chrono::high_resolution_clock::now();
-
-		// clear bus buffers
-		for (uint32_t b = 0; b < s.busCount; ++b)
-			std::memset(s.bus[b], 0, samples * sizeof(float));
-		//std::fill(s.bus[b].begin(), s.bus[b].end(), 0.0f);
-
-		auto t_fill1 = std::chrono::high_resolution_clock::now();
-		LogMessage("Clear time: " + std::to_string((t_fill1 - t_fill0).count()) + "ns", LogCategory::AudioManager, LogLevel::Debug);
-
-
-		auto t_mix0 = std::chrono::high_resolution_clock::now();
-		// mix voices
-		for (uint32_t v = 0; v < s.voiceCount; ++v)
-		{
-			const Snapshot::VoiceSnap& vs = s.voices[v];
-			if (!vs.buf || vs.buf->Empty()) continue;
-
-
-			const float* pcm = vs.buf->GetData();
-			const int ch = vs.buf->GetChannelCount();       // source channels
-			const size_t len = vs.buf->GetFrameCount();     // source frame count
-			size_t pos = size_t(vs.playhead);               // current playhead
-
-			const float gainL = vs.gain * vs.pan[0];        // pre-multiplied gain per channel
-			const float gainR = vs.gain * vs.pan[1];
-
-			float* busBuf = s.bus[vs.bus];
-
-			//LogMessage("Voice #" + std::to_string(v) + ": frames=" + std::to_string(vs.buf->GetFrameCount()), LogCategory::AudioManager, LogLevel::Debug);
-
-			if (ch == 1) {
-				// Mono source → pan into stereo bus
-				for (int i = 0; i < frames; ++i) {
-					float sample = 0.f;
-					if (pos < len)
-						sample = pcm[pos];
-					else if (vs.loop)
-						sample = pcm[pos % len];  // still has % but only if looping
-					else
-						break;
-
-					busBuf[i * 2 + 0] += sample * gainL;
-					busBuf[i * 2 + 1] += sample * gainR;
-
-					++pos;
-				}
-			}
-			else if (ch == 2) {
-				// Stereo source
-				for (int i = 0; i < frames; ++i) {
-					if (pos >= len && !vs.loop) break;
-
-					size_t frameIndex = pos;
-					if (frameIndex >= len && vs.loop)
-						frameIndex %= len;
-
-					float sL = pcm[frameIndex * 2 + 0] * gainL;
-					float sR = pcm[frameIndex * 2 + 1] * gainR;
-
-					busBuf[i * 2 + 0] += sL;
-					busBuf[i * 2 + 1] += sR;
-
-					++pos;
-				}
-			}
-			else {
-				// Multichannel fallback
-				for (int i = 0; i < frames; ++i) {
-					if (pos >= len && !vs.loop) break;
-
-					size_t frameIndex = pos;
-					if (frameIndex >= len && vs.loop)
-						frameIndex %= len;
-
-					for (uint32_t c = 0; c < deviceCfg->channels; ++c) {
-						float s = pcm[frameIndex * ch + (c % ch)] * vs.gain * vs.pan[c];
-						busBuf[i * deviceCfg->channels + c] += s;
-					}
-
-					++pos;
-				}
-			}
-		}
-
-		for (uint32_t b = 0; b < s.busCount; ++b) {
-			float maxSample = 0;
-			for (float f : s.bus[b])
-				maxSample = (std::max)(maxSample, std::abs(f));
-		}
-
-
-		auto t_fold0 = std::chrono::high_resolution_clock::now();
-		// fold busses onto master bus (master = buses[0])
-		for (int b = int(s.busCount) - 1; b > 0; --b) {
-			float gain = s.busGain[b];
-			int parent = parent = s.busParent[b];
-			float* src = s.bus[b];
-			float* dst = s.bus[parent];
-			for (int i = 0; i < samples; ++i)
-				dst[i] += src[i] * gain;
-		}
-		auto t_fold1 = std::chrono::high_resolution_clock::now();
-		LogMessage("bus fold time: " + std::to_string((t_fold1 - t_fold0).count()) + "ns", LogCategory::AudioManager, LogLevel::Debug);
-		auto t_mix1 = std::chrono::high_resolution_clock::now();
-		LogMessage("mix time: " + std::to_string((t_mix1 - t_mix0).count()) + "ns", LogCategory::AudioManager, LogLevel::Debug);
-
-
-		// copy to device
-		auto t_mem0 = std::chrono::high_resolution_clock::now();
-		std::memcpy(out, s.bus[0], size_t(frames * deviceCfg->channels) * sizeof(float));
-		auto t_mem1 = std::chrono::high_resolution_clock::now();
-		LogMessage("Memcpy time: " + std::to_string((t_mem1 - t_mem0).count()) + "ns", LogCategory::AudioManager, LogLevel::Debug);
-		// advance counters
-
-		pendingFrames.fetch_add(frames, std::memory_order_relaxed);
-		globalSampleCounter += frames; // this might be a little redundant
-		cbBlockIndex.fetch_add(1, std::memory_order_release);
-
-
-
-
-		auto t1 = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double, std::micro> elapsed = t1 - t0;
-		double elapsedMicros = elapsed.count();  // duration in microseconds
-
-
-
-
-
-		double timeBudget = double(frames) * 1'000'000.0 / deviceCfg->sampleRate;
-		if (elapsedMicros > timeBudget) {
-			LogMessage("RenderCallback OVERRUN: " + std::to_string(elapsedMicros) + "µs (budget: " + std::to_string(timeBudget) + "µs)", LogCategory::AudioManager, LogLevel::Warning);
-		}
-		else {
-			LogMessage("RenderCallback: " + std::to_string(elapsedMicros) + "µs", LogCategory::AudioManager, LogLevel::Debug);
-		}
-		LogMessage("VoiceCount: " + std::to_string(s.voiceCount), LogCategory::AudioManager, LogLevel::Debug);
-		LogMessage("BusCount: " + std::to_string(s.busCount), LogCategory::AudioManager, LogLevel::Debug);
-		LogMessage("Bus0.size: " + std::to_string(sizeof(s.bus[0])), LogCategory::AudioManager, LogLevel::Debug);
-
-
-	}

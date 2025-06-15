@@ -162,7 +162,7 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 		behaviors.push_back(std::move(b));
 	}
 	LogMessage(
-		std::to_string(behaviors.size()) + " behaviors loaded: ",
+		std::to_string(behaviors.size()) + " behaviors loaded. ",
 		LogCategory::BehaviorLoader, LogLevel::Debug
 	);
 
