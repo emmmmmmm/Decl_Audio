@@ -93,6 +93,20 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 			}
 		}
 
+		if (auto paramNode = rd.node["parameters"]) {
+			if (!paramNode.IsMap()) {
+				LogMessage("warning: parameters block for " + def->name + " is not a map", LogCategory::BehaviorLoader, LogLevel::Warning);
+			}
+			else {
+				for (const auto& entry : paramNode) {
+					std::string key = entry.first.Scalar();
+					std::string valStr = entry.second.as<std::string>();
+					def->parameters[key] = Expression(valStr);
+					std::cout << " --> found parameter: " << key << std::endl;
+					std::cout << " --> " << def->name << " has parameter: " << key << " def: "<< def << std::endl;
+				}
+			}
+		}
 
 		// parse onStart
 		{
@@ -159,6 +173,7 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 		b.onStart = std::move(defPtr->onStart);
 		b.onActive = std::move(defPtr->onActive);
 		b.onEnd = std::move(defPtr->onEnd);
+		b.parameters = std::move(defPtr->parameters);
 		behaviors.push_back(std::move(b));
 	}
 	LogMessage(

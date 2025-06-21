@@ -9,9 +9,9 @@
 
 void Entity::TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, AudioConfig* deviceCfg, AudioBufferManager* bufferManager)const
 {	// stop all voices from current graph
-	ab.StopAllVoices(); 
-	
-	
+	ab.StopAllVoices();
+
+
 
 	// set new phase & graph
 	switch (phase) {
@@ -19,21 +19,21 @@ void Entity::TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, 
 			ab.SetPhase(ActiveBehavior::Phase::Start);
 			auto newGraph = ab.GetDefinition()->onStart;
 			ab.currentNodeGraph = newGraph ? newGraph->clone() : nullptr;
-			LogMessage(ab.Name()+ ": Transition to Phase::Start", LogCategory::Entity, LogLevel::Debug);
+			LogMessage(ab.Name() + ": Transition to Phase::Start", LogCategory::Entity, LogLevel::Debug);
 			break;
 		}
 		case ActiveBehavior::Phase::Active: {
 			ab.SetPhase(ActiveBehavior::Phase::Active);
 			auto newGraph = ab.GetDefinition()->onActive;
 			ab.currentNodeGraph = newGraph ? newGraph->clone() : nullptr;
-			LogMessage(ab.Name()+ ": Transition to Phase::Active", LogCategory::Entity, LogLevel::Debug);
+			LogMessage(ab.Name() + ": Transition to Phase::Active", LogCategory::Entity, LogLevel::Debug);
 			break;
 		}
 		case ActiveBehavior::Phase::Ending: {
 			ab.SetPhase(ActiveBehavior::Phase::Ending);
 			auto newGraph = ab.GetDefinition()->onEnd;
 			ab.currentNodeGraph = newGraph ? newGraph->clone() : nullptr;
-			LogMessage(ab.Name()+ ": Transition to Phase::Ended", LogCategory::Entity, LogLevel::Debug);
+			LogMessage(ab.Name() + ": Transition to Phase::Ended", LogCategory::Entity, LogLevel::Debug);
 			break;
 		}
 		case ActiveBehavior::Phase::Finished: {
@@ -45,7 +45,7 @@ void Entity::TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, 
 	}
 
 	// start voices for new graph
-	
+
 	std::vector<LeafBuilder::Leaf> leaves;
 	LeafBuilder::BuildLeaves(ab.currentNodeGraph.get(), values, 0, false, busId, leaves, deviceCfg, bufferManager); // TODO: pass correct params
 
@@ -56,7 +56,7 @@ void Entity::TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, 
 		v.buffer = leaf.buffer;
 		v.playhead = 0;
 		v.loop = leaf.loop;
-		v.busIndex = leaf.bus; 
+		v.busIndex = leaf.bus;
 		v.source = leaf.src;
 		v.startSample = leaf.startSample;
 		v.currentVol = leaf.volume(values);
@@ -72,7 +72,7 @@ void Entity::TransitionToPhase(ActiveBehavior& ab, ActiveBehavior::Phase phase, 
 
 void Entity::Update(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags, const ValueMap& globalValues, AudioConfig* deviceCfg, AudioBufferManager* bufferManager)
 {
-	
+
 	// update all active behaviors
 	// UpdateBehaviors(); // sth like this
 	// where for each behavior we 
@@ -83,8 +83,17 @@ void Entity::Update(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags,
 	//  - remove the stopped (or silent?) ones - will be removed in audiomanager
 
 
-	SyncBehaviors(allDefs, globalTags, globalValues, deviceCfg, bufferManager);
-	tags.ClearTransient();
+
+
+
+
+
+
+
+	// moves all matching behaviors to activebehaviors
+	//SyncBehaviors(allDefs, globalTags, globalValues, deviceCfg, bufferManager);
+
+	//tags.ClearTransient(); 
 
 	if (activeBehaviors.empty())
 		return;
@@ -102,7 +111,7 @@ void Entity::Update(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags,
 		case ActiveBehavior::Phase::Start:
 		{
 			if (ab.AllVoicesFinished()) {
-				TransitionToPhase(ab,ActiveBehavior::Phase::Active,deviceCfg,bufferManager);
+				TransitionToPhase(ab, ActiveBehavior::Phase::Active, deviceCfg, bufferManager);
 			}
 			break;
 		}
@@ -133,7 +142,7 @@ void Entity::Update(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags,
 		for (auto& leaf : leaves) {
 			auto voice = ab.FindVoiceForLeaf(leaf); // TODO: find a better way...
 
-			
+
 			if (!voice) {
 				// should no longer happen
 				// actually, this might still be necessary, eg for sequence/looping nodes? - not sure tbh.
@@ -146,26 +155,40 @@ void Entity::Update(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags,
 
 		}
 	}
+
+	// Step 4: Remove finished behaviors
+	activeBehaviors.erase(
+		std::remove_if(
+			activeBehaviors.begin(),
+			activeBehaviors.end(),
+			[](const ActiveBehavior& ab) {
+				return ab.GetPhase() == ActiveBehavior::Phase::Finished;
+			}
+		),
+		activeBehaviors.end()
+	);
+
+
 }
 
 void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags, const ValueMap& globalValues, AudioConfig* deviceCfg, AudioBufferManager* bufferManager)
 {
+
 	// Build name -> BehaviorDef* map (just once) // TODO
 	std::unordered_map<std::string, BehaviorDef*> defMap;
 	for (auto& def : allDefs)
 		defMap[def.name] = &def;
 
 	// Gather all matching definitions
-	// there has to be a smarter way to do this, this is ... really bad.
+	// TODO: there has to be a smarter way to do this, this is ... really bad.
 	std::unordered_set<std::string> desired;
 	for (const auto& def : allDefs) {
 		auto score = MatchUtils::MatchScore(def, tags, globalTags, values, globalValues);
 
-		
+
 		if (score > 0) {
 			desired.insert(def.name);
-			//LogMessage("desired: " + def.name + " // score: " + std::to_string(score), LogCategory::Entity, LogLevel::Debug);
-
+			//LogMessage("e: " + id + " // desired: " + def.name + " // score: " + std::to_string(score), LogCategory::Entity, LogLevel::Debug);
 		}
 	}
 
@@ -174,7 +197,7 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 	// maybe we don't actually have to check everything every tick?
 	// I feel like there could be a more "analytical" approach instead of the full rotation
 
-	
+
 	// Step 2: Get active names
 	std::unordered_set<std::string> activeNames;
 	for (const auto& ab : activeBehaviors)
@@ -186,28 +209,34 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 		if (!activeNames.count(name))
 			toSpawn.push_back(defMap[name]);
 
+
 	std::vector<ActiveBehavior*> toRetire;
-	for (auto& ab : activeBehaviors)
+	for (auto& ab : activeBehaviors) {
 		if (!desired.count(ab.GetDefinition()->name))
 			toRetire.push_back(&ab);
+
+	}
+
 
 	/*std::vector<std::pair<BehaviorDef*, ActiveBehavior*>> toUpdate;
 	for (auto& ab : activeBehaviors)
 		if (desired.count(ab.GetDefinition()->name))
 			toUpdate.emplace_back(defMap[ab.GetDefinition()->name], &ab);*/
 
-	// Do ... things.
+			// Do ... things.
 	for (auto& def : toSpawn) {
 		LogMessage("starting new behavior: " + def->name, LogCategory::Entity, LogLevel::Debug);
-		auto& ab = activeBehaviors.emplace_back(*ActiveBehavior::Create(def, 0)); // TODO get from factory instead of creating
-
-
+		auto& ab = activeBehaviors.emplace_back(ActiveBehavior::Create(def, 0)); // TODO get from factory instead of creating
 	}
 	for (auto& ab : toRetire) {
-		if (ab->GetPhase() !=ActiveBehavior::Phase::Active) // only active state actually needs to be ended (in case it's looping) 
+		if (ab->GetPhase() != ActiveBehavior::Phase::Active) // only active state actually needs to be ended (in case it's looping) 
 			continue;
-		LogMessage("stopping behavior: "+ ab->GetDefinition()->name, LogCategory::Entity, LogLevel::Debug);
+		LogMessage("stopping behavior: " + ab->GetDefinition()->name, LogCategory::Entity, LogLevel::Debug);
 		TransitionToPhase(*ab, ActiveBehavior::Phase::Ending, deviceCfg, bufferManager);
+
+		if (!desired.count(ab->GetDefinition()->name)) {
+			LogMessage("Retiring behavior mid-Start? " + ab->GetDefinition()->name + " phase=" + (ab->GetPhaseAsString()), LogCategory::Entity, LogLevel::Warning);
+		}
 
 	}
 
@@ -223,5 +252,6 @@ void Entity::SyncBehaviors(std::vector<BehaviorDef>& allDefs, const TagMap& glob
 		activeBehaviors.end()
 	);
 
+	tags.ClearTransient();
 	// if activeBehaviors is empty, we should remove this entity
 }

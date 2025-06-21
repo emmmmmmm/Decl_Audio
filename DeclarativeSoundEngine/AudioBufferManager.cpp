@@ -28,7 +28,7 @@ bool AudioBufferManager::TryGet(const std::string& path, AudioBuffer*& outBuf) {
 		outBuf = &it->second.first;
 		return true;
 	}
-	LogMessage("Could not get buffer for path: " + path, LogCategory::AudioBuffer, LogLevel::Warning);
+	LogMessage("file not yet in cache: " + path, LogCategory::AudioBuffer, LogLevel::Warning);
 	return false;
 }
 bool AudioBufferManager::TryLoad(const std::string& path, AudioBuffer*& outBuf)

@@ -19,28 +19,28 @@
 
 
 /*
- * TODO: 
+ * TODO:
  * - Listener orientation!
- * 
- * - asset packing / loading: 
+ *
+ * - asset packing / loading:
  *		we'd want to pack all audio and behaviors in a soundbank-ish file
  *		also: convert to a specified format, maybe depending on platform
  *		-> specify path to this file in config
- * 
- * - update tagmatching: 
- *		we should investigate if there's a more analytical approach to this, 
+ *
+ * - update tagmatching:
+ *		we should investigate if there's a more analytical approach to this,
  *		we don't want to iterate over ALL behaviors/entities every Update!
- * 
+ *
  * - fix the issue with crackles on low buffer sizes
  *		there's a missalignment somewhere regarding buffersizes, we need to sort this
- * 
+ *
  * - replace miniaudio with custom backend?
- * 
+ *
  * - test / debug expressions!
  *		I'm not really sure if those actually work as expected right now...
- * 
+ *
  * - ??
- * 
+ *
  * - it could be cool if we could a) specify a path for sounds, instead of only filenames, and
  * - also, it'd be cool if we could *only* specify a folder, and it'd just use all sounds in the folder?
  */
@@ -60,23 +60,23 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 
 	// create audio device
 	switch (deviceCfg->backend) {
-        case AudioBackend::Miniaudio: {
-                device = std::make_unique<AudioDeviceMiniaudio>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames);
-                break;
-        }
-        case AudioBackend::Unity: {
-                device = std::make_unique<AudioDeviceUnity>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames);
-                break;
-        }
-        case AudioBackend::Stub: {
-                device = std::make_unique<AudioDeviceStub>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames);
-                break;
-        }
-        default: {
-                LogMessage("unknown audio device!", LogCategory::AudioManager, LogLevel::Warning);
-                break;
-        }
-        }
+	case AudioBackend::Miniaudio: {
+		device = std::make_unique<AudioDeviceMiniaudio>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames);
+		break;
+	}
+	case AudioBackend::Unity: {
+		device = std::make_unique<AudioDeviceUnity>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames);
+		break;
+	}
+	case AudioBackend::Stub: {
+		device = std::make_unique<AudioDeviceStub>(deviceCfg->channels, deviceCfg->sampleRate, deviceCfg->bufferFrames);
+		break;
+	}
+	default: {
+		LogMessage("unknown audio device!", LogCategory::AudioManager, LogLevel::Warning);
+		break;
+	}
+	}
 
 	LogMessage("... create buffers", LogCategory::AudioManager, LogLevel::Debug);
 
@@ -101,11 +101,16 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 
 
 	// TODO: make this more ... "dynamic"?
-	if(deviceCfg->channels == 2)
+	if (deviceCfg->channels == 2)
 		speakerLayout = SpeakerLayout::Stereo();
-	if(deviceCfg->channels == 6)
+	else if (deviceCfg->channels == 6)
 		speakerLayout = SpeakerLayout::FivePointOne();
-	
+	else {
+		LogMessage("unknown channel format: " + std::to_string(deviceCfg->channels), LogCategory::AudioManager, LogLevel::Warning);
+		speakerLayout = SpeakerLayout::Stereo();
+
+	}
+
 
 
 
@@ -116,21 +121,41 @@ AudioManager::AudioManager(AudioConfig* deviceCfg, CommandQueue* inQueue, Comman
 	buses.push_back({ std::vector<float>(realFrames * deviceCfg->channels),{} }); // master
 	LogMessage("... Init Done.", LogCategory::AudioManager, LogLevel::Debug);
 
-	LogMessage("... starting buffertest.", LogCategory::AudioManager, LogLevel::Debug);
-
-
 }
 
 
 void AudioManager::ThreadMain() {
 	// TODO: We still get stuck when quitting from unity, need to rethink how we get out of this loop!
 	LogMessage("BEGINNING OF AUDIO THREAD", LogCategory::AudioManager, LogLevel::Info);
+	LogMessage("Speakers: " + std::to_string(speakerLayout.speakers.size()), LogCategory::AudioManager, LogLevel::Debug);
+	for (size_t i = 0; i < speakerLayout.speakers.size(); ++i) {
+		const auto& dir = speakerLayout.speakers[i].direction;
+		float mag = std::sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+		if (mag < 0.001f) {
+			LogMessage("Speaker[" + std::to_string(i) + "] has zero-length direction!", LogCategory::AudioManager, LogLevel::Error);
+		}
+	}
+
+	if (speakerLayout.speakers.empty()) {
+		LogMessage("ERROR: speakerLayout is empty in TakeSnapshot!", LogCategory::AudioManager, LogLevel::Error);
+	}
+	for (const auto& s : speakerLayout.speakers) {
+		LogMessage("Speaker: " + s.name + " dir=(" +
+			std::to_string(s.direction.x) + "," +
+			std::to_string(s.direction.y) + "," +
+			std::to_string(s.direction.z) + ")",
+			LogCategory::AudioManager, LogLevel::Debug);
+	}
+
 	uint32_t lastSeen = 0; // block counter
 
 	using Clock = std::chrono::steady_clock;
 	auto start = Clock::now();
 
 	while (!shouldQuit) {
+		//if (speakerLayout.speakers.empty()) // <- this should not be possible!!
+		//	continue;
+
 		uint32_t head = cbBlockIndex.load(std::memory_order_acquire);
 
 		if (shouldQuit) break;
@@ -157,7 +182,7 @@ AudioManager::~AudioManager() {
 	LogMessage("~AudioCore", LogCategory::AudioManager, LogLevel::Debug);
 	delete bufferManager;
 	entities.clear();
-	for (auto &snap : gSnapshots) {
+	for (auto& snap : gSnapshots) {
 		snap = Snapshot::Snapshot();
 	}
 
@@ -169,12 +194,15 @@ void AudioManager::Update(float dt)
 	// drain command queue
 	size_t commandsToDrain = inQueue->Length();
 	Command cmd;
+
 	// can we really do this without a lock? :thinking:
 	while (inQueue->pop(cmd)) {
-		LogMessage(
+
+		/*LogMessage(
 			"ProcessCommands: "
 			+ cmd.GetTypeName() + "  (queue length: " + std::to_string(inQueue->Length()) + " / " + std::to_string(commandsToDrain) + ")",
-			LogCategory::AudioManager, LogLevel::Debug);
+			LogCategory::AudioManager, LogLevel::Debug);*/
+
 
 		switch (cmd.type) {
 		case CommandType::SetTag:		SetTag(cmd);		break;
@@ -194,11 +222,109 @@ void AudioManager::Update(float dt)
 	const auto& globalValues = entities["global"].GetValues();
 	const auto& globalTags = entities["global"].GetTags();
 
+	std::vector<std::string> entitiesWithAddedTags;
+	for (auto& e : newTags) {
+		entitiesWithAddedTags.push_back(e.entity);
+	}
+
+	std::vector<std::string> entitiesWithRemovedTags;
+	for (auto& e : removedTags) {
+		entitiesWithRemovedTags.push_back(e.entity);
+	}
+
+
+	// TODO: consider using std::vector<TagDelta> tagsForEntity; // Pre-filter the tags for the current entity once
+	// so that we only check tags that are relevant for this specific entity.
+
+
+	//LogMessage("Adding Behaviors", LogCategory::Entity, LogLevel::Debug);
+	for (auto& e : entitiesWithAddedTags) {
+		///LogMessage("updating entity: " + e, LogCategory::Entity, LogLevel::Debug);
+
+		auto& entity = entities[e];
+		TagMap tmp;
+		for (auto t : entity.tags.GetAllTags())
+			tmp.AddTag(t);
+		for (auto& t : newTags) {
+			LogMessage("new tag: " + t.tag, LogCategory::Entity, LogLevel::Debug);
+
+			if (t.entity == e)
+			{
+				LogMessage("new tag for entity: " + t.tag, LogCategory::Entity, LogLevel::Debug);
+				tmp.AddTag(t.tag);
+
+			}
+		}
+		for (auto& t : newTags) {
+			if (t.entity != e) continue;
+			MatchUtils::FindMatchingBehaviorsForTag(t.tag, exactMatchMap, wildcardMatchers, [&](BehaviorDef* b) {
+				//LogMessage("callback", LogCategory::Entity, LogLevel::Debug);
+				auto score = MatchUtils::MatchScore(*b, tmp, globalTags, entity.values, globalValues);
+				//LogMessage("score: " + b->name + ": " + std::to_string(score), LogCategory::Entity, LogLevel::Debug);
+
+				if (score > 0) {
+					auto& ab = entity.activeBehaviors.emplace_back(ActiveBehavior::Create(b, 0)); // TODO get from factory instead of creating
+
+					LogMessage("e: " + entity.id + " // starting new behavior: " + b->name + " // score: " + std::to_string(score), LogCategory::Entity, LogLevel::Debug);
+				}
+			});
+		}
+	}
+
+
+	//LogMessage("Removing Behaviors", LogCategory::Entity, LogLevel::Debug);
+	for (auto& e : entitiesWithRemovedTags) {
+		auto& entity = entities[e];
+		TagMap tmp;
+		for (auto& t : entity.tags.GetAllTags())
+			tmp.AddTag(t);
+		for (auto& t : removedTags)
+			if (t.entity == e)
+				tmp.RemoveTag(t.tag);
+
+		for (auto& t : removedTags) {
+			if (t.entity != e) continue;
+			MatchUtils::FindMatchingBehaviorsForTag(t.tag, exactMatchMap, wildcardMatchers, [&](BehaviorDef* b) {
+				for (auto& ab : entity.activeBehaviors) {
+					if (ab.GetDefinition() == b) {
+
+						float score = MatchUtils::MatchScore(*b, tmp, globalTags, entity.values, globalValues);
+						if (score <= 0) {
+							if (ab.GetPhase() != ActiveBehavior::Phase::Active)
+								continue;
+							entity.TransitionToPhase(ab, ActiveBehavior::Phase::Ending, deviceCfg, bufferManager);
+							LogMessage("stopping behavior: " + ab.GetDefinition()->name, LogCategory::Entity, LogLevel::Debug);
+						}
+						// break;
+					}
+				}
+				});
+		}
+	}
+
+
+	// update tagmaps
+	for (auto& t : newTags) {
+		if (t.transient)continue;
+		entities[t.entity].tags.AddTag(t.tag);
+	}
+	for (auto& t : removedTags) {
+		entities[t.entity].tags.RemoveTag(t.tag);
+	}
+
+
+	newTags.clear();
+	removedTags.clear();
+
+
 	// update entities
 	for (auto& entityValue : entities) {
 		entityValue.second.Update(definitions, globalTags, globalValues, deviceCfg, bufferManager);
 	}
 	// todo: remove entities that don't have any activebehaviors here?
+
+
+	
 }
 
 void AudioManager::Shutdown() {
@@ -253,17 +379,17 @@ void AudioManager::TakeSnapshot()
 				Vec3 srcPos;
 				Quat srcRotation = quaternion::Identity<float>();
 				bool isSpatial = ed.GetValues().TryGetValue("position", srcPos);
-				
+
 				float att = 1.f;
 				std::vector<float> panMask;
 
 				if (isSpatial) {
 					Vec3 d = Vec3::subtract(srcPos, listenerPos);
 					float dist = d.magnitude();
-					float radius = 20.0f;
-					ed.GetValues().TryGetValue("radius", radius);
+					float radius = 20.0f; // fallback if not set
+					inst.GetDefinition()->TryFindKey("radius", ed.GetValues(), radius); // use value from definition
+					ed.GetValues().TryGetValue("radius", radius); // override if set on entity
 					att = std::clamp(1.f - dist / radius, 0.f, 1.f);
-
 					panMask = ComputePanMask(srcPos, listenerPos, listenerRot, speakerLayout);
 					for (auto& gain : panMask)
 						gain *= att; // apply attenuation per channel
@@ -281,7 +407,8 @@ void AudioManager::TakeSnapshot()
 					v.loop,
 					uint8_t(v.busIndex),
 					v.startSample,
-					std::move(panMask) 
+					std::move(panMask),
+					&v
 				};
 			}
 		}
@@ -293,7 +420,6 @@ void AudioManager::TakeSnapshot()
 		back.voicesByBus[B][idx] = v;            // store voice‐index in that slot
 	}
 
-	AdvancePlayheads();
 
 	currentReadBuffer.store(backIndex, std::memory_order_release);
 }
@@ -333,32 +459,48 @@ int AudioManager::GetOrCreateBus(const std::string& entityId) {
 
 
 void AudioManager::SetTag(Command cmd) {
-	std::string entityId = cmd.entityId;
 	auto* tag = std::get_if<std::string>(&cmd.value);
+	newTags.push_back(Tag{ cmd.entityId,*tag, false });
+
+
+
+
+	std::string entityId = cmd.entityId;
+	//auto* tag = std::get_if<std::string>(&cmd.value);
 	auto& entity = entities[entityId]; // create if missing
 	entity.SetBus(GetOrCreateBus(entityId));
-	entity.SetTag(*tag);
+	//entity.SetTag(*tag);
 
-	// TODO: rethink listeners!
+	//// TODO: rethink listeners!
 	if (*tag == "listener")
 		currentListener = cmd.entityId;
 
-	LogMessage("Tag set: e: " + entityId + " t: " + *tag, LogCategory::AudioManager, LogLevel::Debug);
+	//LogMessage("Tag set: e: " + entityId + " t: " + *tag, LogCategory::AudioManager, LogLevel::Debug);
 }
 void AudioManager::SetTransient(Command cmd) {
-	std::string entityId = cmd.entityId;
+	auto* tag = std::get_if<std::string>(&cmd.value);
+	newTags.push_back(Tag{ cmd.entityId,*tag,true });
+
+	/*std::string entityId = cmd.entityId;
 	auto* tag = std::get_if<std::string>(&cmd.value);
 	auto& entity = entities[entityId];
 	entity.SetTransientTag(*tag);
+	LogMessage("Transient Tag set: e: " + entityId + " t: " + *tag, LogCategory::AudioManager, LogLevel::Debug);*/
 }
 void AudioManager::ClearTag(Command cmd) {
-	std::string entityId = cmd.entityId;
+	auto* tag = std::get_if<std::string>(&cmd.value);
+	removedTags.push_back(Tag{ cmd.entityId,*tag,false });
+
+
+
+
+	/*std::string entityId = cmd.entityId;
 	auto* tag = std::get_if<std::string>(&cmd.value);
 	auto& entity = entities[entityId];
 	entity.ClearTag(*tag);
 
 	if (*tag == "listener")
-		currentListener = "";
+		currentListener = "";*/
 }
 void AudioManager::SetValue(Command cmd) {
 	std::string entityId = cmd.entityId;
@@ -376,6 +518,23 @@ void AudioManager::LoadBehaviorsFromFolder(Command cmd)
 {
 	auto* path = std::get_if<std::string>(&cmd.value);
 	definitions = BehaviorLoader::LoadAudioBehaviorsFromFolder(*path);
+	
+	
+	exactMatchMap.clear();
+	wildcardMatchers.clear();
+	for (auto& b : definitions) {
+		for (const auto& tag : b.matchTags) {
+			if (tag.ends_with("*")) {
+				std::string prefix = tag.substr(0, tag.size() - 1); // strip '*'
+				wildcardMatchers.emplace_back(prefix, &b);
+			}
+			else {
+				exactMatchMap[tag].push_back(&b);
+			}
+		}
+	}
+
+
 }
 void AudioManager::SetAssetPath(Command cmd)
 {
@@ -397,8 +556,8 @@ void AudioManager::DebugPrintState()
 		for (auto& tag : e.second.GetTags().GetAllTags()) {
 			LogMessage("    - " + tag, LogCategory::AudioManager, LogLevel::Debug);
 		}
-		LogMessage("  vals:", LogCategory::AudioManager, LogLevel::Debug);
 
+		LogMessage("  vals:", LogCategory::AudioManager, LogLevel::Debug);
 		for (auto& val : e.second.GetValues().GetAllValues()) {
 			auto n = val.first;
 			auto sv = "";
@@ -420,7 +579,13 @@ void AudioManager::DebugPrintState()
 
 		LogMessage("  behaviors: ", LogCategory::AudioManager, LogLevel::Debug);
 		for (auto& ab : e.second.GetBehaviors()) {
+			float radius = 20.0f; // fallback if not set
+			ab.GetDefinition()->TryFindKey("radius", e.second.GetValues(), radius); // use value from definition
+			e.second.GetValues().TryGetValue("radius", radius); // override if set on entity
 			LogMessage("    - " + ab.Name(), LogCategory::AudioManager, LogLevel::Debug);
+			LogMessage("		- radius: " + std::to_string(radius), LogCategory::AudioManager, LogLevel::Debug);
+
+
 		}
 	}
 }
@@ -432,6 +597,7 @@ void AudioManager::RenderCallback(float* out, int frames) {
 	auto t0 = std::chrono::high_resolution_clock::now();
 	const auto& s = gSnapshots[currentReadBuffer.load()];
 	int bufferSize = frames * deviceCfg->channels; // e.g. 2048 frames × 2 = 4096
+
 
 	// 1) Zero the master once
 	std::memset(out, 0, bufferSize * sizeof(float));
@@ -446,23 +612,24 @@ void AudioManager::RenderCallback(float* out, int frames) {
 
 		// 2b) Mix each voice in bus B
 		uint32_t nVoices = s.numVoicesInBus[B];
+		
 		for (uint32_t vi = 0; vi < nVoices; ++vi) {
 			uint32_t		vIndex = s.voicesByBus[B][vi];        // which entry in s.voices[]
-			const auto&		vs = s.voices[vIndex];
-			const float*	pcm = vs.buf->GetData();
-			size_t			ph = vs.playhead;               // in frames
-			
+			const auto& vs = s.voices[vIndex];
+			const float* pcm = vs.buf->GetData();
+			size_t			ph = vs.voice->playhead;               // in frames
+
 			const std::vector<float>& mask = vs.panMask;
 
-			size_t totalFrames =	vs.buf->GetFrameCount();   // e.g. 4096
-			size_t totalSamples =	vs.buf->GetSampleCount();   // e.g. 22050×2 = 44100
-			size_t bufferFrames =	frames;                              // how many frames to render now
-			size_t bufferSize =		bufferFrames * deviceCfg->channels;  // e.g. 2048×2 = 4096 floats
+			size_t totalFrames = vs.buf->GetFrameCount();   // e.g. 4096
+			size_t totalSamples = vs.buf->GetSampleCount();   // e.g. 22050×2 = 44100
+			size_t bufferFrames = frames;                              // how many frames to render now
+			size_t bufferSize = bufferFrames * deviceCfg->channels;  // e.g. 2048×2 = 4096 floats
 
 			int srcChannels = vs.buf->GetChannelCount();
 			int dstChannels = deviceCfg->channels;
 
-			
+
 			// 1) If ph is already out of range, handle that first:
 			if (ph >= totalFrames) {
 				if (vs.loop) {
@@ -517,7 +684,7 @@ void AudioManager::RenderCallback(float* out, int frames) {
 
 			// PHASE 2: wrap ph → 0 in source, then mix “remainingFrames” from start
 			srcIndex = 0;  // now read from the very start of pcm[]
-			for (size_t f = 0; f < firstChunkFrames; ++f) {
+			for (size_t f = 0; f < remainingFrames; ++f) {
 				// Step 1: Read input frame (1 to N floats)
 				const float* frame = &pcm[srcIndex];
 
@@ -536,36 +703,44 @@ void AudioManager::RenderCallback(float* out, int frames) {
 			}
 		}
 		// 2c) Fold sub‐bus B into master
-			for (int i = 0; i < bufferSize; ++i) {
-				out[i] += busBuf[i] * bGain;
-			}
+		for (int i = 0; i < bufferSize; ++i) {
+			out[i] += busBuf[i] * bGain;
 		}
-
-		// 3) If you have voices assigned directly to bus 0 (master), mix them here
-		//    in exactly the same way. Or if bus 0 is always “parent only,” skip it.
-
-		// 4) Update counters / atomics
-		pendingFrames.fetch_add(frames, std::memory_order_relaxed);
-		globalSampleCounter += frames;
-		cbBlockIndex.fetch_add(1, std::memory_order_release);
-
-		auto t1 = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double, std::micro> elapsed = t1 - t0;
-		double elapsedMicros = elapsed.count();  // duration in microseconds
-
-		double timeBudget = double(frames) * 1'000'000.0 / deviceCfg->sampleRate;
-		/*if (elapsedMicros > timeBudget) {
-			LogMessage("RenderCallback OVERRUN: " + std::to_string(elapsedMicros) + "µs (budget: " + std::to_string(timeBudget) + "µs)", LogCategory::AudioManager, LogLevel::Warning);
-		}
-		else {
-			LogMessage("RenderCallback: " + std::to_string(elapsedMicros) + "µs"
-				+" bufferFrames: "+std::to_string(frames)
-				+" bufferSize: "+std::to_string(bufferSize)
-				+" config buffer size: "+std::to_string(deviceCfg->bufferFrames)
-				, LogCategory::AudioManager, LogLevel::Debug);
-		}
-		*/
-		// 1 voice currently renders at around 2 µs on a 256 frames buffer
 	}
+
+	// 3) If you have voices assigned directly to bus 0 (master), mix them here
+	//    in exactly the same way. Or if bus 0 is always “parent only,” skip it.
+
+	// 4) Update counters / atomics
+	pendingFrames.fetch_add(frames, std::memory_order_relaxed);
+	globalSampleCounter += frames;
+	cbBlockIndex.fetch_add(1, std::memory_order_release);
+
+	auto t1 = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::micro> elapsed = t1 - t0;
+	double elapsedMicros = elapsed.count();  // duration in microseconds
+
+	double timeBudget = double(frames) * 1'000'000.0 / deviceCfg->sampleRate;
+	/*if (elapsedMicros > timeBudget) {
+		LogMessage("RenderCallback OVERRUN: " + std::to_string(elapsedMicros) + "µs (budget: " + std::to_string(timeBudget) + "µs)", LogCategory::AudioManager, LogLevel::Warning);
+	}
+	else {
+		LogMessage("RenderCallback: " + std::to_string(elapsedMicros) + "µs"
+			+" bufferFrames: "+std::to_string(frames)
+			+" bufferSize: "+std::to_string(bufferSize)
+			+" config buffer size: "+std::to_string(deviceCfg->bufferFrames)
+			, LogCategory::AudioManager, LogLevel::Debug);
+	}
+	*/
+	// 1 voice currently renders at around 2 µs on a 256 frames buffer
+
+
+
+
+
+
+
+	AdvancePlayheads();
+}
 
 

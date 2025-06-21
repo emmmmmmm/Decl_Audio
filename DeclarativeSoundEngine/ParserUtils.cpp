@@ -26,8 +26,9 @@ namespace ParserUtils {
 			mods.volume = mapNode["volume"].as<std::string>();
 
 		}
-		if (mapNode["pitch"])    mods.pitch = mapNode["pitch"].as<std::string>();
-		if (mapNode["loop"])	 mods.loop = true;
+		if (mapNode["pitch"])   mods.pitch = mapNode["pitch"].as<std::string>();
+		if (mapNode["loop"])	mods.loop = true;
+		
 
 
 
@@ -206,9 +207,6 @@ namespace ParserUtils {
 			else {
 				throw std::runtime_error("Unhandled coreKey: " + key);
 			}
-
-
-
 		}
 
 		else {
@@ -229,7 +227,6 @@ namespace ParserUtils {
 			auto loopNode = std::make_unique<LoopNode>(std::move(owned));
 			node = loopNode.release();
 		}
-
 
 
 		return NormalizeLoops(node);

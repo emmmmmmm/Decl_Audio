@@ -13,11 +13,21 @@ class Entity;
 class AudioBufferManager;
 struct AudioConfig;
 
+struct Tag {
+	std::string entity;
+	std::string tag;
+	bool transient;
+};
 
 class AudioManager
 {
 	std::unordered_map<std::string, Entity> entities{};
 	std::vector<BehaviorDef>				definitions{};
+
+	std::vector<Tag>		newTags;
+	std::vector<Tag>	removedTags;
+	std::unordered_map<std::string, std::vector<BehaviorDef*>> exactMatchMap;
+	std::vector<std::pair<std::string, BehaviorDef*>> wildcardMatchers;
 
 	AudioBufferManager*						bufferManager;
 	std::unique_ptr<AudioDevice>			device;

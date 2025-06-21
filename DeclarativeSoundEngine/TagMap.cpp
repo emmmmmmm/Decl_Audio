@@ -34,3 +34,11 @@ void TagMap::ClearTransient() {
 
     _transient.clear();
 }
+
+std::vector<std::string> TagMap::GetTransientTags()
+{
+    std::vector<std::string> out;
+    out.reserve(_transient.size());
+    for (auto& t : _transient) out.push_back(t);
+    return out;
+}

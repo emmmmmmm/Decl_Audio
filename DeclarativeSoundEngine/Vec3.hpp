@@ -8,6 +8,9 @@ struct Vec3 {
 	float magnitude() const {
 		return std::sqrt(x * x + y * y + z * z);
 	}
+	float squareMagnitude() const {
+		return x * x + y * y + z * z;
+	}
 	static Vec3 subtract(const Vec3& a, const Vec3& b)  {
 		Vec3 ret{};
 		ret.x = a.x - b.x;
@@ -43,7 +46,6 @@ struct Vec3 {
 		float mag = this->magnitude();
 		if (mag == 0.f) return { 0, 0, 0 }; // or handle div-by-zero differently
 		return { x / mag, y / mag, z / mag };
-		return ret;
 	}
 	static float Dot(const Vec3& a, const Vec3& b) {
 		return a.x * b.x 

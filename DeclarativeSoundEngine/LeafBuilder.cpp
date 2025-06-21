@@ -24,8 +24,8 @@ namespace LeafBuilder {
 			auto* sn = static_cast<const SoundNode*>(node);
 			AudioBuffer* buf;
 			if (bufferManager->TryGet(sn->sound, buf)) {
-				LogMessage("[ComputeDuration] buffer length: "
-					+ std::to_string(static_cast<uint64_t>(buf->GetFrameCount())) + " samples", LogCategory::Leaf, LogLevel::Debug);
+				/*LogMessage("[ComputeDuration] buffer length: "
+					+ std::to_string(static_cast<uint64_t>(buf->GetFrameCount())) + " samples", LogCategory::Leaf, LogLevel::Debug);*/
 				return static_cast<uint64_t>(buf->GetFrameCount());
 			}
 			LogMessage("[ComputeDuration] could not get bufferlength", LogCategory::Leaf, LogLevel::Warning);
@@ -41,7 +41,7 @@ namespace LeafBuilder {
 			for (auto& child : node->children) {
 				sum += ComputeDuration(child.get(), params, sampleRate, bufferManager);
 			}
-			LogMessage("[ComputeDuration] sequence duration: " + std::to_string(sum) + " samples", LogCategory::Leaf, LogLevel::Debug);
+			//LogMessage("[ComputeDuration] sequence duration: " + std::to_string(sum) + " samples", LogCategory::Leaf, LogLevel::Debug);
 			return sum;
 		}
 		case NodeType::Parallel: {
@@ -50,7 +50,7 @@ namespace LeafBuilder {
 				uint64_t d = ComputeDuration(child.get(), params, sampleRate, bufferManager);
 				if (d > maxDur) maxDur = d;
 			}
-			LogMessage("[ComputeDuration] parallel duration: " + std::to_string(maxDur) +" samples", LogCategory::Leaf, LogLevel::Debug);
+			//LogMessage("[ComputeDuration] parallel duration: " + std::to_string(maxDur) +" samples", LogCategory::Leaf, LogLevel::Debug);
 			return maxDur;
 		}
 		case NodeType::Random:
@@ -140,7 +140,7 @@ namespace LeafBuilder {
 		case NodeType::Sequence: {
 			uint64_t offset = startSample;
 			for (auto& child : node->children) {
-				LogMessage("sequence offset: " + std::to_string(offset), LogCategory::Leaf, LogLevel::Trace);
+				//LogMessage("sequence offset: " + std::to_string(offset), LogCategory::Leaf, LogLevel::Trace);
 				BuildLeaves(child.get(), params, offset, inheritedLoop, inheritedVols, inheritedPitches, bus, out, audioDeviceCfg, bufferManager);
 				// compute child duration to update offset
 				offset += ComputeDuration(child.get(), params, audioDeviceCfg->sampleRate, bufferManager);

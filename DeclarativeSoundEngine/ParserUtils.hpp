@@ -17,6 +17,7 @@ namespace ParserUtils {
     struct ModifierMap {
         std::optional<std::string> volume;
         std::optional<std::string> pitch;
+        std::optional<float> radius;
         bool loop = false;
     };
 
