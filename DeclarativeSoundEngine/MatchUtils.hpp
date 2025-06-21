@@ -5,6 +5,9 @@
 #include <sstream>
 #include <regex>
 #include <unordered_map>
+#include <functional>
+
+
 struct BehaviorDef;
 class TagMap;
 class ValueMap;
@@ -27,6 +30,13 @@ namespace MatchUtils {
 		const TagMap& globalTags,
 		const ValueMap& values,
 		const ValueMap& globalValues);
+
+	 void FindMatchingBehaviorsForTag(
+		const std::string& tag, 
+		std::unordered_map<std::string, 
+		std::vector<BehaviorDef*>> exactMatchMap, 
+		std::vector<std::pair<std::string, BehaviorDef*>> wildcardMatchers, 
+		std::function<void(BehaviorDef*)> callback);
 
 	inline std::string JoinTags(const std::vector<std::string>& tags) {
 		std::ostringstream oss;

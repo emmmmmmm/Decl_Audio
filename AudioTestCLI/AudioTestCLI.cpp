@@ -24,9 +24,9 @@ const char* behaviorPath = "C:/Users/manuel/source/repos/DeclarativeSoundEngine/
 
 static AudioConfig GetTestConfig() {
         AudioConfig cfg{};
-        cfg.bufferFrames = 512;
+        cfg.bufferFrames = 128;
         cfg.channels = 2;
-        cfg.sampleRate = 48000;
+        cfg.sampleRate = 44100;
         cfg.backend = AudioBackend::Miniaudio;
 
         /*const char* env = std::getenv("DECLSOUND_BACKEND");

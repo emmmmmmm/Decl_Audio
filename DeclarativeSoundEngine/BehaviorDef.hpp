@@ -24,4 +24,14 @@ struct BehaviorDef {
 
     int busIndex = {};
     Expression rootVolume = {};
+
+
+     bool TryFindKey(const std::string& key, ValueMap &map, float &out) const {
+        auto it = parameters.find(key);
+        if (it != parameters.end()) {
+            out =  it->second.eval(map);
+            return true;
+        }
+        return false;
+    };
 };

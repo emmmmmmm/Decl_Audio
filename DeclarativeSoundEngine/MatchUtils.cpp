@@ -75,4 +75,28 @@ namespace MatchUtils {
 
 		return score;
 	}
+
+
+	void FindMatchingBehaviorsForTag(
+		const std::string& tag,
+		std::unordered_map<std::string,
+		std::vector<BehaviorDef*>> exactMatchMap,
+		std::vector<std::pair<std::string, BehaviorDef*>> wildcardMatchers,
+		std::function<void(BehaviorDef*)> callback)
+	{
+		auto it = exactMatchMap.find(tag);
+		if (it != exactMatchMap.end()) {
+			for (auto* b : it->second) {
+				callback(b);
+			}
+		}
+
+		for (const auto& [prefix, b] : wildcardMatchers) {
+			if (tag.starts_with(prefix)) {
+				callback(b);
+			}
+		}
+	}
+
+
 }

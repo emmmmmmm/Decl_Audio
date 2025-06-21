@@ -42,6 +42,9 @@ AudioDeviceMiniaudio::AudioDeviceMiniaudio(int channels, int sampleRate, int buf
     if (bufferFrames_ != dc.periodSizeInFrames) {
         LogMessage("[Miniaudio] Requested period " + std::to_string(dc.periodSizeInFrames) + " got " + std::to_string(bufferFrames_), LogCategory::AudioDevice, LogLevel::Info);
     }
+    else  
+        LogMessage("[Miniaudio] initialized with buffer: "+std::to_string(dc.periodSizeInFrames), LogCategory::AudioDevice, LogLevel::Debug);
+
     deviceInitialized_ = true;
 
     r = ma_device_start(&device_);

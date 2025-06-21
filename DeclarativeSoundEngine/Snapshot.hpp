@@ -3,6 +3,8 @@
 #include "AudioBuffer.hpp"
 #include "Vec3.hpp"
 
+#include "Voice.hpp"
+
 namespace Snapshot {
 	constexpr int  kMaxVoices = 256;
 	constexpr int  kMaxBuses  = 256;
@@ -17,6 +19,7 @@ namespace Snapshot {
 		uint8_t				bus = 0;
 		uint64_t			startSample = 0;
 		std::vector<float>	panMask = {};
+		Voice* voice{};
 	};
 
 	struct Snapshot {

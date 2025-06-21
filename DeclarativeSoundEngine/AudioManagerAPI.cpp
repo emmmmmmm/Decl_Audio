@@ -11,11 +11,15 @@ CommandQueue managerToApi;
 AudioManager* mgr = nullptr;
 std::thread audioThread;
 
+// TODO: checks if apiToManager is overflowing!
 
 void AudioManager_Create(AudioConfig* cfg)
 {
 	mgr = new AudioManager(cfg, &apiToManager, &managerToApi);
-
+	
+	if (audioThread.joinable()) {
+		audioThread.join();
+	}
 	audioThread = std::thread(&AudioManager::ThreadMain, mgr);
 }
 
@@ -27,7 +31,8 @@ void AudioManager_Destroy()
 	// keep in mind that join() is blocking..!
 	if (mgr)
 		mgr->Shutdown();
-	audioThread.join();
+	if (audioThread.joinable())
+		audioThread.join();
 	//if (mgr)
 	//	delete mgr;
 	mgr = nullptr;

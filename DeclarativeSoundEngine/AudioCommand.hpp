@@ -52,5 +52,5 @@ struct Command {
 };
 
 
-static constexpr size_t CMD_QUEUE_SIZE = 64;
+static constexpr size_t CMD_QUEUE_SIZE = 1024;
 using CommandQueue = RingBuffer<Command, CMD_QUEUE_SIZE>;

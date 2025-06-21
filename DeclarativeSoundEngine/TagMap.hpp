@@ -13,6 +13,7 @@ public:
     bool HasTag(const std::string& tag) const;
     std::vector<std::string> GetAllTags() const;
     void ClearTransient();
+    std::vector<std::string> GetTransientTags();
 
 private:
     std::unordered_set<std::string> _persistent;

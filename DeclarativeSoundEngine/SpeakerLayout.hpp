@@ -1,10 +1,9 @@
-
+﻿
 #pragma once
 #include <string>
 #include <vector>
 #include "Vec3.hpp"
 #include "Quaternion.h"
-
 #include <numeric>
 
 using Quat = quaternion::Quaternion<float>;
@@ -21,8 +20,8 @@ struct SpeakerLayout {
 
     static SpeakerLayout Stereo() {
         auto layout = SpeakerLayout();
-        layout.speakers.push_back(Speaker{ "FL",{-1,0,1}, 1 });
-        layout.speakers.push_back(Speaker{ "FR",{ 1,0,1}, 1 });
+        layout.speakers.push_back(Speaker{ "FL",{-1,0,0}, 1 });
+        layout.speakers.push_back(Speaker{ "FR",{ 1,0,0}, 1 });
         return layout;
     }
 
@@ -40,26 +39,47 @@ struct SpeakerLayout {
     }
 };
 
-
-
-std::vector<float> ComputePanMask(
+inline std::vector<float> ComputePanMask(
     const Vec3& sourcePosWorld,
     const Vec3& listenerPosWorld,
     const Quat& listenerRotation,
-    const SpeakerLayout& layout
+    const SpeakerLayout& layout,
+    float spread = 0.1f
 ) {
-    Vec3 dirWorld = Vec3::subtract(sourcePosWorld, listenerPosWorld).Normalized();
-    Quat qInv = quaternion::Conjugate(listenerRotation);
-    auto dirLocal = qInv.rotate(dirWorld);
-    std::vector<float> out;
+    Vec3 dirWorld = Vec3::subtract(sourcePosWorld, listenerPosWorld);
+    Vec3 dirLocal = quaternion::Conjugate(listenerRotation).rotate(dirWorld);
+
+    if (dirLocal.squareMagnitude() == 0.f)
+        dirLocal = { 0.f, 0.f, 1.f }; // fallback forward
+
+    dirLocal = dirLocal.Normalized();
+
+    float sigma = 0.75f + spread * 1.25f;
+    std::vector<float> weights;
+    weights.reserve(layout.speakers.size());
+
     for (const auto& speaker : layout.speakers) {
-        float weight = (std::max)(0.f, Vec3::Dot(dirLocal, speaker.direction)); // cosine panning
-        out.push_back(weight);
+        Vec3 spkDir = speaker.direction;
+        if (spkDir.squareMagnitude() == 0.f)
+            spkDir = { 0.f, 0.f, 1.f };
+        spkDir = spkDir.Normalized();
+       /* std::cout << "spkDir :" 
+            << std::to_string(spkDir.x) << " : "
+            << std::to_string(spkDir.y) << " : "
+            << std::to_string(spkDir.z) 
+            << "\n";*/
+
+        float cosAngle = Vec3::Dot(dirLocal, spkDir);
+        float angle = std::acos(std::clamp(cosAngle, -1.f, 1.f)); // [0, π]
+        //std::cout << "angle to " << speaker.name << ": " << std::to_string(angle) << "\n";
+        float gain = std::exp(-(angle * angle) / (2.f * sigma * sigma));
+        weights.push_back(gain);
     }
 
-    // optional normalization
-    float sum = std::accumulate(out.begin(), out.end(), 0.f);
-    if (sum > 0.f) for (auto& v : out) v /= sum;
+    // normalize
+    float sum = std::accumulate(weights.begin(), weights.end(), 0.f);
+    if (sum > 0.f)
+        for (auto& w : weights) w /= sum;
 
-    return out;
+    return weights;
 }

@@ -36,6 +36,8 @@ struct Node {
 	// fadeIn, fadeOut, delay as modifiers on nodes
 	float fadeIn = 0.0f;
 	float fadeOut = 0.0f;
+
+	float radius = 20;
 	// position/radius omitted for brevity
 	virtual ~Node() = default;
 
@@ -51,6 +53,9 @@ struct Node {
 	}
 	void setPitch(std::string p) {
 		pitch = Expression(p);
+	}
+	void setRadius(float r) {
+		radius = r;
 	}
 	void addChild(Node* child) {
 		children.push_back(std::unique_ptr<Node>(child));
