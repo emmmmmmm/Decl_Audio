@@ -1,6 +1,6 @@
 ## Decl Audio
 
-**Decl** is a modular, tag-driven audio engine designed to *decouple* sound logic from game logic. Instead of embedding playback code in gameplay scripts, Decl listens to the world state—tags, values, events—and reacts accordingly. Sound becomes a system that describes behavior, not one that gets micromanaged.
+**Decl** is a modular, tag-driven audio engine designed to *decouple* sound logic from game logic. Instead of embedding playback code in gameplay scripts, Decl listens to the world state-tags, values, events - and reacts accordingly. Sound becomes a system that describes behavior, not one that gets micromanaged.
 
 This means minimal audio logic in game code: just keep the sound engine updated with what's happening in the world. Decl handles the rest.
 
