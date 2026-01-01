@@ -20,7 +20,7 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 		return {};
 	}
 	if (!fs::is_directory(folderPath)) {
-		LogMessage("not a directory: " +folderPath , LogCategory::BehaviorLoader, LogLevel::Warning);
+		LogMessage("not a directory: " + folderPath, LogCategory::BehaviorLoader, LogLevel::Warning);
 		return {};
 	}
 
@@ -55,8 +55,35 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 	struct RawDef { std::string id; YAML::Node node; };
 	std::vector<RawDef> rawDefs;
 	rawDefs.reserve(yamlBehaviors.size());
+
+
+	// pass 0 – collect all reusable node names so forward references resolve
+	for (auto& y : yamlBehaviors)
+	{
+		if (!y["node"]) continue;
+
+		std::string name = y["node"].as<std::string>();
+
+		if (ctx.definitions.contains(name))
+		{
+			LogMessage("Duplicate node definition for '" + name + "' – keeping the first, "
+				"ignoring subsequent ones.",
+				LogCategory::BehaviorLoader, LogLevel::Warning);
+			continue;                              // skip this duplicate
+		}
+
+		ctx.definitions[name] = nullptr;           // reserve the slot
+	}
+
 	for (auto& beh : yamlBehaviors) {
-		rawDefs.push_back({ beh["id"].as<std::string>(""), beh });
+		if (beh["node"]) {
+			// Handle reusable named node
+			std::string name = beh["node"].as<std::string>();
+			ctx.definitions[name] = ParserUtils::ParseNode(beh, ctx);  // parsed once
+		}
+		else {
+			rawDefs.push_back({ beh["id"].as<std::string>(""), beh });
+		}
 	}
 
 	std::vector<std::unique_ptr<BehaviorDef>> definitions;
@@ -66,7 +93,6 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 		auto def = std::make_unique<BehaviorDef>();
 		def->name = rd.id;
 		def->busIndex = rd.node["bus"].as<int>(0);
-
 
 
 
@@ -103,7 +129,7 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 					std::string valStr = entry.second.as<std::string>();
 					def->parameters[key] = Expression(valStr);
 					std::cout << " --> found parameter: " << key << std::endl;
-					std::cout << " --> " << def->name << " has parameter: " << key << " def: "<< def << std::endl;
+					std::cout << " --> " << def->name << " has parameter: " << key << " def: " << def << std::endl;
 				}
 			}
 		}
@@ -120,44 +146,47 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 		// parse onActive
 		{
 			auto yamlN = rd.node["onActive"];
-			
+
 
 			if (yamlN.IsDefined() && !yamlN.IsNull()) {
 				Node* parsed = ParserUtils::ParseNode(yamlN, ctx);
 
 				if (!parsed)
 					LogMessage("ParseNode(onActive) returned nullptr for " + rd.id, LogCategory::BehaviorLoader, LogLevel::Warning);
-				else 
+				else
 					def->onActive.reset(parsed);
-				
+
 			}
 		}
 
 		// parse onEnd
 		{
 			auto nodeY = rd.node["onEnd"];
-			if (nodeY) 
+			if (nodeY)
 				def->onEnd.reset(ParserUtils::ParseNode(nodeY, ctx));
 		}
 
 		if (def->onStart)
+		{
+			ReplaceRefs(def->onStart.get(), ctx.definitions);
 			def->onStart->PrintChildren();
+		}
 		if (def->onActive)
+		{
+			ReplaceRefs(def->onActive.get(), ctx.definitions);
 			def->onActive->PrintChildren();
+		}
 		if (def->onEnd)
+		{
+			ReplaceRefs(def->onEnd.get(), ctx.definitions);
 			def->onEnd->PrintChildren();
+		}
 
 		definitions.push_back(std::move(def));
 	}
 
 
-	// Resolve references
-	for (auto& pr : ctx.unresolvedRefs) {
-		auto it = ctx.definitions.find(pr.second);
-		if (it != ctx.definitions.end()) pr.first->resolve(it->second);
-		else LogMessage("Unresolved reference '" + pr.second + "'", LogCategory::BehaviorLoader, LogLevel::Error);
-	}
-	ctx.unresolvedRefs.clear();
+
 
 	// Build BehaviorDef list
 	std::vector<BehaviorDef> behaviors;
@@ -192,7 +221,7 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 			if (i + 1 < b.matchTags.size()) std::cerr << ", ";
 		}
 		std::cerr << " }\n";
-		// dump matchConditions 
+		// dump matchConditions
 		std::cerr << "        matchConditions = { ";
 		for (size_t i = 0; i < b.matchConditions.size(); ++i) {
 			std::cerr << b.matchConditions[i].text;
@@ -203,4 +232,32 @@ std::vector<BehaviorDef> BehaviorLoader::LoadAudioBehaviorsFromFolder(const std:
 	*/
 
 	return behaviors;
+}
+
+
+// ------------------------------------------------------------------
+// Recursively replace every ReferenceNode with a clone of its target.
+// Handles shared_ptr (at behaviour roots) and unique_ptr (children).
+void BehaviorLoader::ReplaceRefs(Node* n,
+	const std::unordered_map<std::string, Node*>& defs)
+{
+	if (!n) return;
+
+	// Traverse children vector (unique_ptr)
+	for (auto& up : n->children)
+	{
+		if (auto* ref = dynamic_cast<ReferenceNode*>(up.get()))
+		{
+			auto it = defs.find(ref->targetId);
+			if (it != defs.end())
+				up.reset(it->second->clone().release());   // swap placeholder
+			else
+				LogMessage("Unresolved reference '" + ref->targetId + "'",
+					LogCategory::BehaviorLoader, LogLevel::Error);
+		}
+		else
+		{
+			ReplaceRefs(up.get(), defs);                    // recurse
+		}
+	}
 }

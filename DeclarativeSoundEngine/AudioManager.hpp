@@ -1,4 +1,4 @@
-// audioManager.hpp
+﻿// audioManager.hpp
 #pragma once
 #include <unordered_map>
 #include "AudioCommand.hpp"
@@ -17,6 +17,37 @@ struct Tag {
 	std::string entity;
 	std::string tag;
 	bool transient;
+
+
+	static std::string parentOf(const std::string& tag)
+	{
+		size_t p = tag.rfind('.');
+		return (p == std::string::npos) ? "" : tag.substr(0, p);
+	}
+
+	static bool samePrefix(const std::string& a,
+		const std::string& b,
+		int segmentsWanted = 2)          // ← adjust depth here
+	{
+		size_t i = 0, segs = 0;
+		while (i < a.size() && i < b.size()) {
+			if (a[i] != b[i]) return false;                 // diverged
+			if (a[i] == '.') ++segs;                        // found segment break
+			if (segs == segmentsWanted) return true;        // matched N segments
+			++i;
+		}
+		return false;
+	}
+
+	static bool conflicts(const std::string& a, const std::string& b)
+	{
+		if (a == b)                                   return true;              // identical
+		if (b.rfind(a + '.', 0) == 0)                 return true;              // a is ancestor
+		if (a.rfind(b + '.', 0) == 0)                 return true;              // b is ancestor
+		if (parentOf(a) == parentOf(b))               return true;              // direct siblings
+		if (samePrefix(a, b, 2))                      return true;              // Weapon.Model.* cousins
+		return false;
+	}
 };
 
 class AudioManager
@@ -29,13 +60,13 @@ class AudioManager
 	std::unordered_map<std::string, std::vector<BehaviorDef*>> exactMatchMap;
 	std::vector<std::pair<std::string, BehaviorDef*>> wildcardMatchers;
 
-	AudioBufferManager*						bufferManager;
+	AudioBufferManager* bufferManager;
 	std::unique_ptr<AudioDevice>			device;
 	uint64_t								globalSampleCounter = 0;
-	AudioConfig*							deviceCfg;
+	AudioConfig* deviceCfg;
 
-	CommandQueue*							inQueue;
-	CommandQueue*							outQueue;
+	CommandQueue* inQueue;
+	CommandQueue* outQueue;
 
 	std::mutex								snapshotMutex;
 	std::vector<Voice>						voiceSnapShots;

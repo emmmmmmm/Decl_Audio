@@ -222,6 +222,60 @@ void AudioManager::Update(float dt)
 	const auto& globalValues = entities["global"].GetValues();
 	const auto& globalTags = entities["global"].GetTags();
 
+	// todo: remove children of tags that no longer exist as well
+	// eg: SetTag(entity, "Weapon.Model.Pistol.P2020");  should replace all other weapon.model.pistol.* tags
+
+	std::vector<Tag>   finalAdds;           // what we'll actually apply
+	std::unordered_map<std::string, std::unordered_set<std::string>> simulated;
+
+	for (const Tag& add : newTags)          // original order matters
+	{
+		auto& sim = simulated[add.entity];
+		for (auto it = sim.begin(); it != sim.end(); ) {
+			if (Tag::conflicts(*it, add.tag))
+				it = sim.erase(it);
+			else
+				++it;
+		}
+		sim.insert(add.tag);                   // pretend we've now added it
+		finalAdds.push_back(add);                 // keep the add (may get trimmed later)
+	}
+
+	std::vector<Tag> finalRemoves;          // clear & rebuild
+
+	for (const auto& [entity, after] : simulated)                 // one entity at a time
+	{
+		const auto& current = entities[entity].GetTags();                    // live tag set
+
+		// 2-a  prune obsolete current-tags
+		for (const std::string& cur : current.GetAllTags())
+			for (const std::string& add : after)
+				if (Tag::conflicts(cur, add))
+					finalRemoves.push_back({ entity, cur });
+
+	}
+
+
+	std::vector<Tag> trimmedAdds;
+	for (const Tag& add : finalAdds)
+	{
+		const auto& after = simulated[add.entity];
+		if (std::find(after.begin(), after.end(), add.tag) != after.end())
+			trimmedAdds.push_back(add);           // still present in the simulated end-state
+	}
+	//  replace newTags / removedTags
+	newTags = std::move(trimmedAdds);
+	removedTags = std::move(finalRemoves);
+
+
+
+
+
+
+
+
+
+
 	std::vector<std::string> entitiesWithAddedTags;
 	for (auto& e : newTags) {
 		entitiesWithAddedTags.push_back(e.entity);
@@ -231,6 +285,7 @@ void AudioManager::Update(float dt)
 	for (auto& e : removedTags) {
 		entitiesWithRemovedTags.push_back(e.entity);
 	}
+
 
 
 	// TODO: consider using std::vector<TagDelta> tagsForEntity; // Pre-filter the tags for the current entity once

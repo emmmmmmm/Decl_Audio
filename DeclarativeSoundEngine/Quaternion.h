@@ -28,6 +28,7 @@
   */
 
 #pragma once
+#pragma warning(disable : 4244)
 
 #ifndef QUATERNIONS_QUATERNION_H
 #define QUATERNIONS_QUATERNION_H
@@ -1402,3 +1403,6 @@ namespace quaternion {
 } // end namespace quaternion
 
 #endif //QUATERNIONS_QUATERNION_H
+
+
+#pragma warning(default : 4244)

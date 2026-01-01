@@ -146,7 +146,7 @@ void Entity::Update(std::vector<BehaviorDef>& allDefs, const TagMap& globalTags,
 			if (!voice) {
 				// should no longer happen
 				// actually, this might still be necessary, eg for sequence/looping nodes? - not sure tbh.
-				LogMessage("Could not find voice for: " + leaf.src->sound, LogCategory::Entity, LogLevel::Warning);
+				// LogMessage("Could not find voice for: " + leaf.src->sound, LogCategory::Entity, LogLevel::Warning);
 				continue;
 			}
 

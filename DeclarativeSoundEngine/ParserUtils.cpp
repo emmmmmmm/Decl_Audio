@@ -11,7 +11,7 @@ namespace ParserUtils {
 		for (auto it = mapNode.begin(); it != mapNode.end(); ++it) {
 			std::string key = it->first.Scalar();
 			if (key == "sound" || key == "delay" || key == "random" || key == "sequence" ||
-				key == "blend" || key == "select" || key == "loop" || key == "parallel") {
+				key == "blend" || key == "select" || key == "loop" || key == "parallel" ) {
 				return key;
 			}
 		}
@@ -36,12 +36,10 @@ namespace ParserUtils {
 	}
 
 	YAML::Node ExtractChildren(const YAML::Node& mapNode) {
-		// 1) if it’s a one-entry map whose value is itself a map, unwrap it
+		// 1) if it’s a one-entry map (like {random: [...]}) return it *as-is* so it gets parsed properly
 		if (mapNode.IsMap() && mapNode.size() == 1) {
 			auto it = mapNode.begin();
-			if (it->second.IsMap()) {
-				return ExtractChildren(it->second);
-			}
+			return it->second;
 		}
 
 		// 2) explicit known container keys
@@ -58,6 +56,7 @@ namespace ParserUtils {
 
 		return YAML::Node();
 	}
+
 	Node* NormalizeLoops(Node* root) {
 		if (!root)return nullptr;
 		if (auto loopNode = dynamic_cast<LoopNode*>(root)) {
@@ -76,13 +75,10 @@ namespace ParserUtils {
 		ModifierMap mods;
 
 		if (yamlNode.IsScalar()) {
-			// simple string -> Sound or Reference
 			std::string val = yamlNode.as<std::string>();
-			auto it = ctx.definitions.find(val);
-			if (it != ctx.definitions.end()) {
-				auto ref = new ReferenceNode(val);
-				ctx.unresolvedRefs.emplace_back(ref, val);
-				node = ref;
+			
+			if (ctx.definitions.contains(val)) {
+				node = new ReferenceNode(val);              // placeholder
 			}
 			else {
 				node = new SoundNode(val);
@@ -122,6 +118,8 @@ namespace ParserUtils {
 					node = new DelayNode(valNode.as<std::string>());
 
 			}
+			
+
 			else if (key == "random") {
 				auto rnd = new RandomNode();
 				if (children && children.IsSequence())
@@ -212,6 +210,7 @@ namespace ParserUtils {
 		else {
 			throw std::runtime_error("Invalid YAML node type"); // TODO: gracefully handle this case (with sensible debugs)
 		}
+
 		// apply modifiers
 		if (mods.volume)
 		{

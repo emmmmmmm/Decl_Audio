@@ -104,7 +104,7 @@ No hardcoded decisions in game code. Just describe state—Decl figures out the 
 
 ---
 
-### 🔍 Features
+### Features
 
 * **Declarative `.audio` event format**
   Describe playback logic in structured YAML-like text files—no scripting required for common sound behaviors.

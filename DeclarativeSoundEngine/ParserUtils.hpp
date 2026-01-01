@@ -11,7 +11,7 @@ namespace ParserUtils {
     struct Context {
         
         std::unordered_map<std::string, Node*>              definitions;
-        std::vector<std::pair<ReferenceNode*, std::string>> unresolvedRefs;
+        //std::vector<std::pair<std::unique_ptr<Node>*, std::string>> unresolvedRefs;
     };
 
     struct ModifierMap {
