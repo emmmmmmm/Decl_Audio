@@ -1,12 +1,14 @@
-cmake_minimum_required(VERSION 3.15)
-project(DeclarativeSoundEngine)
+cmake_minimum_required(VERSION 3.21)
+project(DeclarativeSoundEngine VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+option(DECLSOUND_BUILD_CLI "Build the AudioTestCLI example application" ON)
 
 include(FetchContent)
 
-# === Miniaudio (header-only, local-only) ===
 if(EXISTS "${CMAKE_SOURCE_DIR}/../miniaudio/miniaudio.h")
     message(STATUS "Using local miniaudio")
     add_library(miniaudio INTERFACE)
@@ -15,7 +17,6 @@ else()
     message(FATAL_ERROR "miniaudio.h not found. Please place it in ../miniaudio")
 endif()
 
-# === YAML-CPP (full repo) ===
 if(EXISTS "${CMAKE_SOURCE_DIR}/../yaml-cpp-master/CMakeLists.txt")
     message(STATUS "Using local yaml-cpp")
     add_subdirectory("${CMAKE_SOURCE_DIR}/../yaml-cpp-master" yaml-cpp)
@@ -29,48 +30,76 @@ else()
     FetchContent_MakeAvailable(yaml-cpp)
 endif()
 
-# Engine library
-add_library(DeclarativeSoundEngine SHARED
-    DeclarativeSoundEngine/ActiveBehavior.cpp
-    DeclarativeSoundEngine/AudioBuffer.cpp
-    DeclarativeSoundEngine/AudioBufferManager.cpp
-    DeclarativeSoundEngine/AudioDeviceMiniAudio.cpp
-    DeclarativeSoundEngine/AudioDeviceStub.cpp
-    DeclarativeSoundEngine/AudioDeviceUnity.cpp
-    DeclarativeSoundEngine/AudioManager.cpp
-    DeclarativeSoundEngine/AudioManagerAPI.cpp
-    DeclarativeSoundEngine/BehaviorLoader.cpp
-    DeclarativeSoundEngine/Condition.cpp
-    DeclarativeSoundEngine/Entity.cpp
-    DeclarativeSoundEngine/Expression.cpp
-    DeclarativeSoundEngine/LeafBuilder.cpp
-    DeclarativeSoundEngine/Log.cpp
-    DeclarativeSoundEngine/MatchUtils.cpp
-    DeclarativeSoundEngine/Node.cpp
-    DeclarativeSoundEngine/ParserUtils.cpp
-    DeclarativeSoundEngine/TagMap.cpp
-    DeclarativeSoundEngine/ValueMap.cpp
-    DeclarativeSoundEngine/pch.cpp
+set(DECLSOUND_PUBLIC_HEADERS
+    include/DeclarativeSoundEngine/AudioConfig.hpp
+    include/DeclarativeSoundEngine/AudioManagerAPI.hpp
+    include/DeclarativeSoundEngine/Log.hpp
+    include/DeclarativeSoundEngine/declsound_export.hpp
 )
 
-target_include_directories(DeclarativeSoundEngine PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/DeclarativeSoundEngine
+set(DECLSOUND_ENGINE_SOURCES
+    src/core/ActiveBehavior.cpp
+    src/core/AudioBuffer.cpp
+    src/core/AudioBufferManager.cpp
+    src/core/AudioManager.cpp
+    src/core/AudioManagerAPI.cpp
+    src/core/BehaviorLoader.cpp
+    src/core/Condition.cpp
+    src/core/Entity.cpp
+    src/core/Expression.cpp
+    src/core/LeafBuilder.cpp
+    src/core/Log.cpp
+    src/core/MatchUtils.cpp
+    src/core/Node.cpp
+    src/core/ParserUtils.cpp
+    src/core/TagMap.cpp
+    src/core/ValueMap.cpp
+    src/backends/AudioDeviceMiniAudio.cpp
+    src/backends/AudioDeviceStub.cpp
+    src/backends/AudioDeviceUnity.cpp
+    src/platform/win32/pch.cpp
 )
+
+add_library(DeclarativeSoundEngine SHARED
+    ${DECLSOUND_PUBLIC_HEADERS}
+    ${DECLSOUND_ENGINE_SOURCES}
+)
+add_library(DeclarativeSoundEngine::DeclarativeSoundEngine ALIAS DeclarativeSoundEngine)
 
 if(WIN32)
-    target_sources(DeclarativeSoundEngine PRIVATE DeclarativeSoundEngine/dllmain.cpp)
+    target_sources(DeclarativeSoundEngine PRIVATE src/platform/win32/dllmain.cpp)
 endif()
+
+target_include_directories(DeclarativeSoundEngine
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/DeclarativeSoundEngine
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/backends
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/support
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/win32
+)
 
 target_compile_definitions(DeclarativeSoundEngine PRIVATE DECLSOUND_BUILD_DLL)
 target_link_libraries(DeclarativeSoundEngine PRIVATE yaml-cpp miniaudio)
 
-# CLI tool executable
-add_executable(AudioTestCLI
-    AudioTestCLI/AudioTestCLI.cpp
-)
+if(MSVC)
+    target_compile_options(DeclarativeSoundEngine PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(DeclarativeSoundEngine PRIVATE -Wall -Wextra -Wpedantic)
+endif()
 
-target_include_directories(AudioTestCLI PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/DeclarativeSoundEngine
-)
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Header Files" FILES ${DECLSOUND_PUBLIC_HEADERS})
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "Source Files" FILES ${DECLSOUND_ENGINE_SOURCES})
 
-target_link_libraries(AudioTestCLI DeclarativeSoundEngine)
+if(DECLSOUND_BUILD_CLI)
+    add_executable(AudioTestCLI apps/AudioTestCLI/main.cpp)
+    target_link_libraries(AudioTestCLI PRIVATE DeclarativeSoundEngine::DeclarativeSoundEngine)
+
+    if(MSVC)
+        target_compile_options(AudioTestCLI PRIVATE /W4 /permissive-)
+    else()
+        target_compile_options(AudioTestCLI PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+endif()

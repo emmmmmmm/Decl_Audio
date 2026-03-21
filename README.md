@@ -1,12 +1,8 @@
 ## Decl Audio
 
-**Decl** is a modular, tag-driven audio engine designed to *decouple* sound logic from game logic. Instead of embedding playback code in gameplay scripts, Decl listens to the world state-tags, values, events - and reacts accordingly. Sound becomes a system that describes behavior, not one that gets micromanaged.
+**Decl** is a tag-driven audio engine intended to keep sound behavior out of gameplay code. Game code publishes tags, values, and events; the audio engine reacts to that state declaratively.
 
-This means minimal audio logic in game code: just keep the sound engine updated with what's happening in the world. Decl handles the rest.
-
----
-
-### Core Idea: Audio as Reaction to State
+### Core Idea
 
 In a typical integration, your game loop sends state updates like:
 
@@ -93,24 +89,16 @@ t- id: weather_base.audio
 
 Decl supports:
 
-* **Wildcards** in tags (e.g. `foot.contact.*` matches `foot.contact.left`, `foot.contact.right`, etc.)
-* **Event states**:
-
-  * `onStart`: plays when triggered
-  * `onActive`: loops while active
-  * `onStop`: plays on stop
-
-No hardcoded decisions in game code. Just describe state—Decl figures out the rest.
-
----
+* **Wildcards** in tags, such as `foot.contact.*`
+* **Event states**: `onStart`, `onActive`, `onStop`
 
 ### Features
 
 * **Declarative `.audio` event format**
-  Describe playback logic in structured YAML-like text files—no scripting required for common sound behaviors.
+  Describe playback logic in structured YAML-like text files without scripting for common sound behaviors.
 
 * **Logic nodes**
-  Includes `play`, `random`, `layer`, `sequence`, `loop`, and more—chainable and nestable.
+  Includes `play`, `random`, `layer`, `sequence`, `loop`, and more.
 
 * **Expressions**
   Full support for mathematical expressions, conditionals, and logic inside parameter values.
@@ -119,22 +107,21 @@ No hardcoded decisions in game code. Just describe state—Decl figures out the 
   Base events can be extended or selectively overridden by variants.
 
 * **Entity/Tag-based routing**
-  Sound behavior is driven by tags and world state—minimal coupling to gameplay code.
+  Sound behavior is driven by tags and world state.
 
 * **Minimal API footprint**
-  Push values and tags—Decl resolves all logic and playback internally.
+  Push values and tags and let Decl resolve playback internally.
 
 * **Spatialization-ready**
-  Position and listener data routed via entity tags and metadata—no engine-specific calls needed.
+  Position and listener data are routed via entity tags and metadata.
 
 * **Sample rate checking**
   Audio buffers compare their decoded sample rate with the device's rate when loaded. If they differ, a warning is logged and the buffer is resampled so playback speed remains correct.
 
 
-### API Functions
+### Public API
 
-The engine exposes a compact C interface. After creating the manager you mostly
-push tags and values to drive playback:
+The engine exposes a compact C interface:
 
 ````c
 void AudioManager_Create(AudioConfig* cfg);
@@ -160,24 +147,62 @@ bool AudioManager_PollLog(int* outCat, int* outLvl, char* outMsg, int maxLen);
 
 ````
 
----
-
-More examples, integration guides, and tooling coming soon.
-
 ## Selecting an audio backend
 
-The engine supports multiple backends. By default the CLI tool uses the
-`Miniaudio` backend which requires audio hardware. You can override this
-behavior using the `DECLSOUND_BACKEND` environment variable:
-
-```
-export DECLSOUND_BACKEND=stub   # run without audio hardware
-```
+The engine supports multiple backends. The CLI defaults to `miniaudio`, which requires audio hardware.
 
 Valid values are `miniaudio`, `unity`, and `stub`.
 
+## Repository Layout
 
-# Build instructions
-mkdir build && cd build
-cmake ..
-cmake --build . --config Debug
+```text
+include/DeclarativeSoundEngine/   public headers
+src/core/                         engine runtime and parsing
+src/backends/                     backend implementations
+src/support/                      support headers and third-party helpers
+src/platform/win32/               Visual Studio / Win32 glue
+apps/AudioTestCLI/                example CLI application
+```
+
+## Build
+
+```sh
+cmake -S . -B build
+cmake --build build --config Debug
+```
+
+If you are using Visual Studio on Windows, prefer presets so the compiler is re-detected into a fresh build directory:
+
+```powershell
+cmake --preset windows-vs2022-debug
+cmake --build --preset build-windows-debug
+```
+
+The build expects either:
+
+* `../miniaudio/miniaudio.h`
+* `../yaml-cpp-master/`
+
+If `yaml-cpp` is not present locally, CMake will fetch it.
+
+## CLI
+
+`AudioTestCLI` is a small interactive test app:
+
+```sh
+./AudioTestCLI --assets /path/to/assets --behaviors /path/to/behaviors --backend stub
+```
+
+Supported commands in the prompt:
+
+* `help`
+* `tag <entity> <tag>`
+* `clear <entity> <tag>`
+* `transient <entity> <tag>`
+* `float <entity> <key> <value>`
+* `string <entity> <key> <value...>`
+* `pos <entity> <x> <y> <z>`
+* `quat <entity> <a> <b> <c> <d>`
+* `transform <entity> <x> <y> <z> <a> <b> <c> <d>`
+* `dump`
+* `exit`

@@ -1,0 +1,78 @@
+// ValueMap.cpp
+#include "pch.h"
+#include "ValueMap.hpp"
+
+template<typename T>
+bool getHelper(const std::unordered_map<std::string, Value>& m, const std::string& key, T& out)
+{
+	auto it = m.find(key);
+	if (it == m.end()) return false;
+	if (auto ptr = std::get_if<T>(&it->second)) {
+		out = *ptr;
+		return true;
+	}
+	return false;
+
+}
+
+void ValueMap::SetValue(const std::string& key, float value) {
+	values[key] = value;
+}
+
+void ValueMap::SetValue(const std::string& key, const std::string& value) {
+	values[key] = value;
+}
+
+void ValueMap::SetValue(const std::string& key, const Vec3& value) {
+	values.insert_or_assign(key, Value{ value });
+}
+
+void ValueMap::SetValue(const std::string& key, const Quat& value)
+{
+	values.insert_or_assign(key, Value{ value });
+}
+
+void ValueMap::SetValue(const std::string& key, const Value& value) {
+	values.insert_or_assign(key, value);
+}
+
+void ValueMap::SetValue(const std::string& key, const bool value) {
+	values[key] = value;
+}
+
+bool ValueMap::HasValue(const std::string& key) const {
+	return values.find(key) != values.end();
+}
+
+bool ValueMap::TryGetValue(const std::string& key, float& out) const {
+	return getHelper(values, key, out);
+}
+
+bool ValueMap::TryGetValue(const std::string& key, std::string& out) const {
+	return getHelper(values, key, out);
+}
+
+bool ValueMap::TryGetValue(const std::string& key, Vec3& out) const {
+	return getHelper(values, key, out);
+}
+
+bool ValueMap::TryGetValue(const std::string& key, Quat& out) const
+{
+	return getHelper(values, key, out);
+}
+
+bool ValueMap::TryGetValue(const std::string& key, bool out) const {
+	return getHelper(values, key, out);
+}
+
+void ValueMap::ClearValue(const std::string& key) {
+	values.erase(key);
+}
+
+void ValueMap::Clear() {
+	values.clear();
+}
+
+std::unordered_map<std::string, Value> ValueMap::GetAllValues() const {
+	return values;
+}
