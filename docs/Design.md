@@ -473,87 +473,87 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 **Phase 0 — Scaffolding**
 
-repo layout, build system, CI stub
-empty Engine struct, public C API shell (just the header, no impl)
-lock-free queue implementation (this is load-bearing, get it right early)
+* [ ] repo layout, build system, CI stub
+* [ ] empty Engine struct, public C API shell (just the header, no impl)
+* [ ] lock-free queue implementation (this is load-bearing, get it right early)
 
-Testable: project compiles, queue passes unit tests (single producer / single consumer, no drops, no races)
+* [ ] Testable: project compiles, queue passes unit tests (single producer / single consumer, no drops, no races)
 
 **Phase 1 — Control side: world state**
 
-EntityState (tags + values)
-WorldState (flat entity map)
-host→control command queue + drain loop
-SetTag, RemoveTag, SetValue, DestroyEntity commands implemented
+* [ ] EntityState (tags + values)
+* [ ] WorldState (flat entity map)
+* [ ] host→control command queue + drain loop
+* [ ] SetTag, RemoveTag, SetValue, DestroyEntity commands implemented
 
-Testable: submit commands from a test harness, inspect WorldState after drain, verify entity state is correct
+* [ ] Testable: submit commands from a test harness, inspect WorldState after drain, verify entity state is correct
 
 **Phase 2 — Compiler + CompiledBank**
 
-JSON5 parser (probably just wire in a library)
-schema validation
-compile to CompiledProgram + CompiledContainer structs
-CompiledBank with id→program lookup
-LoadBehaviors() entry point
+* [ ] JSON5 parser (probably just wire in a library)
+* [ ] schema validation
+* [ ] compile to CompiledProgram + CompiledContainer structs
+* [ ] CompiledBank with id→program lookup
+* [ ] LoadBehaviors() entry point
 
-Testable: Validator CLI — load a JSON5 file, print compiled bank contents or emit diagnostics
+* [ ] Testable: Validator CLI — load a JSON5 file, print compiled bank contents or emit diagnostics
 
 **Phase 3 — AssetBank**
 
-asset discovery from compiled bank manifest
-decode to DecodedBuffer (via miniaudio or stb_vorbis)
-id→buffer lookup
-missing asset diagnostics
+* [ ] asset discovery from compiled bank manifest
+* [ ] decode to DecodedBuffer (via miniaudio or stb_vorbis)
+* [ ] id→buffer lookup
+* [ ] missing asset diagnostics
 
-Testable: load a bank, verify all assets decoded, print asset manifest
+* [ ] Testable: load a bank, verify all assets decoded, print asset manifest
 
 **Phase 4 — Audio side: playback**
 
-ContainerInstance base + OneShotInstance, LoopInstance, RandomInstance
-ProgramInstance with cursor + fill loop
-CreateInstance / RequestStop / SetVolume / SetPosition command consumer
-stub backend that just calls the fill loop and discards output
+* [ ] ContainerInstance base + OneShotInstance, LoopInstance, RandomInstance
+* [ ] ProgramInstance with cursor + fill loop
+* [ ] CreateInstance / RequestStop / SetVolume / SetPosition command consumer
+* [ ] stub backend that just calls the fill loop and discards output
 
-Testable: manually send CreateInstance from a test harness, verify getSamples() produces correct output (compare against known buffer), verify RequestStop retires cleanly
+* [ ] Testable: manually send CreateInstance from a test harness, verify getSamples() produces correct output (compare against known buffer), verify RequestStop retires cleanly
 
 **Phase 5 — Resolver: matching**
 
-BehaviorResolver — match tags + conditions against CompiledBank
-emit CreateInstance on new match
-emit RequestStop on lost match
-control→audio command queue wired up
+* [ ] BehaviorResolver — match tags + conditions against CompiledBank
+* [ ] emit CreateInstance on new match
+* [ ] emit RequestStop on lost match
+* [ ] control→audio command queue wired up
 
-Testable: set tags on an entity, verify correct ProgramInstance is created on audio side. remove tag, verify RequestStop is sent and instance retires
+* [ ] Testable: set tags on an entity, verify correct ProgramInstance is created on audio side. remove tag, verify RequestStop is sent and instance retires
 
 **Phase 6 — Audible output**
 
-miniaudio backend wired up
-audio thread callback calls fill loop, mixes, spatializes
-stereo pan for MVP spatialization
+* [ ] miniaudio backend wired up
+* [ ] audio thread callback calls fill loop, mixes, spatializes
+* [ ] stereo pan for MVP spatialization
 
-Testable: sandbox CLI — load behaviors, set a tag, hear a sound. remove tag, hear it stop.
+* [ ] Testable: sandbox CLI — load behaviors, set a tag, hear a sound. remove tag, hear it stop.
 
 **Phase 7 — Resolver: param forwarding**
 
-SetValue on entity → SetVolume / SetPosition forwarded to bound instances
-value→param mapping in authored behaviors
+* [ ] SetValue on entity → SetVolume / SetPosition forwarded to bound instances
+* [ ] value→param mapping in authored behaviors
 
-Testable: change entity position value, verify audio instance position updates
+* [ ] Testable: change entity position value, verify audio instance position updates
 
 **Phase 8 — Debugging + CLI**
 
-runtime debug dump (active instances, current container, asset playing)
-match explanation (why did/didn't behavior B match entity X)
-full sandbox CLI with interactive commands
+* [ ] runtime debug dump (active instances, current container, asset playing)
+* [ ] match explanation (why did/didn't behavior B match entity X)
+* [ ] full sandbox CLI with interactive commands
 
-Testable: interactive session, inspect everything
+* [ ] Testable: interactive session, inspect everything
 
 **Phase 9 — Hardening**
 
-unit tests for compiler, resolver, container types
-integration test: full round-trip from JSON5 → audible output
-reload test: swap bank while instances are playing
-profiling pass
+* [ ] unit tests for compiler, resolver, container types
+* [ ] integration test: full round-trip from JSON5 → audible output
+* [ ] reload test: swap bank while instances are playing
+* [ ] profiling pass
 
 ---
 
