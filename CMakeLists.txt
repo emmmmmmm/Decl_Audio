@@ -67,7 +67,10 @@ add_library(DeclarativeSoundEngine SHARED
 add_library(DeclarativeSoundEngine::DeclarativeSoundEngine ALIAS DeclarativeSoundEngine)
 
 if(WIN32)
-    target_sources(DeclarativeSoundEngine PRIVATE src/platform/win32/dllmain.cpp)
+    target_sources(DeclarativeSoundEngine PRIVATE 
+        src/platform/win32/dllmain.cpp
+        src/platform/win32/pch.cpp
+    )
 endif()
 
 target_include_directories(DeclarativeSoundEngine

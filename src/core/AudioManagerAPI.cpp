@@ -177,4 +177,5 @@ void AudioManager_DebugPrintState()
 	if (gManager != nullptr) {
 		gManager->DebugPrintState();
 	}
+	else LogMessage("gManager was null!", LogCategory::CLI,LogLevel::Warning);
 }

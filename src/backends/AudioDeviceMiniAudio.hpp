@@ -4,7 +4,6 @@
 #include "miniaudio.h"
 #include <functional>
 #include <mutex>
-#include <unordered_map>
 
 class AudioDeviceMiniaudio : public AudioDevice {
 public:
@@ -16,14 +15,13 @@ public:
     void SetVolume(SoundHandle, float)                                          override;
     void SetPitch(SoundHandle, float)                                           override;
     void SetRenderCallback(std::function<void(float*, int)> cb)                 override;
-   // int GetBufferSize() override;
     uint32_t GetBufferFrames() const override { return bufferFrames_; }
 private:
-    ma_engine                           engine_{};
     ma_context                          context_{};
     ma_device                           device_{};
     bool                                contextInitialized_{ false };
     bool                                deviceInitialized_{ false };
+    bool                                deviceStarted_{ false };
     bool                                processingEnabled_{ true };
     std::function<void(float*, int)>    renderCb_;
     std::mutex                          cbMutex_;

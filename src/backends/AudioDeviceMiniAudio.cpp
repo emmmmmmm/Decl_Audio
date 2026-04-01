@@ -19,36 +19,49 @@ AudioDeviceMiniaudio::AudioDeviceMiniaudio(int channels, int sampleRate, int buf
     dc.sampleRate = sampleRate;
     dc.periodSizeInFrames = bufferFrames;           // e.g. 2048
     dc.periods = 3;
-
-
     dc.dataCallback = AudioDeviceMiniaudio::dataCallback;
     dc.pUserData = this;
 
     r = ma_device_init(&context_, &dc, &device_);
+    bool usedDefaultPeriodFallback = false;
     if (r != MA_SUCCESS) {
-        LogMessage("ma_device_init failed: " + std::string(ma_result_description(r)), LogCategory::AudioDevice, LogLevel::Error);
-        processingEnabled_ = false;
-        return;
+        LogMessage(
+            "ma_device_init failed with requested period " + std::to_string(bufferFrames) +
+            ": " + std::string(ma_result_description(r)),
+            LogCategory::AudioDevice,
+            LogLevel::Warning);
+
+        ma_device_config fallback = ma_device_config_init(ma_device_type_playback);
+        fallback.playback.format = ma_format_f32;
+        fallback.playback.channels = channels;
+        fallback.sampleRate = sampleRate;
+        fallback.dataCallback = AudioDeviceMiniaudio::dataCallback;
+        fallback.pUserData = this;
+
+        r = ma_device_init(&context_, &fallback, &device_);
+        if (r != MA_SUCCESS) {
+            LogMessage("ma_device_init failed: " + std::string(ma_result_description(r)), LogCategory::AudioDevice, LogLevel::Error);
+            processingEnabled_ = false;
+            return;
+        }
+
+        usedDefaultPeriodFallback = true;
     }
 
     bufferFrames_ = device_.playback.internalPeriodSizeInFrames;
-    if (bufferFrames_ != dc.periodSizeInFrames) {
+    if (usedDefaultPeriodFallback) {
+        LogMessage(
+            "[Miniaudio] Falling back to backend-selected period " + std::to_string(bufferFrames_),
+            LogCategory::AudioDevice,
+            LogLevel::Warning);
+    } else if (bufferFrames_ != dc.periodSizeInFrames) {
         LogMessage("[Miniaudio] Requested period " + std::to_string(dc.periodSizeInFrames) + " got " + std::to_string(bufferFrames_), LogCategory::AudioDevice, LogLevel::Info);
     }
-    else  
-        LogMessage("[Miniaudio] initialized with buffer: "+std::to_string(dc.periodSizeInFrames), LogCategory::AudioDevice, LogLevel::Debug);
-
-    deviceInitialized_ = true;
-
-    r = ma_device_start(&device_);
-    if (r != MA_SUCCESS) {
-        LogMessage("ma_device_start failed: " + std::string(ma_result_description(r)), LogCategory::AudioDevice, LogLevel::Error);
-        processingEnabled_ = false;
-        return;
+    else {
+        LogMessage("[Miniaudio] initialized with buffer: " + std::to_string(dc.periodSizeInFrames), LogCategory::AudioDevice, LogLevel::Debug);
     }
 
-
-    LogMessage("AudioDeviceMiniaudio::AudioDeviceMiniaudio: DONE.", LogCategory::AudioDevice, LogLevel::Debug);
+    deviceInitialized_ = true;
 }
 
 AudioDeviceMiniaudio::~AudioDeviceMiniaudio() {
@@ -70,7 +83,27 @@ void AudioDeviceMiniaudio::SetVolume(SoundHandle, float) { /* track in Voice */ 
 void AudioDeviceMiniaudio::SetPitch(SoundHandle, float) { /* track in Voice */ }
 
 void AudioDeviceMiniaudio::SetRenderCallback(std::function<void(float*, int)> cb) {
-	std::lock_guard<std::mutex> lk(cbMutex_);
-	renderCb_ = std::move(cb);
+    bool shouldStart = false;
+    {
+        std::lock_guard<std::mutex> lk(cbMutex_);
+        renderCb_ = std::move(cb);
+        shouldStart = deviceInitialized_ && !deviceStarted_ && static_cast<bool>(renderCb_);
+        if (shouldStart) {
+            deviceStarted_ = true;
+        }
+    }
+
+    if (!shouldStart) {
+        return;
+    }
+
+    ma_result r = ma_device_start(&device_);
+    if (r != MA_SUCCESS) {
+        LogMessage("ma_device_start failed: " + std::string(ma_result_description(r)), LogCategory::AudioDevice, LogLevel::Error);
+        processingEnabled_ = false;
+        std::lock_guard<std::mutex> lk(cbMutex_);
+        deviceStarted_ = false;
+        return;
+    }
 }
 
