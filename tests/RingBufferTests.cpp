@@ -175,23 +175,23 @@ bool TestConcurrentTransfer()
 }
 } // namespace
 
-int main()
+bool RunRingBufferTests()
 {
     if (!TestSingleThreadedSequence())
     {
-        return 1;
+        return false;
     }
 
     if (!TestWrapAround())
     {
-        return 1;
+        return false;
     }
 
     if (!TestConcurrentTransfer())
     {
-        return 1;
+        return false;
     }
 
     std::cout << "RingBuffer tests passed\n";
-    return 0;
+    return true;
 }

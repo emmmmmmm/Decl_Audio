@@ -1,9 +1,13 @@
 #pragma once
 
+#ifdef __cplusplus
+#include <cstdbool>
+#else
+#include <stdbool.h>
+#endif
 #include <stdint.h>
 
 #include "Export.h"
-#include <string>
 
 #define DECL_AUDIO_VERSION_MAJOR 0u
 #define DECL_AUDIO_VERSION_MINOR 1u
@@ -27,9 +31,9 @@ extern "C"
 
     DECL_AUDIO_API void Init(EngineConfig *out_config);
     DECL_AUDIO_API uint32_t GetApiVersion(void);
-    DECL_AUDIO_API void CreateEngine(const EngineConfig *config, DeclAudioEngine **out_engine);
+    DECL_AUDIO_API bool CreateEngine(const EngineConfig *config, DeclAudioEngine **out_engine);
     DECL_AUDIO_API void DestroyEngine(DeclAudioEngine *engine);
-    DECL_AUDIO_API void LoadBehaviors(DeclAudioEngine *engine, const char *source_path);
+    DECL_AUDIO_API bool LoadBehaviors(DeclAudioEngine *engine, const char *source_path);
     DECL_AUDIO_API void Update(DeclAudioEngine *engine);
 
     // TODO

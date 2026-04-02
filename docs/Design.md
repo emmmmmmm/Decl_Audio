@@ -543,14 +543,14 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 **Phase 1 — Compiler + CompiledBank**
 
-* [ ] json parser (thirdparty json)
-* [ ] parse json into `AuthoringDocument`
-* [ ] schema validation
-* [ ] lower to `CompiledBehavior` + `CompiledProgram` + `CompiledContainer`
-* [ ] `CompiledBank` with id→behavior/program lookup and symbol tables
-* [ ] LoadBehaviors() entry point
+* [x] json parser (thirdparty json)
+* [x] parse json into `AuthoringDocument`
+* [x] schema validation
+* [x] lower to `CompiledBehavior` + `CompiledProgram` + `CompiledContainer`
+* [x] `CompiledBank` with id→behavior/program lookup and symbol tables
+* [x] LoadBehaviors() entry point
 
-* [ ] Testable: Validator CLI — load a json file, print compiled bank contents or emit diagnostics
+* [x] Testable: Validator CLI — load a json file, print compiled bank contents or emit diagnostics
 
 **Phase 2 — Control side: world state**
 

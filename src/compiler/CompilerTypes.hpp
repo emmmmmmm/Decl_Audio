@@ -38,7 +38,6 @@ namespace decl_audio::compiler
     struct SourceLocation final
     {
         std::string file_path;
-        std::uint32_t line = 1;
-        std::uint32_t column = 1;
+        std::string object_path;
     };
 } // namespace decl_audio::compiler

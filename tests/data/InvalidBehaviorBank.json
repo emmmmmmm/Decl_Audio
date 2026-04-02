@@ -1,0 +1,25 @@
+{
+  "behaviors": [
+    {
+      "id": "movement.invalid",
+      "program": [
+        {
+          "type": "oneshot",
+          "assets": [
+            "audio/too_many_1.wav",
+            "audio/too_many_2.wav"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "movement.invalid",
+      "program": [
+        {
+          "type": "random",
+          "assets": []
+        }
+      ]
+    }
+  ]
+}

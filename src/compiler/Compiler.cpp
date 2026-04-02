@@ -5,6 +5,7 @@
 
 #include <fstream>
 #include <iterator>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -14,10 +15,11 @@ namespace decl_audio::compiler
 
     namespace
     {
-        [[nodiscard]] SourceLocation MakeLocation(std::string_view source_path)
+        [[nodiscard]] SourceLocation MakeLocation(std::string_view source_path, std::string_view object_path = {})
         {
             SourceLocation location;
             location.file_path = std::string(source_path);
+            location.object_path = std::string(object_path);
             return location;
         }
 
@@ -26,6 +28,15 @@ namespace decl_audio::compiler
             Diagnostic diagnostic;
             diagnostic.severity = DiagnosticSeverity::Error;
             diagnostic.location = MakeLocation(source_path);
+            diagnostic.message = std::move(message);
+            return diagnostic;
+        }
+
+        [[nodiscard]] Diagnostic MakeError(std::string_view source_path, std::string_view object_path, std::string message)
+        {
+            Diagnostic diagnostic;
+            diagnostic.severity = DiagnosticSeverity::Error;
+            diagnostic.location = MakeLocation(source_path, object_path);
             diagnostic.message = std::move(message);
             return diagnostic;
         }
@@ -52,7 +63,7 @@ namespace decl_audio::compiler
         {
             if (!value.is_array())
             {
-                diagnostics.push_back(MakeError(location, std::string(field_path) + " must be an array of strings"));
+                diagnostics.push_back(MakeError(location.file_path, field_path, "must be an array of strings"));
                 return;
             }
 
@@ -61,7 +72,7 @@ namespace decl_audio::compiler
                 const Json &entry = value[i];
                 if (!entry.is_string())
                 {
-                    diagnostics.push_back(MakeError(location, std::string(field_path) + "[" + std::to_string(i) + "] must be a string"));
+                    diagnostics.push_back(MakeError(location.file_path, std::string(field_path) + "[" + std::to_string(i) + "]", "must be a string"));
                     continue;
                 }
 
@@ -111,55 +122,55 @@ namespace decl_audio::compiler
                                           std::vector<Diagnostic> &diagnostics)
         {
             AuthoringCondition condition;
-            condition.location = MakeLocation(source_path);
+            condition.location = MakeLocation(source_path, field_path);
 
             if (!condition_json.is_object())
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + " must be an object"));
+                diagnostics.push_back(MakeError(source_path, field_path, "must be an object"));
                 return condition;
             }
 
             if (condition_json.contains("parameter"))
             {
                 if (!condition_json["parameter"].is_string())
-                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".parameter must be a string"));
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".parameter", "must be a string"));
                 else
                     condition.parameter = condition_json["parameter"].get<std::string>();
             }
             else
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".parameter is required"));
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".parameter", "is required"));
             }
 
             if (condition_json.contains("op"))
             {
                 if (!condition_json["op"].is_string())
                 {
-                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".op must be a string"));
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".op", "must be a string"));
                 }
                 else
                 {
                     bool is_valid = false;
                     condition.op = ParseComparisonOp(condition_json["op"].get<std::string>(), is_valid);
                     if (!is_valid)
-                        diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".op has unsupported comparison"));
+                        diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".op", "has unsupported comparison"));
                 }
             }
             else
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".op is required"));
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".op", "is required"));
             }
 
             if (condition_json.contains("value"))
             {
                 if (!IsNumber(condition_json["value"]))
-                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".value must be numeric"));
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".value", "must be numeric"));
                 else
                     condition.literal = condition_json["value"].get<float>();
             }
             else
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".value is required"));
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".value", "is required"));
             }
 
             return condition;
@@ -171,23 +182,23 @@ namespace decl_audio::compiler
                                           std::vector<Diagnostic> &diagnostics)
         {
             AuthoringContainer container;
-            container.location = MakeLocation(source_path);
+            container.location = MakeLocation(source_path, field_path);
 
             if (!container_json.is_object())
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + " must be an object"));
+                diagnostics.push_back(MakeError(source_path, field_path, "must be an object"));
                 return container;
             }
 
             if (!container_json.contains("type"))
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".type is required"));
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".type", "is required"));
                 return container;
             }
 
             if (!container_json["type"].is_string())
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".type must be a string"));
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".type", "must be a string"));
                 return container;
             }
 
@@ -195,14 +206,14 @@ namespace decl_audio::compiler
             container.type = ParseAuthoringContainerType(container_json["type"].get<std::string>(), is_valid);
             if (!is_valid)
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".type has unsupported container type"));
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".type", "has unsupported container type"));
                 return container;
             }
 
             if (container_json.contains("volume"))
             {
                 if (!IsNumber(container_json["volume"]))
-                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".volume must be numeric"));
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".volume", "must be numeric"));
                 else
                     container.volume = container_json["volume"].get<float>();
             }
@@ -210,7 +221,7 @@ namespace decl_audio::compiler
             if (container_json.contains("loopCount"))
             {
                 if (!container_json["loopCount"].is_number_integer())
-                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".loopCount must be an integer"));
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".loopCount", "must be an integer"));
                 else
                     container.loop_count = container_json["loopCount"].get<std::int32_t>();
             }
@@ -222,7 +233,7 @@ namespace decl_audio::compiler
             if (container_json.contains("asset"))
             {
                 if (!container_json["asset"].is_string())
-                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".asset must be a string"));
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".asset", "must be a string"));
                 else
                     container.assets.push_back(container_json["asset"].get<std::string>());
             }
@@ -237,7 +248,7 @@ namespace decl_audio::compiler
                 const Json &children_json = container_json["children"];
                 if (!children_json.is_array())
                 {
-                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".children must be an array"));
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".children", "must be an array"));
                 }
                 else
                 {
@@ -251,7 +262,7 @@ namespace decl_audio::compiler
                 const Json &children_json = container_json["containers"];
                 if (!children_json.is_array())
                 {
-                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".containers must be an array"));
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".containers", "must be an array"));
                 }
                 else
                 {
@@ -269,24 +280,24 @@ namespace decl_audio::compiler
                                         std::vector<Diagnostic> &diagnostics)
         {
             AuthoringBehavior behavior;
-            behavior.location = MakeLocation(source_path);
+            behavior.location = MakeLocation(source_path, field_path);
 
             if (!behavior_json.is_object())
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + " must be an object"));
+                diagnostics.push_back(MakeError(source_path, field_path, "must be an object"));
                 return behavior;
             }
 
             if (behavior_json.contains("id"))
             {
                 if (!behavior_json["id"].is_string())
-                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".id must be a string"));
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".id", "must be a string"));
                 else
                     behavior.id = behavior_json["id"].get<std::string>();
             }
             else
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".id is required"));
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".id", "is required"));
             }
 
             if (behavior_json.contains("matchTags"))
@@ -300,7 +311,7 @@ namespace decl_audio::compiler
                 const Json &conditions_json = behavior_json["matchConditions"];
                 if (!conditions_json.is_array())
                 {
-                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".matchConditions must be an array"));
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".matchConditions", "must be an array"));
                 }
                 else
                 {
@@ -311,14 +322,14 @@ namespace decl_audio::compiler
 
             if (!behavior_json.contains("program"))
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".program is required"));
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".program", "is required"));
                 return behavior;
             }
 
             const Json &program_json = behavior_json["program"];
             if (!program_json.is_array())
             {
-                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".program must be an array"));
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".program", "must be an array"));
                 return behavior;
             }
 
@@ -403,6 +414,40 @@ namespace decl_audio::compiler
                 bank.containers.push_back(compiled_container);
             }
         }
+
+        [[nodiscard]] const char *ToString(ComparisonOp op)
+        {
+            switch (op)
+            {
+            case ComparisonOp::Less:
+                return "<";
+            case ComparisonOp::LessOrEqual:
+                return "<=";
+            case ComparisonOp::Equal:
+                return "==";
+            case ComparisonOp::GreaterOrEqual:
+                return ">=";
+            case ComparisonOp::Greater:
+                return ">";
+            }
+
+            return "<invalid>";
+        }
+
+        [[nodiscard]] const char *ToString(ContainerType type)
+        {
+            switch (type)
+            {
+            case ContainerType::OneShot:
+                return "oneshot";
+            case ContainerType::Loop:
+                return "loop";
+            case ContainerType::Random:
+                return "random";
+            }
+
+            return "<invalid>";
+        }
     } // namespace
 
     ParseResult ParseAuthoringJson(std::string_view source_text, std::string_view source_path)
@@ -426,7 +471,7 @@ namespace decl_audio::compiler
         {
             if (!root["behaviors"].is_array())
             {
-                result.diagnostics.push_back(MakeError(source_path, "root.behaviors must be an array"));
+                result.diagnostics.push_back(MakeError(source_path, "behaviors", "must be an array"));
                 return result;
             }
 
@@ -434,7 +479,7 @@ namespace decl_audio::compiler
         }
         else
         {
-            result.diagnostics.push_back(MakeError(source_path, "root must be an array or an object containing a 'behaviors' array"));
+            result.diagnostics.push_back(MakeError(source_path, "<root>", "must be an array or an object containing a 'behaviors' array"));
             return result;
         }
 
@@ -538,5 +583,83 @@ namespace decl_audio::compiler
         result.bank = std::move(compile_result.bank);
         result.diagnostics.insert(result.diagnostics.end(), compile_result.diagnostics.begin(), compile_result.diagnostics.end());
         return result;
+    }
+
+    std::string FormatSourceLocation(const SourceLocation &location)
+    {
+        std::ostringstream stream;
+        stream << location.file_path;
+
+        if (!location.object_path.empty())
+            stream << ": " << location.object_path;
+
+        return stream.str();
+    }
+
+    std::string DumpDiagnostics(std::span<const Diagnostic> diagnostics)
+    {
+        std::ostringstream stream;
+
+        for (const Diagnostic &diagnostic : diagnostics)
+        {
+            stream << (diagnostic.severity == DiagnosticSeverity::Error ? "error" : "warning")
+                   << ": "
+                   << FormatSourceLocation(diagnostic.location)
+                   << ": "
+                   << diagnostic.message
+                   << '\n';
+        }
+
+        return stream.str();
+    }
+
+    std::string DumpCompiledBank(const CompiledBank &bank)
+    {
+        std::ostringstream stream;
+        stream << "CompiledBank\n";
+        stream << "  behaviors: " << bank.behaviors.size() << '\n';
+        stream << "  programs: " << bank.programs.size() << '\n';
+        stream << "  containers: " << bank.containers.size() << '\n';
+        stream << "  assets: " << bank.asset_paths.size() << '\n';
+        stream << "  tags: " << bank.tag_name_to_id.size() << '\n';
+        stream << "  parameters: " << bank.parameter_name_to_id.size() << '\n';
+
+        for (const CompiledBehavior &behavior : bank.behaviors)
+        {
+            stream << "Behavior[" << behavior.id << "]\n";
+            stream << "  program: " << behavior.program_id << '\n';
+            stream << "  tags:";
+
+            for (TagId tag_id : bank.GetBehaviorTags(behavior.id))
+                stream << ' ' << tag_id;
+
+            stream << '\n';
+            stream << "  conditions:\n";
+
+            for (const CompiledCondition &condition : bank.GetBehaviorConditions(behavior.id))
+            {
+                stream << "    parameter=" << condition.parameter_id
+                       << ' ' << ToString(condition.op)
+                       << ' ' << condition.literal
+                       << '\n';
+            }
+
+            stream << "  containers:\n";
+
+            for (const CompiledContainer &container : bank.GetProgramContainers(behavior.program_id))
+            {
+                stream << "    type=" << ToString(container.type)
+                       << " volume=" << container.volume
+                       << " loopCount=" << container.loop_count
+                       << " assets=";
+
+                for (AssetId asset_id : bank.GetContainerAssets(container))
+                    stream << ' ' << asset_id << '[' << bank.GetAssetPath(asset_id) << ']';
+
+                stream << '\n';
+            }
+        }
+
+        return stream.str();
     }
 } // namespace decl_audio::compiler

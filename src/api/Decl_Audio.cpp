@@ -52,19 +52,22 @@ extern "C"
         return DECL_AUDIO_API_VERSION;
     }
 
-    void CreateEngine(const EngineConfig *config, DeclAudioEngine **out_engine)
+    bool CreateEngine(const EngineConfig *config, DeclAudioEngine **out_engine)
     {
+        if (out_engine == nullptr)
+            return false;
 
         *out_engine = nullptr;
 
-        if (ValidateConfig(config))
-            return;
+        if (config != nullptr && !ValidateConfig(config))
+            return false;
 
         const EngineConfig resolved_config = (config != nullptr) ? *config : MakeDefaultConfig();
 
         DeclAudioEngine *engine = new (std::nothrow) DeclAudioEngine(resolved_config);
 
         *out_engine = engine;
+        return engine != nullptr;
     }
 
     void DestroyEngine(DeclAudioEngine *engine)
@@ -72,9 +75,12 @@ extern "C"
         delete engine;
     }
 
-    void LoadBehaviors(DeclAudioEngine *engine, const char *source_path)
+    bool LoadBehaviors(DeclAudioEngine *engine, const char *source_path)
     {
-        engine->engine.LoadBehaviors(source_path);
+        if (engine == nullptr)
+            return false;
+
+        return engine->engine.LoadBehaviors(source_path);
     }
 
     void Update(DeclAudioEngine *engine)

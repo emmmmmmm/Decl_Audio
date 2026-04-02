@@ -1,0 +1,48 @@
+{
+  "behaviors": [
+    {
+      "id": "movement.footsteps",
+      "matchTags": [
+        "movement.grounded",
+        "movement.walking"
+      ],
+      "parameters": [
+        "speed",
+        "distance"
+      ],
+      "matchConditions": [
+        {
+          "parameter": "speed",
+          "op": ">=",
+          "value": 0.1
+        }
+      ],
+      "program": [
+        {
+          "type": "oneshot",
+          "asset": "audio/footstep_intro.wav",
+          "volume": 0.8
+        },
+        {
+          "type": "sequence",
+          "children": [
+            {
+              "type": "random",
+              "assets": [
+                "audio/footstep_gravel_1.wav",
+                "audio/footstep_gravel_2.wav"
+              ],
+              "volume": 0.9
+            },
+            {
+              "type": "loop",
+              "asset": "audio/foley_loop.wav",
+              "loopCount": -1,
+              "volume": 0.6
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
