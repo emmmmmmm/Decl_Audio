@@ -7,7 +7,10 @@
 
 #include "Decl_Audio/Decl_Audio.h"
 #include "../assets/AssetBank.hpp"
+#include "../backends/StubBackend.hpp"
 #include "../compiler/CompiledBank.hpp"
+#include "../playback/AudioCommands.hpp"
+#include "../playback/AudioRuntime.hpp"
 #include "../runtime/ControlRuntime.hpp"
 #include "../runtime/WorldState.hpp"
 
@@ -30,6 +33,28 @@ namespace decl_audio
         virtual void RemoveTag(const char *entity_id, const char *tag) noexcept;
         virtual void SetValue(const char *entity_id, const char *parameter, float value) noexcept;
         virtual void DestroyEntity(const char *entity_id) noexcept;
+
+        // Phase 4 test seam. The C API stays unchanged until resolver/backend work is in place.
+        virtual void SubmitCreateInstanceForTesting(playback::InstanceId instance_id,
+                                                    compiler::ProgramId program_id,
+                                                    float volume = 1.0f,
+                                                    Vec3 position = {}) noexcept;
+        virtual void SubmitSetVolumeForTesting(playback::InstanceId instance_id, float volume) noexcept;
+        virtual void SubmitSetPositionForTesting(playback::InstanceId instance_id, Vec3 position) noexcept;
+        virtual void SubmitRequestStopForTesting(playback::InstanceId instance_id) noexcept;
+        virtual void RenderAudioForTesting(float *output, std::uint32_t frames) noexcept;
+        virtual void PumpAudioForTesting(std::uint32_t frames) noexcept;
+
+        [[nodiscard]] std::size_t GetActiveAudioInstanceCountForTesting() const noexcept
+        {
+            return audio_runtime_.ActiveInstanceCount();
+        }
+
+        [[nodiscard]] bool TryGetAudioInstanceSnapshotForTesting(playback::InstanceId instance_id,
+                                                                 playback::InstanceSnapshot &snapshot) const noexcept
+        {
+            return audio_runtime_.TryGetInstanceSnapshot(instance_id, snapshot);
+        }
 
         [[nodiscard]] uint32_t GetApiVersion() const noexcept
         {
@@ -61,6 +86,8 @@ namespace decl_audio
         std::unique_ptr<assets::AssetBank> asset_bank_;
         std::vector<compiler::Diagnostic> load_diagnostics_;
         runtime::ControlRuntime control_runtime_;
+        playback::AudioRuntime audio_runtime_;
+        backends::StubBackend stub_backend_;
         uint32_t api_version_;
         void *user_data_;
     };

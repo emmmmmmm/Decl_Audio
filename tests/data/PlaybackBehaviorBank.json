@@ -1,0 +1,25 @@
+{
+  "behaviors": [
+    {
+      "id": "playback.oneshot",
+      "program": [
+        {
+          "type": "oneshot",
+          "asset": "audio/test_48_24_1ch.wav",
+          "volume": 0.5
+        }
+      ]
+    },
+    {
+      "id": "playback.loop",
+      "program": [
+        {
+          "type": "loop",
+          "asset": "audio/test_48_24_1ch.wav",
+          "loopCount": -1,
+          "volume": 0.75
+        }
+      ]
+    }
+  ]
+}

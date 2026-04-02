@@ -144,9 +144,12 @@
   <ItemGroup>
     <ClCompile Include="..\src\assets\AssetBank.cpp" />
     <ClCompile Include="..\src\api\Decl_Audio.cpp" />
+    <ClCompile Include="..\src\backends\StubBackend.cpp" />
     <ClCompile Include="..\src\compiler\Compiler.cpp" />
     <ClCompile Include="..\src\core\Engine.cpp" />
+    <ClCompile Include="..\src\playback\AudioRuntime.cpp" />
     <ClCompile Include="..\tests\AssetBankTests.cpp" />
+    <ClCompile Include="..\tests\PlaybackTests.cpp" />
     <ClCompile Include="..\src\runtime\ControlRuntime.cpp" />
     <ClCompile Include="..\tests\CompilerTests.cpp" />
     <ClCompile Include="..\tests\RingBufferTests.cpp" />
@@ -159,6 +162,7 @@
     <None Include="..\tests\data\audio\test_48_24_2ch.wav" />
     <None Include="..\tests\data\InvalidBehaviorBank.json" />
     <None Include="..\tests\data\InvalidSampleRateBehaviorBank.json" />
+    <None Include="..\tests\data\PlaybackBehaviorBank.json" />
     <None Include="..\tests\data\ValidBehaviorBank.json" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

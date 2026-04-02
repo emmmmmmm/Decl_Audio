@@ -395,6 +395,8 @@ namespace decl_audio::compiler
                     compiled_container.type = ContainerType::Loop;
                     if (authoring_container.assets.size() != 1)
                         diagnostics.push_back(MakeError(authoring_container.location, "behavior '" + std::string(behavior_id) + "' loop containers require exactly one asset"));
+                    if (authoring_container.loop_count == 0)
+                        diagnostics.push_back(MakeError(authoring_container.location, "behavior '" + std::string(behavior_id) + "' loop containers do not allow loopCount = 0"));
                     break;
 
                 case AuthoringContainerType::Random:

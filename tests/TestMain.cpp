@@ -2,6 +2,7 @@
 
 bool RunCompilerTests();
 bool RunAssetBankTests();
+bool RunPlaybackTests();
 bool RunRingBufferTests();
 bool RunWorldStateTests();
 
@@ -14,6 +15,9 @@ int main()
         return 1;
 
     if (!RunAssetBankTests())
+        return 1;
+
+    if (!RunPlaybackTests())
         return 1;
 
     if (!RunWorldStateTests())
