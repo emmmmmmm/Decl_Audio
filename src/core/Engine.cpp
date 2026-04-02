@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "Engine.hpp"
+#include "../compiler/Compiler.hpp"
 
 namespace decl_audio
 {
@@ -11,6 +12,8 @@ namespace decl_audio
         // spin up audio thread and set up commandbuffers
     }
 
+    Engine::~Engine() = default;
+
     bool Engine::LoadBehaviors(const char *source_path) noexcept
     {
         if (source_path == nullptr || source_path[0] == '\0')
@@ -18,8 +21,14 @@ namespace decl_audio
             return false;
         }
 
-        // load behaviors from path
-        // create 'compiledbank'
+        compiler::CompileResult compile_result = compiler::LoadCompiledBankFromJsonFile(source_path);
+
+        if (compile_result.HasErrors())
+        {
+            return false;
+        }
+
+        compiled_bank_ = std::make_unique<compiler::CompiledBank>(std::move(compile_result.bank));
 
         return true;
     }

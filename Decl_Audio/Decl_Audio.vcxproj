@@ -170,6 +170,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\api\Decl_Audio.cpp" />
+    <ClCompile Include="..\src\compiler\Compiler.cpp" />
     <ClCompile Include="..\src\core\Engine.cpp" />
     <ClCompile Include="..\src\platform\win32\dllmain.cpp" />
     <ClCompile Include="..\src\platform\win32\pch.cpp">

@@ -1,8 +1,10 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 
 #include "Decl_Audio/Decl_Audio.h"
+#include "../compiler/CompiledBank.hpp"
 
 namespace decl_audio
 {
@@ -10,7 +12,7 @@ namespace decl_audio
     {
     public:
         explicit Engine(const EngineConfig &config) noexcept;
-        virtual ~Engine() = default;
+        virtual ~Engine();
 
         Engine(const Engine &) = delete;
         Engine &operator=(const Engine &) = delete;
@@ -31,6 +33,7 @@ namespace decl_audio
         };
 
     private:
+        std::unique_ptr<compiler::CompiledBank> compiled_bank_;
         uint32_t api_version_;
         void *user_data_;
     };
