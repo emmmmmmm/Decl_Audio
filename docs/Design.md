@@ -581,12 +581,12 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 **Phase 4 - Audio side: playback**
 
-* [ ] ContainerInstance base + OneShotInstance, LoopInstance, RandomInstance
-* [ ] ProgramInstance with cursor + fill loop
-* [ ] CreateInstance / RequestStop / SetVolume / SetPosition command consumer
-* [ ] stub backend that just calls the fill loop and discards output
+* [x] ContainerInstance base + OneShotInstance, LoopInstance, RandomInstance
+* [x] ProgramInstance with cursor + fill loop
+* [x] CreateInstance / RequestStop / SetVolume / SetPosition command consumer
+* [x] stub backend that just calls the fill loop and discards output
 
-* [ ] Testable: manually send CreateInstance from a test harness, verify getSamples() produces correct output (compare against known buffer), verify RequestStop retires cleanly
+* [x] Testable: manually send CreateInstance from a test harness, verify getSamples() produces correct output (compare against known buffer), verify RequestStop retires cleanly
 
 **Phase 5 - Resolver: matching**
 
