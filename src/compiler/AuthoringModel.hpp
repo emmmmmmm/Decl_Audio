@@ -1,0 +1,42 @@
+#pragma once
+
+#include "CompilerTypes.hpp"
+
+#include <string>
+#include <vector>
+
+namespace decl_audio::compiler
+{
+    struct AuthoringCondition final
+    {
+        SourceLocation location;
+        std::string parameter;
+        ComparisonOp op = ComparisonOp::Equal;
+        float literal = 0.0f;
+    };
+
+    struct AuthoringContainer final
+    {
+        SourceLocation location;
+        AuthoringContainerType type = AuthoringContainerType::OneShot;
+        std::vector<std::string> assets;
+        std::vector<AuthoringContainer> children;
+        float volume = 1.0f;
+        std::int32_t loop_count = 0;
+    };
+
+    struct AuthoringBehavior final
+    {
+        SourceLocation location;
+        std::string id;
+        std::vector<std::string> match_tags;
+        std::vector<AuthoringCondition> match_conditions;
+        std::vector<AuthoringContainer> program;
+        std::vector<std::string> parameters;
+    };
+
+    struct AuthoringDocument final
+    {
+        std::vector<AuthoringBehavior> behaviors;
+    };
+} // namespace decl_audio::compiler

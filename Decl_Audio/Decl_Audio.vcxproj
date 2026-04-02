@@ -153,6 +153,10 @@
     <ClInclude Include="..\include\Decl_Audio\Decl_Audio.h" />
     <ClInclude Include="..\include\Decl_Audio\Export.h" />
     <ClInclude Include="..\src\RingBuffer.hpp" />
+    <ClInclude Include="..\src\compiler\AuthoringModel.hpp" />
+    <ClInclude Include="..\src\compiler\CompiledBank.hpp" />
+    <ClInclude Include="..\src\compiler\Compiler.hpp" />
+    <ClInclude Include="..\src\compiler\CompilerTypes.hpp" />
     <ClInclude Include="..\src\core\Engine.hpp" />
     <ClInclude Include="..\src\platform\win32\framework.h" />
     <ClInclude Include="..\src\platform\win32\pch.h" />
@@ -162,6 +166,7 @@
     <ClInclude Include="..\src\ThirdParty\Quaternion\Quaternion.h" />
     <ClInclude Include="..\src\ThirdParty\Quaternion\quaternion_io.h" />
     <ClInclude Include="..\src\ThirdParty\Quaternion\quaternion_utils.h" />
+    <ClInclude Include="..\src\ThirdParty\Json\json.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\api\Decl_Audio.cpp" />

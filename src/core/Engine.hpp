@@ -6,25 +6,32 @@
 
 namespace decl_audio
 {
-class Engine
-{
-public:
-    explicit Engine(const DeclAudioEngineConfig& config) noexcept;
-    virtual ~Engine() = default;
+    class Engine
+    {
+    public:
+        explicit Engine(const EngineConfig &config) noexcept;
+        virtual ~Engine() = default;
 
-    Engine(const Engine&) = delete;
-    Engine& operator=(const Engine&) = delete;
-    Engine(Engine&&) = delete;
-    Engine& operator=(Engine&&) = delete;
+        Engine(const Engine &) = delete;
+        Engine &operator=(const Engine &) = delete;
+        Engine(Engine &&) = delete;
+        Engine &operator=(Engine &&) = delete;
 
-    virtual DeclAudioResult LoadBehaviors(const char* source_path) noexcept;
-    virtual DeclAudioResult Update() noexcept;
+        virtual bool LoadBehaviors(const char *source_path) noexcept;
+        virtual void Update() noexcept;
 
-    [[nodiscard]] uint32_t GetApiVersion() const noexcept;
-    [[nodiscard]] void* GetUserData() const noexcept;
+        [[nodiscard]] uint32_t GetApiVersion() const noexcept
+        {
+            return api_version_;
+        };
 
-private:
-    uint32_t api_version_;
-    void* user_data_;
-};
+        [[nodiscard]] void *GetUserData() const noexcept
+        {
+            return user_data_;
+        };
+
+    private:
+        uint32_t api_version_;
+        void *user_data_;
+    };
 } // namespace decl_audio

@@ -4,34 +4,32 @@
 
 namespace decl_audio
 {
-Engine::Engine(const DeclAudioEngineConfig& config) noexcept
-    : api_version_(config.api_version),
-      user_data_(config.user_data)
-{
-}
-
-DeclAudioResult Engine::LoadBehaviors(const char* source_path) noexcept
-{
-    if (source_path == nullptr || source_path[0] == '\0')
+    Engine::Engine(const EngineConfig &config) noexcept
+        : api_version_(config.api_version),
+          user_data_(config.user_data)
     {
-        return DeclAudioResult_InvalidArgument;
+        // spin up audio thread and set up commandbuffers
     }
 
-    return DeclAudioResult_NotImplemented;
-}
+    bool Engine::LoadBehaviors(const char *source_path) noexcept
+    {
+        if (source_path == nullptr || source_path[0] == '\0')
+        {
+            return false;
+        }
 
-DeclAudioResult Engine::Update() noexcept
-{
-    return DeclAudioResult_Ok;
-}
+        // load behaviors from path
+        // create 'compiledbank'
 
-uint32_t Engine::GetApiVersion() const noexcept
-{
-    return api_version_;
-}
+        return true;
+    }
 
-void* Engine::GetUserData() const noexcept
-{
-    return user_data_;
-}
+    void Engine::Update() noexcept
+    {
+        // drain input buffer
+        // update WorldState
+        // update matching logic / run BehaviorResolver
+        // send commands to audiothread
+    }
+
 } // namespace decl_audio

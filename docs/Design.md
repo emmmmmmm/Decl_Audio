@@ -112,7 +112,7 @@ If a feature makes the runtime model ambiguous or unsafe, it does not belong in 
 
 ## 4. Core Principles
 
-**Separate authoring from runtime.** JSON5 source is never interpreted at runtime. It is compiled into blueprints before use.
+**Separate authoring from runtime.** json source is never interpreted at runtime. It is compiled into blueprints before use.
 
 **Compiled data is immutable.** `CompiledBank` and `AssetBank` are read-only after load. Both threads can read them freely without synchronization.
 
@@ -127,10 +127,11 @@ If a feature makes the runtime model ambiguous or unsafe, it does not belong in 
 ## 5. System Layers
 
 ### Authoring / Compiler
-- Parses JSON5 authoring files
+- Parses json authoring files
+- Builds an authoring IR with source locations and unresolved names
 - Validates schema and semantics
-- Resolves references, assigns stable IDs
-- Compiles expressions, conditions, and container graphs into `CompiledBank`
+- Resolves references, interns names into dense IDs
+- Lowers behaviors, programs, containers, and conditions into `CompiledBank`
 
 This layer can allocate, parse, and log freely. For MVP it runs inside `LoadBehaviors()`. An offline build step is optional.
 
@@ -187,22 +188,79 @@ That's essentially it.
 
 ## 8. Data Model
 
-Three distinct kinds of data, with very different lifetimes:
+Four distinct kinds of data, with very different lifetimes:
+
+### AuthoringDocument — parsed but unresolved
+Created immediately after json parse. This is compiler-only data, never touched by runtime threads.
+
+```cpp
+struct AuthoringCondition {
+    std::string parameter;
+    ComparisonOp op;
+    float literal;
+};
+
+struct AuthoringContainer {
+    AuthoringContainerType type;     // OneShot, Loop, Random, Sequence
+    std::vector<std::string> assets; // paths or asset ids, unresolved
+    std::vector<AuthoringContainer> children;
+    float volume;
+    int32_t loopCount;
+};
+
+struct AuthoringBehavior {
+    std::string id;
+    std::vector<std::string> matchTags;
+    std::vector<AuthoringCondition> matchConditions;
+    std::vector<AuthoringContainer> program;
+};
+```
 
 ### CompiledBank — immutable blueprints
 Created during `LoadBehaviors()`. Never mutated. Reload creates a new bank.
 
 ```cpp
-struct CompiledContainer {
-    ContainerType type;      // OneShot, Loop, Random, Sequence
-    AssetId       assetId;   // or list of assetIds for Random
-    float         volume;
-    // envelope params (attack, sustain, release), etc.
+struct CompiledCondition {
+    ParameterId parameterId;
+    ComparisonOp op;
+    float literal;
 };
 
+struct CompiledBehavior {
+    BehaviorId id;
+    ProgramId  programId;
+    uint32_t   firstTag;
+    uint32_t   tagCount;
+    uint32_t   firstCondition;
+    uint32_t   conditionCount;
+};
+
+struct CompiledContainer {
+    ContainerType type;      // OneShot, Loop, Random
+    float         volume;
+    uint32_t      firstAsset;
+    uint32_t      assetCount;
+    int32_t       loopCount;
+    // envelope params (attack, sustain, release), etc.
+};
+ 
 struct CompiledProgram {
-    ProgramId                      id;
+    ProgramId id;
+    uint32_t  firstContainer;
+    uint32_t  containerCount;
+};
+
+struct CompiledBank {
+    std::vector<CompiledBehavior>  behaviors;
+    std::vector<CompiledProgram>   programs;
     std::vector<CompiledContainer> containers;
+
+    std::vector<TagId>             behaviorTags;
+    std::vector<CompiledCondition> conditions;
+    std::vector<AssetId>           containerAssets;
+
+    std::vector<std::string>       assetPaths;   // AssetId -> path
+    // plus string -> id tables for behavior/program/tag/parameter/asset lookup
 };
 ```
 
@@ -335,7 +393,8 @@ inst.cursor     = 0;
 inst.volume     = cmd.volume;
 inst.position   = cmd.position;
 
-for (auto& cc : compiled->containers) {
+for (uint32_t i = 0; i < compiled->containerCount; ++i) {
+    const CompiledContainer& cc = compiledBank.containers[compiled->firstContainer + i];
     inst.containers.push_back(makeContainerInstance(cc));
 }
 
@@ -366,7 +425,7 @@ footstep.left  /  weapon.fire  /  ui.confirm
 
 ## 14. Authoring Model
 
-**For MVP: JSON5.**
+**For MVP: json.**
 
 Why: mature parsers, human-readable (comments, trailing commas), easy schema validation, no invented language before the runtime is proven.
 
@@ -378,15 +437,17 @@ Long-term: a custom `.audio` DSL is allowed if authoring ergonomics become the b
 **MVP container types:**
 `oneshot`, `loop`, `random`, `sequence`
 
+`sequence` is authoring-only in MVP. The compiler flattens it into ordered `CompiledContainer` entries inside `CompiledProgram`. The runtime only executes flat program order.
+
 **Rule:** compile-time errors are strongly preferred. Unknown types, missing assets, type mismatches — reject at load with actionable diagnostics.
 
 ---
 
 ## 15. Expressions and Conditions
 
-For MVP: numeric literals, named float parameter lookup, basic comparisons, simple arithmetic if truly needed.
+For MVP: numeric literals, named float parameter lookup, and basic comparisons.
 
-Implementation: parse once at load, compile to a tiny bytecode or compact expression tree, evaluate against typed runtime value stores. No regex in the runtime.
+Implementation: start with compiled comparison structs (`parameterId`, `op`, `literal`) evaluated against typed runtime value stores. If arithmetic becomes necessary later, extend this to a tiny bytecode or compact expression tree. No regex in the runtime.
 
 ---
 
@@ -433,7 +494,7 @@ src/playback/                     ProgramInstance, ContainerInstance subclasses
 src/mixer/                        audio thread loop, spatialization, mixing
 src/compiler/                     parser, validator, compiler, CompiledBank
 src/assets/                       AssetBank, decoding
-src/backends/                     miniaudio, stub, unity bridge
+src/backends/                     miniaudio, stub, 
 apps/SandboxCLI/                  interactive test app
 apps/Validator/                   behavior validation tool
 tests/                            unit and integration tests
@@ -444,11 +505,11 @@ tests/                            unit and integration tests
 ## 20. MVP Definition
 
 - Create an engine instance
-- Load JSON5, compile into `CompiledBank`, preload all assets into `AssetBank`
+- Load json, compile into `CompiledBank`, preload all assets into `AssetBank`
 - Submit tags and float values for entities
 - Submit transient events
 - Resolve behaviors → send `CreateInstance` commands
-- Audio thread instantiates `ProgramInstance` trees, executes containers, mixes output
+- Audio thread instantiates `ProgramInstance` objects from compiled programs, executes containers, mixes output
 - Seamless container transitions within a block
 - `RequestStop` triggers loop exit and program retirement
 - Inspect active instances through debug tooling
@@ -458,10 +519,10 @@ tests/                            unit and integration tests
 ## 21. First Milestone
 
 Intentionally small:
-1. Load one JSON5 behavior file, compile it, load one audio asset.
+1. Load one json behavior file, compile it, load one audio asset.
 2. Submit one tag for one entity, match the behavior.
 3. Send `CreateInstance` to audio thread.
-4. Audio thread creates a `ProgramInstance`, runs a `LoopInstance`, produces audible output.
+4. Audio thread creates a `ProgramInstance`, runs a `LoopContainerInstance`, produces audible output.
 5. Remove the tag, send `RequestStop`, audio thread retires the instance cleanly.
 6. Inspect what happened from a debug CLI.
 
@@ -473,13 +534,25 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 **Phase 0 — Scaffolding**
 
-* [ ] repo layout, build system, CI stub
-* [ ] empty Engine struct, public C API shell (just the header, no impl)
-* [ ] lock-free queue implementation (this is load-bearing, get it right early)
+* [x] repo layout, build system, CI stub
+* [x] empty Engine struct, public C API shell (just the header, no impl)
+* [x] lock-free queue implementation (this is load-bearing, get it right early)
 
-* [ ] Testable: project compiles, queue passes unit tests (single producer / single consumer, no drops, no races)
+* [x] Testable: project compiles, queue passes unit tests (single producer / single consumer, no drops, no races)
 
-**Phase 1 — Control side: world state**
+
+**Phase 1 — Compiler + CompiledBank**
+
+* [ ] json parser (thirdparty json)
+* [ ] parse json into `AuthoringDocument`
+* [ ] schema validation
+* [ ] lower to `CompiledBehavior` + `CompiledProgram` + `CompiledContainer`
+* [ ] `CompiledBank` with id→behavior/program lookup and symbol tables
+* [ ] LoadBehaviors() entry point
+
+* [ ] Testable: Validator CLI — load a json file, print compiled bank contents or emit diagnostics
+
+**Phase 2 — Control side: world state**
 
 * [ ] EntityState (tags + values)
 * [ ] WorldState (flat entity map)
@@ -487,16 +560,6 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 * [ ] SetTag, RemoveTag, SetValue, DestroyEntity commands implemented
 
 * [ ] Testable: submit commands from a test harness, inspect WorldState after drain, verify entity state is correct
-
-**Phase 2 — Compiler + CompiledBank**
-
-* [ ] JSON5 parser (probably just wire in a library)
-* [ ] schema validation
-* [ ] compile to CompiledProgram + CompiledContainer structs
-* [ ] CompiledBank with id→program lookup
-* [ ] LoadBehaviors() entry point
-
-* [ ] Testable: Validator CLI — load a JSON5 file, print compiled bank contents or emit diagnostics
 
 **Phase 3 — AssetBank**
 
@@ -551,7 +614,7 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 **Phase 9 — Hardening**
 
 * [ ] unit tests for compiler, resolver, container types
-* [ ] integration test: full round-trip from JSON5 → audible output
+* [ ] integration test: full round-trip from json → audible output
 * [ ] reload test: swap bank while instances are playing
 * [ ] profiling pass
 

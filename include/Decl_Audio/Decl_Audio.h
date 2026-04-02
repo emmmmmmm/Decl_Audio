@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "Export.h"
+#include <string>
 
 #define DECL_AUDIO_VERSION_MAJOR 0u
 #define DECL_AUDIO_VERSION_MINOR 1u
@@ -11,34 +12,34 @@
 #define DECL_AUDIO_API_VERSION DECL_AUDIO_MAKE_VERSION(DECL_AUDIO_VERSION_MAJOR, DECL_AUDIO_VERSION_MINOR, DECL_AUDIO_VERSION_PATCH)
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-typedef struct DeclAudioEngine DeclAudioEngine;
+    typedef struct DeclAudioEngine DeclAudioEngine;
 
-typedef enum DeclAudioResult
-{
-    DeclAudioResult_Ok = 0,
-    DeclAudioResult_InvalidArgument = 1,
-    DeclAudioResult_OutOfMemory = 2,
-    DeclAudioResult_VersionMismatch = 3,
-    DeclAudioResult_NotImplemented = 4
-} DeclAudioResult;
+    typedef struct EngineConfig
+    {
+        uint32_t struct_size;
+        uint32_t api_version;
+        void *user_data;
+    } EngineConfig;
 
-typedef struct DeclAudioEngineConfig
-{
-    uint32_t struct_size;
-    uint32_t api_version;
-    void* user_data;
-} DeclAudioEngineConfig;
+    DECL_AUDIO_API void Init(EngineConfig *out_config);
+    DECL_AUDIO_API uint32_t GetApiVersion(void);
+    DECL_AUDIO_API void CreateEngine(const EngineConfig *config, DeclAudioEngine **out_engine);
+    DECL_AUDIO_API void DestroyEngine(DeclAudioEngine *engine);
+    DECL_AUDIO_API void LoadBehaviors(DeclAudioEngine *engine, const char *source_path);
+    DECL_AUDIO_API void Update(DeclAudioEngine *engine);
 
-DECL_AUDIO_API void DeclAudioEngineConfig_Init(DeclAudioEngineConfig* out_config);
-DECL_AUDIO_API uint32_t DeclAudioGetApiVersion(void);
-DECL_AUDIO_API const char* DeclAudioResultToString(DeclAudioResult result);
-DECL_AUDIO_API DeclAudioResult DeclAudioCreateEngine(const DeclAudioEngineConfig* config, DeclAudioEngine** out_engine);
-DECL_AUDIO_API void DeclAudioDestroyEngine(DeclAudioEngine* engine);
-DECL_AUDIO_API DeclAudioResult DeclAudioLoadBehaviors(DeclAudioEngine* engine, const char* source_path);
-DECL_AUDIO_API DeclAudioResult DeclAudioUpdate(DeclAudioEngine* engine);
+    // TODO
+    DECL_AUDIO_API void SetTag(DeclAudioEngine *engine, const char *entityId, const char *key, const char *tag);
+    DECL_AUDIO_API void SetValue(DeclAudioEngine *engine, const char *entityId, const char *key, float value);
+    DECL_AUDIO_API void SetPosition(DeclAudioEngine *engine, const char *entityId, const char *key, float x, float y, float z);
+    DECL_AUDIO_API void AudioManager_SetQuatValue(DeclAudioEngine *engine, const char *entityId, const char *key, float a, float b, float c, float d);
+    DECL_AUDIO_API void AudioManager_SetTransform(DeclAudioEngine *engine, const char *entityId, float x, float y, float z, float a, float b, float c, float d);
+    DECL_AUDIO_API void AudioManager_ClearValue(DeclAudioEngine *engine, const char *entityId, const char *key);
+    DECL_AUDIO_API void AudioManager_ClearEntity(DeclAudioEngine *engine, const char *entityId);
 
 #ifdef __cplusplus
 }
