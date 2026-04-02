@@ -180,9 +180,13 @@ That's essentially it.
 
 **On param updates:** when entity X's values change, control looks up which instances are bound to entity X and sends targeted commands to each. Entity structs never cross the boundary - only their effects do, as targeted commands to specific instances.
 
-**On timing:** params that drift slowly (health, speed, distance) are fine at block accuracy (~5ms). Hard events (gunshot, footstep) should carry a sample timestamp so the audio thread can apply them at the exact offset within the block.
+**On source kinds:** control may spawn either fire-and-forget instances or entity-bound instances. Fire-and-forget instances carry their initial snapshot on `CreateInstance` and receive no further updates. Entity-bound instances keep a control-side binding so `SetVolume` / `SetPosition` can be forwarded while the match remains active. The audio thread still only sees instance ids and commands; it never sees entities.
+
+**On timing:** for MVP, commands are block-accurate only. Params that drift slowly (health, speed, distance) are applied at the next block boundary. Sample-offset timestamps are a later addition once the real backend is in place.
 
 **On stage transitions:** the audio thread handles all playback-driven transitions autonomously (container exhausted -> advance to next). Control only sends world-driven transitions (`RequestStop` when a match condition is lost). No return signalling needed.
+
+**On stale commands:** if control sends `SetVolume`, `SetPosition`, or `RequestStop` for an instance that has already retired on the audio side, the command is dropped. Finished instances clean themselves up on the audio side.
 
 ---
 
@@ -286,49 +290,43 @@ struct ProgramInstance {
     int                              cursor;      // index of active container
     float                            volume;
     Vec3                             position;
-    std::vector<ContainerInstance*>  containers;  // one per compiled container
+    bool                             stopRequested;
+    ActiveContainerState             current;
 
-    ContainerInstance* current() { return containers[cursor]; }
     int getSamples(float* buf, int framesRequested);
 };
 ```
+
+`ProgramInstance` owns one active container state at a time. Compiled programs are linear, so the runtime does not need heap-owned polymorphic instances for every compiled container. When the cursor advances, the audio thread reinitializes `current` from the next `CompiledContainer`.
 
 ---
 
 ## 9. Container Model
 
-Each container in a program is a subclass of `ContainerInstance`. The compiled data is the blueprint; the instance holds all runtime state.
+Each container in a program has a compiled blueprint plus a small value-state struct. Only the currently active container needs runtime state.
 
 ```cpp
-struct ContainerInstance {           // base class
-    const CompiledContainer* compiled;
-    // envelope state, etc.
-
-    // returns framesWritten
-    // if framesWritten < framesRequested, container is exhausted
-    virtual int getSamples(float* buf, int framesRequested) = 0;
-};
-
-struct OneShotInstance : ContainerInstance {
+struct OneShotState {
     uint64_t samplePosition;
-    // copies from asset, advances position
-    // returns < framesRequested when end of asset is reached
 };
 
-struct LoopInstance : ContainerInstance {
+struct LoopState {
     uint64_t samplePosition;
-    bool     stopRequested;
-    // wraps at asset end - never exhausts unless stopRequested
+    int32_t remainingLoops;
 };
 
-struct RandomInstance : ContainerInstance {
-    AssetId  pickedAssetId;   // picked once on first getSamples()
+struct RandomState {
+    uint32_t pickedAssetSlot;
     uint64_t samplePosition;
-    // after pick, behaves like OneShot
+    bool     hasPick;
 };
+
+using ActiveContainerState = std::variant<OneShotState, LoopState, RandomState>;
 ```
 
-Container subclasses have one job each: fill as many frames as they can, return how many they wrote. They do not know about block size, program structure, or what comes next.
+The active container state has one job: fill as many frames as it can and report how many it wrote. It does not know about block size beyond the current request, the wider program structure, or what comes next.
+
+**Loop stop rule:** `RequestStop` never cuts the currently playing pass short. It only prevents future wraps. If a loop container is entered after stop has already been requested, it is still allowed one pass and then exhausts. In effect, a stopped loop behaves like `loopCount = 1` from its current or next entry point.
 
 ---
 
@@ -340,12 +338,14 @@ Seamless transitions between containers happen inside a single block:
 int ProgramInstance::getSamples(float* buf, int framesRequested) {
     int written = 0;
     while (written < framesRequested) {
-        int w = current()->getSamples(buf + written, framesRequested - written);
+        int w = renderCurrentContainer(buf + written, framesRequested - written);
         written += w;
         if (written < framesRequested) {
             // container exhausted mid-block - advance cursor
             cursor++;
-            if (cursor >= containers.size()) break;  // program finished
+            if (cursor >= compiled->containerCount) break;  // program finished
+            current = makeContainerState(compiledContainerAt(cursor),
+                                         derivedSeed(rootSeed, instanceId, compiled->id, cursor));
         }
     }
     return written;
@@ -360,6 +360,8 @@ Because one container hands off to the next within the same block, intro->loop a
 
 ```cpp
 // each callback block:
+applyPendingCommands();
+
 for (auto& inst : instances) {
     float localBuf[blockSize];
     int written = inst.getSamples(localBuf, blockSize);
@@ -372,7 +374,6 @@ for (auto& inst : instances) {
     }
 }
 removeFinished();
-applyPendingCommands();
 ```
 
 Real-time safe: no allocations, no locks, no I/O. Reads only from owned instance state and immutable bank/asset data.
@@ -392,16 +393,14 @@ inst.compiled   = compiled;
 inst.cursor     = 0;
 inst.volume     = cmd.volume;
 inst.position   = cmd.position;
-
-for (uint32_t i = 0; i < compiled->containerCount; ++i) {
-    const CompiledContainer& cc = compiledBank.containers[compiled->firstContainer + i];
-    inst.containers.push_back(makeContainerInstance(cc));
-}
+inst.stopRequested = false;
+inst.current = makeContainerState(compiledBank.containers[compiled->firstContainer + 0],
+                                  derivedSeed(rootSeed, inst.instanceId, compiled->id, 0));
 
 instances.push_back(inst);
 ```
 
-`makeContainerInstance()` is a factory that creates the right subclass based on `ContainerType`. Compiled data is never copied - only pointed to.
+`makeContainerState()` creates the active value-state for the current container based on `ContainerType`. Compiled data is never copied - only referenced.
 
 ---
 
@@ -419,7 +418,9 @@ footstep.left  /  weapon.fire  /  ui.confirm
 
 **Activation**: a behavior becomes active when required tags match and conditions evaluate true. Control mints an `InstanceId` and sends `CreateInstance`.
 
-**Deactivation**: control detects match lost, sends `RequestStop`. The active container (typically a `LoopInstance`) sets `stopRequested`, exhausts on its next update, and the program retires naturally.
+**Activation is edge-triggered:** a behavior starts when it becomes matched, not on every tick that it remains matched. If a non-looping program is used under a persistent match and finishes while the match still holds, it does not automatically respawn. If a behavior should stay alive while matched, author a loop in the program.
+
+**Deactivation**: control detects match lost, sends `RequestStop`. The current pass continues, future loop wraps are disabled, and the program retires naturally once its remaining containers are exhausted.
 
 ---
 
@@ -458,6 +459,10 @@ For MVP: preload everything.
 - All assets decoded and ready before runtime starts
 - Missing assets fail load with explicit diagnostics
 
+**Internal mix format:** the runtime renders stereo interleaved float at 48 kHz. Asset channel count is an input property, not the runtime bus format. Mono assets are duplicated to L/R at read time. Stereo assets remain stereo.
+
+**Spatialization rule for MVP:** mono assets can be treated as point sources and panned. Stereo assets keep their authored width; spatialization applies gain/balance without folding them down to mono.
+
 Streaming is a later addition with its own state machine.
 
 ---
@@ -469,6 +474,10 @@ Streaming is a later addition with its own state machine.
 - `ProgramInstances` are owned exclusively by the audio thread.
 - `WorldState` is owned exclusively by the control thread.
 - Commands flow one way: host -> control -> audio. Nothing flows back as shared mutable state.
+
+**Deterministic random:** random container picks are derived from an engine root seed plus stable per-instance inputs (`instanceId`, `programId`, container index). Do not use a shared mutable RNG stream as the source of truth; unrelated random draws must not perturb existing playback results.
+
+**RT-safe storage:** avoid heap-owned per-container polymorphic runtime objects. Programs are linear and only one container is active at a time, so `ProgramInstance` stores the current container state by value and rebuilds it when the cursor advances. Active instance storage is reserved up front; capacity exhaustion is a fail-loudly error.
 
 ---
 
@@ -559,7 +568,7 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 * [x] host->control command queue + drain loop
 * [x] SetTag, RemoveTag, SetValue, DestroyEntity commands implemented
 
-* [x] Testable: submit commands from a test harness, inspect WorldState after drain, verify entity state is correct
+* [x] Testable: submit commands from a test harness, inspect WorldState after drain, godverify entity state is correct
 
 **Phase 3 - AssetBank**
 
