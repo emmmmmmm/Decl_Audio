@@ -7,8 +7,10 @@
 
 #include "Decl_Audio/Decl_Audio.h"
 #include "../assets/AssetBank.hpp"
+#include "../backends/AudioDeviceBackend.hpp"
 #include "../backends/StubBackend.hpp"
 #include "../compiler/CompiledBank.hpp"
+#include "ConfigSupport.hpp"
 #include "../playback/AudioCommands.hpp"
 #include "../playback/AudioRuntime.hpp"
 #include "../runtime/BehaviorResolver.hpp"
@@ -83,13 +85,18 @@ namespace decl_audio
         };
 
     private:
+        [[nodiscard]] bool StartConfiguredAudioBackend(const char *source_path) noexcept;
+        void StopConfiguredAudioBackend() noexcept;
+
         std::unique_ptr<compiler::CompiledBank> compiled_bank_;
         std::unique_ptr<assets::AssetBank> asset_bank_;
+        std::unique_ptr<backends::AudioDeviceBackend> audio_backend_;
         std::vector<compiler::Diagnostic> load_diagnostics_;
         runtime::ControlRuntime control_runtime_;
         runtime::BehaviorResolver behavior_resolver_;
         playback::AudioRuntime audio_runtime_;
         backends::StubBackend stub_backend_;
+        AudioConfig audio_config_{};
         uint32_t api_version_;
         void *user_data_;
     };

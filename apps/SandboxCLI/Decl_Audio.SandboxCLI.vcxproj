@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{A6E58A6C-7D76-4C66-B679-8F1A840AEB9C}</ProjectGuid>
-    <RootNamespace>Decl_Audio_Validator</RootNamespace>
+    <ProjectGuid>{1EB583E7-88F9-4B9C-9B52-AB6B8EA9F95C}</ProjectGuid>
+    <RootNamespace>Decl_Audio_SandboxCLI</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -144,8 +144,15 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\third_party\MiniaudioImplementation.cpp" />
     <ClCompile Include="..\..\src\assets\AssetBank.cpp" />
-    <ClCompile Include="..\..\apps\Validator\ValidatorMain.cpp" />
+    <ClCompile Include="..\..\src\api\Decl_Audio.cpp" />
+    <ClCompile Include="..\..\src\backends\AudioDeviceBackend.cpp" />
+    <ClCompile Include="..\..\src\backends\MiniaudioBackend.cpp" />
+    <ClCompile Include="..\..\src\backends\StubBackend.cpp" />
     <ClCompile Include="..\..\src\compiler\Compiler.cpp" />
+    <ClCompile Include="..\..\src\core\Engine.cpp" />
+    <ClCompile Include="..\..\src\playback\AudioRuntime.cpp" />
+    <ClCompile Include="..\..\src\runtime\ControlRuntime.cpp" />
+    <ClCompile Include="..\..\apps\SandboxCLI\SandboxMain.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

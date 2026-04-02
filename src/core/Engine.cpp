@@ -5,18 +5,35 @@
 #include "../compiler/Compiler.hpp"
 #include "../runtime/HostCommands.hpp"
 
+#include <filesystem>
 #include <string>
 
 namespace decl_audio
 {
+    namespace
+    {
+        [[nodiscard]] compiler::Diagnostic MakeAudioBackendError(const std::filesystem::path &source_path, std::string message)
+        {
+            compiler::Diagnostic diagnostic;
+            diagnostic.severity = compiler::DiagnosticSeverity::Error;
+            diagnostic.location.file_path = source_path.string();
+            diagnostic.location.object_path = "audio.backend";
+            diagnostic.message = std::move(message);
+            return diagnostic;
+        }
+    } // namespace
+
     Engine::Engine(const EngineConfig &config) noexcept
         : api_version_(config.api_version),
+          audio_config_(ResolveAudioConfig(config)),
           user_data_(config.user_data)
     {
-        // spin up audio thread and set up commandbuffers
     }
 
-    Engine::~Engine() = default;
+    Engine::~Engine()
+    {
+        StopConfiguredAudioBackend();
+    }
 
     bool Engine::LoadBehaviors(const char *source_path) noexcept
     {
@@ -43,12 +60,16 @@ namespace decl_audio
             return false;
         }
 
-        compiled_bank_ = std::make_unique<compiler::CompiledBank>(std::move(compile_result.bank));
-        asset_bank_ = std::make_unique<assets::AssetBank>(std::move(asset_result.bank));
+        std::unique_ptr<compiler::CompiledBank> compiled_bank = std::make_unique<compiler::CompiledBank>(std::move(compile_result.bank));
+        std::unique_ptr<assets::AssetBank> asset_bank = std::make_unique<assets::AssetBank>(std::move(asset_result.bank));
+
+        StopConfiguredAudioBackend();
+        compiled_bank_ = std::move(compiled_bank);
+        asset_bank_ = std::move(asset_bank);
         behavior_resolver_.Reset();
         audio_runtime_.SetBanks(compiled_bank_.get(), asset_bank_.get());
 
-        return true;
+        return StartConfiguredAudioBackend(source_path);
     }
 
     void Engine::Update() noexcept
@@ -131,6 +152,37 @@ namespace decl_audio
     void Engine::PumpAudioForTesting(const std::uint32_t frames) noexcept
     {
         stub_backend_.Pump(audio_runtime_, frames);
+    }
+
+    bool Engine::StartConfiguredAudioBackend(const char *source_path) noexcept
+    {
+        if (audio_config_.backend == DECL_AUDIO_BACKEND_SILENT)
+        {
+            audio_backend_.reset();
+            return true;
+        }
+
+        audio_backend_ = backends::CreateAudioDeviceBackend(audio_config_.backend);
+        std::string error_message;
+        if (!audio_backend_->Start(audio_runtime_, audio_config_, error_message))
+        {
+            load_diagnostics_.push_back(MakeAudioBackendError(source_path, std::move(error_message)));
+            audio_backend_.reset();
+            return false;
+        }
+
+        return true;
+    }
+
+    void Engine::StopConfiguredAudioBackend() noexcept
+    {
+        if (audio_backend_ == nullptr)
+        {
+            return;
+        }
+
+        audio_backend_->Stop();
+        audio_backend_.reset();
     }
 
 } // namespace decl_audio

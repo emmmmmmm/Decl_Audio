@@ -10,7 +10,7 @@
 #include "Export.h"
 
 #define DECL_AUDIO_VERSION_MAJOR 0u
-#define DECL_AUDIO_VERSION_MINOR 1u
+#define DECL_AUDIO_VERSION_MINOR 2u
 #define DECL_AUDIO_VERSION_PATCH 0u
 #define DECL_AUDIO_MAKE_VERSION(major, minor, patch) (((major) << 22u) | ((minor) << 12u) | (patch))
 #define DECL_AUDIO_API_VERSION DECL_AUDIO_MAKE_VERSION(DECL_AUDIO_VERSION_MAJOR, DECL_AUDIO_VERSION_MINOR, DECL_AUDIO_VERSION_PATCH)
@@ -22,13 +22,36 @@ extern "C"
 
     typedef struct DeclAudioEngine DeclAudioEngine;
 
+    typedef enum DeclAudioSampleFormat
+    {
+        DECL_AUDIO_SAMPLE_FORMAT_F32 = 1
+    } DeclAudioSampleFormat;
+
+    typedef enum DeclAudioBackend
+    {
+        DECL_AUDIO_BACKEND_SILENT = 0,
+        DECL_AUDIO_BACKEND_PLATFORM_DEFAULT = 1
+    } DeclAudioBackend;
+
+    typedef struct AudioConfig
+    {
+        uint32_t struct_size;
+        uint32_t sample_rate;
+        uint32_t output_channel_count;
+        DeclAudioSampleFormat sample_format;
+        uint32_t callback_frame_count;
+        DeclAudioBackend backend;
+    } AudioConfig;
+
     typedef struct EngineConfig
     {
         uint32_t struct_size;
         uint32_t api_version;
         void *user_data;
+        AudioConfig audio;
     } EngineConfig;
 
+    DECL_AUDIO_API void InitAudioConfig(AudioConfig *out_config);
     DECL_AUDIO_API void Init(EngineConfig *out_config);
     DECL_AUDIO_API uint32_t GetApiVersion(void);
     DECL_AUDIO_API bool CreateEngine(const EngineConfig *config, DeclAudioEngine **out_engine);

@@ -158,10 +158,13 @@
     <ClInclude Include="..\src\RingBuffer.hpp" />
     <ClInclude Include="..\src\compiler\AuthoringModel.hpp" />
     <ClInclude Include="..\src\assets\AssetBank.hpp" />
+    <ClInclude Include="..\src\backends\AudioDeviceBackend.hpp" />
+    <ClInclude Include="..\src\backends\MiniaudioBackend.hpp" />
     <ClInclude Include="..\src\backends\StubBackend.hpp" />
     <ClInclude Include="..\src\compiler\CompiledBank.hpp" />
     <ClInclude Include="..\src\compiler\Compiler.hpp" />
     <ClInclude Include="..\src\compiler\CompilerTypes.hpp" />
+    <ClInclude Include="..\src\core\ConfigSupport.hpp" />
     <ClInclude Include="..\src\core\Engine.hpp" />
     <ClInclude Include="..\src\playback\AudioCommands.hpp" />
     <ClInclude Include="..\src\playback\AudioRuntime.hpp" />
@@ -178,10 +181,14 @@
     <ClInclude Include="..\src\ThirdParty\Quaternion\quaternion_io.h" />
     <ClInclude Include="..\src\ThirdParty\Quaternion\quaternion_utils.h" />
     <ClInclude Include="..\src\ThirdParty\Json\json.hpp" />
+    <ClInclude Include="..\src\third_party\Miniaudio.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\third_party\MiniaudioImplementation.cpp" />
     <ClCompile Include="..\src\assets\AssetBank.cpp" />
     <ClCompile Include="..\src\api\Decl_Audio.cpp" />
+    <ClCompile Include="..\src\backends\AudioDeviceBackend.cpp" />
+    <ClCompile Include="..\src\backends\MiniaudioBackend.cpp" />
     <ClCompile Include="..\src\backends\StubBackend.cpp" />
     <ClCompile Include="..\src\compiler\Compiler.cpp" />
     <ClCompile Include="..\src\core\Engine.cpp" />

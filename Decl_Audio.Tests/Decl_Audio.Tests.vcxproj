@@ -142,8 +142,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\third_party\MiniaudioImplementation.cpp" />
     <ClCompile Include="..\src\assets\AssetBank.cpp" />
     <ClCompile Include="..\src\api\Decl_Audio.cpp" />
+    <ClCompile Include="..\src\backends\AudioDeviceBackend.cpp" />
+    <ClCompile Include="..\src\backends\MiniaudioBackend.cpp" />
     <ClCompile Include="..\src\backends\StubBackend.cpp" />
     <ClCompile Include="..\src\compiler\Compiler.cpp" />
     <ClCompile Include="..\src\core\Engine.cpp" />

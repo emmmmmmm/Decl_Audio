@@ -132,6 +132,37 @@ bool TestInvalidFixtureFailsLoudly()
     std::cout << diagnostics;
     return true;
 }
+
+bool TestAudioConfigDefaultsAndValidation()
+{
+    AudioConfig audio_config{};
+    InitAudioConfig(&audio_config);
+
+    if (!Expect(audio_config.struct_size == sizeof(AudioConfig), "InitAudioConfig should stamp the audio config size"))
+        return false;
+    if (!Expect(audio_config.sample_rate == 48000u, "default audio config should use the engine sample rate"))
+        return false;
+    if (!Expect(audio_config.output_channel_count == 2u, "default audio config should default to stereo output"))
+        return false;
+    if (!Expect(audio_config.sample_format == DECL_AUDIO_SAMPLE_FORMAT_F32, "default audio config should default to float output"))
+        return false;
+    if (!Expect(audio_config.callback_frame_count == 1024u, "default audio config should expose a callback block size"))
+        return false;
+    if (!Expect(audio_config.backend == DECL_AUDIO_BACKEND_SILENT, "default audio config should keep tests and headless callers silent"))
+        return false;
+
+    EngineConfig engine_config{};
+    Init(&engine_config);
+    engine_config.audio.output_channel_count = 1;
+
+    DeclAudioEngine *engine = nullptr;
+    if (!Expect(!CreateEngine(&engine_config, &engine), "CreateEngine should reject unsupported audio channel counts"))
+        return false;
+    if (!Expect(engine == nullptr, "CreateEngine should leave the output engine pointer null on invalid audio config"))
+        return false;
+
+    return true;
+}
 } // namespace
 
 bool RunCompilerTests()
@@ -140,6 +171,9 @@ bool RunCompilerTests()
         return false;
 
     if (!TestInvalidFixtureFailsLoudly())
+        return false;
+
+    if (!TestAudioConfigDefaultsAndValidation())
         return false;
 
     std::cout << "Compiler tests passed\n";

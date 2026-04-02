@@ -1,14 +1,7 @@
 #include "pch.h"
 
-#define MA_NO_DEVICE_IO
-#define MA_NO_ENGINE
-#define MA_NO_GENERATION
-#define MA_NO_NODE_GRAPH
-#define MA_NO_RESOURCE_MANAGER
-#define MINIAUDIO_IMPLEMENTATION
-#include "../ThirdParty/miniaudio/miniaudio.h"
-
 #include "AssetBank.hpp"
+#include "../third_party/Miniaudio.hpp"
 
 #include <sstream>
 

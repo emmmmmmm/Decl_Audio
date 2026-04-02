@@ -163,6 +163,8 @@ Owned by the engine. Drains host commands, mutates `WorldState`, runs resolver, 
 ### Audio Thread
 Owned by the audio backend callback. Owns `ProgramInstance[]`. Executes compiled programs. Mixes output.
 
+**For MVP:** control remains host-driven via explicit `Update()` calls. Internal control-thread ownership is a conceptual boundary, not a requirement to spin up a separate worker thread yet.
+
 ---
 
 ## 7. The Command Interface (Control -> Audio)
@@ -463,6 +465,10 @@ For MVP: preload everything.
 
 **Spatialization rule for MVP:** mono assets can be treated as point sources and panned. Stereo assets keep their authored width; spatialization applies gain/balance without folding them down to mono.
 
+**Audio device config:** device settings are fixed at engine creation time. `EngineConfig` owns an `AudioConfig` payload with default values that can be overridden before `CreateEngine()`. Runtime reconfiguration is out of scope for MVP and, if added later, must be handled as an explicit device recreation path rather than a mutable setter.
+
+**Backend integration:** keep third-party audio libraries behind engine-owned seams. Decoding and playback backend setup should be centralized in dedicated wrapper/implementation translation units so the runtime, resolver, and public API do not depend directly on miniaudio-specific types or macros.
+
 Streaming is a later addition with its own state machine.
 
 ---
@@ -599,18 +605,32 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 **Phase 6 - Audible output**
 
-* [ ] miniaudio backend wired up
-* [ ] audio thread callback calls fill loop, mixes, spatializes
-* [ ] stereo pan for MVP spatialization
+* [x] miniaudio backend wired up
+* [x] miniaudio implementation centralized behind engine-owned backend/decoder seams
+* [x] `EngineConfig` owns defaultable startup-only `AudioConfig` (sample rate, sample format, output channels, callback frames, backend preference)
+* [x] audio thread callback calls fill loop and mixes direct output
 
-* [ ] Testable: sandbox CLI - load behaviors, set a tag, hear a sound. remove tag, hear it stop.
+* [x] Testable: sandbox CLI - load behaviors, set a tag, hear a sound. remove tag, hear it stop.
 
 **Phase 7 - Resolver: param forwarding**
 
 * [ ] SetValue on entity -> SetVolume / SetPosition forwarded to bound instances
 * [ ] value->param mapping in authored behaviors
 
-* [ ] Testable: change entity position value, verify audio instance position updates
+* [ ] Testable: change entity value, verify audio instance updates
+* [ ] Testable: add test in sandboxCLI that incorporates a parameter change (volume)
+
+**Phase 7.5 - Spatialization**
+
+* [ ] authored sources declare spatialization explicitly (`none`, `pan`, later richer modes)
+* [ ] spatialization settings live in a dedicated authored/runtime struct so range, attenuation model, and later falloff-curve options have a stable home
+* [ ] listener position can be set with a new command `SetListenerPosition()`, forwarded to the audio thread
+* [ ] audio thread owns listener state
+* [ ] audio is spatialized relative to listener position
+* [ ] pan-only spatialization for mono sources
+* [ ] range-based attenuation for spatialized sources
+
+* [ ] Testable: change entity position value and hear output adapt relative position. same for moving listener.
 
 **Phase 8 - Debugging + CLI**
 
@@ -631,9 +651,9 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 ## 23. Open Decisions
 
-- Should the control loop be host-driven (tick on game update), internal-thread-driven, or support both?
-- Should entity IDs be numeric only in the public API, or support string names at the API boundary?
-- What level of spatialization for MVP: stereo pan only, or basic 3D attenuation + listener transform?
+- Which `AudioConfig` fields are required in the public API for MVP beyond sample rate, sample format, output channels, callback frames, and backend preference?
+- Should phase 7.5 attenuation be authored only as a fixed range first, or should parameter-driven range mapping ship in the same phase?
+- When spatialization expands beyond pan/range, do we want one listener only for MVP+1, or should multi-listener support be planned into the command shape immediately?
 
 ---
 

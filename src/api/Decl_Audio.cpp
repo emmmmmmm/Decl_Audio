@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "../core/Engine.hpp"
+#include "../core/ConfigSupport.hpp"
 
 #include <new>
 
@@ -16,12 +17,13 @@ struct DeclAudioEngine
 
 namespace
 {
-    EngineConfig MakeDefaultConfig() noexcept
+    EngineConfig MakeDefaultEngineConfig() noexcept
     {
         EngineConfig config{};
         config.struct_size = sizeof(EngineConfig);
         config.api_version = DECL_AUDIO_API_VERSION;
         config.user_data = nullptr;
+        config.audio = decl_audio::MakeDefaultAudioConfig();
         return config;
     }
 
@@ -36,15 +38,42 @@ namespace
         if (config->api_version != DECL_AUDIO_API_VERSION)
             return false;
 
+        if (config->struct_size >= offsetof(EngineConfig, audio) + sizeof(AudioConfig) &&
+            config->audio.struct_size != 0 &&
+            !decl_audio::ValidateAudioConfig(config->audio))
+        {
+            return false;
+        }
+
         return true;
+    }
+
+    EngineConfig ResolveConfig(const EngineConfig *config) noexcept
+    {
+        EngineConfig resolved = MakeDefaultEngineConfig();
+        if (config == nullptr)
+        {
+            return resolved;
+        }
+
+        resolved.struct_size = sizeof(EngineConfig);
+        resolved.api_version = config->api_version;
+        resolved.user_data = config->user_data;
+        resolved.audio = decl_audio::ResolveAudioConfig(*config);
+        return resolved;
     }
 } // namespace
 
 extern "C"
 {
+    void InitAudioConfig(AudioConfig *out_config)
+    {
+        *out_config = decl_audio::MakeDefaultAudioConfig();
+    }
+
     void Init(EngineConfig *out_config)
     {
-        *out_config = MakeDefaultConfig();
+        *out_config = MakeDefaultEngineConfig();
     }
 
     uint32_t GetApiVersion(void)
@@ -62,7 +91,7 @@ extern "C"
         if (config != nullptr && !ValidateConfig(config))
             return false;
 
-        const EngineConfig resolved_config = (config != nullptr) ? *config : MakeDefaultConfig();
+        const EngineConfig resolved_config = ResolveConfig(config);
 
         DeclAudioEngine *engine = new (std::nothrow) DeclAudioEngine(resolved_config);
 

@@ -20,6 +20,19 @@
           "volume": 0.75
         }
       ]
+    },
+    {
+      "id": "playback.random",
+      "program": [
+        {
+          "type": "random",
+          "assets": [
+            "audio/test_48_24_1ch.wav",
+            "audio/test_48_24_2ch.wav"
+          ],
+          "volume": 0.8
+        }
+      ]
     }
   ]
 }
