@@ -590,12 +590,12 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 **Phase 5 - Resolver: matching**
 
-* [ ] BehaviorResolver - match tags + conditions against CompiledBank
-* [ ] emit CreateInstance on new match
-* [ ] emit RequestStop on lost match
-* [ ] control->audio command queue wired up
+* [x] BehaviorResolver - match tags + conditions against CompiledBank
+* [x] emit CreateInstance on new match
+* [x] emit RequestStop on lost match
+* [x] control->audio command queue wired up
 
-* [ ] Testable: set tags on an entity, verify correct ProgramInstance is created on audio side. remove tag, verify RequestStop is sent and instance retires
+* [x] Testable: set tags on an entity, verify correct ProgramInstance is created on audio side. remove tag, verify RequestStop is sent and instance retires
 
 **Phase 6 - Audible output**
 
