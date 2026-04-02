@@ -157,6 +157,7 @@
     <ClInclude Include="..\include\Decl_Audio\Export.h" />
     <ClInclude Include="..\src\RingBuffer.hpp" />
     <ClInclude Include="..\src\compiler\AuthoringModel.hpp" />
+    <ClInclude Include="..\src\assets\AssetBank.hpp" />
     <ClInclude Include="..\src\compiler\CompiledBank.hpp" />
     <ClInclude Include="..\src\compiler\Compiler.hpp" />
     <ClInclude Include="..\src\compiler\CompilerTypes.hpp" />
@@ -176,6 +177,7 @@
     <ClInclude Include="..\src\ThirdParty\Json\json.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\assets\AssetBank.cpp" />
     <ClCompile Include="..\src\api\Decl_Audio.cpp" />
     <ClCompile Include="..\src\compiler\Compiler.cpp" />
     <ClCompile Include="..\src\core\Engine.cpp" />

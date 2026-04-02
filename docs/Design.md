@@ -563,12 +563,12 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 **Phase 3 - AssetBank**
 
-* [ ] asset discovery from compiled bank manifest
-* [ ] decode to DecodedBuffer (via miniaudio or stb_vorbis)
-* [ ] id->buffer lookup
-* [ ] missing asset diagnostics
+* [x] asset discovery from compiled bank manifest
+* [x] decode to DecodedBuffer (via miniaudio)
+* [x] id->buffer lookup
+* [x] missing asset diagnostics
 
-* [ ] Testable: load a bank, verify all assets decoded, print asset manifest
+* [x] Testable: load a bank, verify all assets decoded, print asset manifest
 
 **Phase 4 - Audio side: playback**
 

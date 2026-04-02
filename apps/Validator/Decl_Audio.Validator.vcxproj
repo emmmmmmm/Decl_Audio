@@ -142,6 +142,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\assets\AssetBank.cpp" />
     <ClCompile Include="..\..\apps\Validator\ValidatorMain.cpp" />
     <ClCompile Include="..\..\src\compiler\Compiler.cpp" />
   </ItemGroup>

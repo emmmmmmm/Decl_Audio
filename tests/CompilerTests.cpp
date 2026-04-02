@@ -42,7 +42,7 @@ bool TestValidFixtureCompilesAndLoads()
         return false;
     if (!Expect(compile_result.bank.containers.size() == 3, "sequence container should flatten into three compiled containers"))
         return false;
-    if (!Expect(compile_result.bank.asset_paths.size() == 4, "valid fixture should discover four referenced assets"))
+    if (!Expect(compile_result.bank.asset_paths.size() == 2, "valid fixture should discover two unique referenced assets"))
         return false;
     if (!Expect(compile_result.bank.GetBehaviorTags(0).size() == 2, "valid fixture should intern two match tags"))
         return false;

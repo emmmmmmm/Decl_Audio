@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "Engine.hpp"
+#include "../assets/AssetBank.hpp"
 #include "../compiler/Compiler.hpp"
 #include "../runtime/HostCommands.hpp"
 
@@ -19,19 +20,31 @@ namespace decl_audio
 
     bool Engine::LoadBehaviors(const char *source_path) noexcept
     {
+        load_diagnostics_.clear();
+
         if (source_path == nullptr || source_path[0] == '\0')
         {
             return false;
         }
 
         compiler::CompileResult compile_result = compiler::LoadCompiledBankFromJsonFile(source_path);
+        load_diagnostics_ = compile_result.diagnostics;
 
         if (compile_result.HasErrors())
         {
             return false;
         }
 
+        assets::LoadResult asset_result = assets::LoadAssetBank(compile_result.bank, source_path);
+        load_diagnostics_.insert(load_diagnostics_.end(), asset_result.diagnostics.begin(), asset_result.diagnostics.end());
+
+        if (asset_result.HasErrors())
+        {
+            return false;
+        }
+
         compiled_bank_ = std::make_unique<compiler::CompiledBank>(std::move(compile_result.bank));
+        asset_bank_ = std::make_unique<assets::AssetBank>(std::move(asset_result.bank));
 
         return true;
     }

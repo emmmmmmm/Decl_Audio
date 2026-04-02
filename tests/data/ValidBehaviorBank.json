@@ -20,7 +20,7 @@
       "program": [
         {
           "type": "oneshot",
-          "asset": "audio/footstep_intro.wav",
+          "asset": "audio/test_48_24_1ch.wav",
           "volume": 0.8
         },
         {
@@ -29,14 +29,14 @@
             {
               "type": "random",
               "assets": [
-                "audio/footstep_gravel_1.wav",
-                "audio/footstep_gravel_2.wav"
+                "audio/test_48_24_1ch.wav",
+                "audio/test_48_24_2ch.wav"
               ],
               "volume": 0.9
             },
             {
               "type": "loop",
-              "asset": "audio/foley_loop.wav",
+              "asset": "audio/test_48_24_2ch.wav",
               "loopCount": -1,
               "volume": 0.6
             }

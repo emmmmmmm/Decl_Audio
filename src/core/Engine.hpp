@@ -2,8 +2,11 @@
 
 #include <cstdint>
 #include <memory>
+#include <span>
+#include <vector>
 
 #include "Decl_Audio/Decl_Audio.h"
+#include "../assets/AssetBank.hpp"
 #include "../compiler/CompiledBank.hpp"
 #include "../runtime/ControlRuntime.hpp"
 #include "../runtime/WorldState.hpp"
@@ -43,8 +46,20 @@ namespace decl_audio
             return control_runtime_.GetWorldState();
         };
 
+        [[nodiscard]] const assets::AssetBank &GetAssetBank() const noexcept
+        {
+            return *asset_bank_;
+        };
+
+        [[nodiscard]] std::span<const compiler::Diagnostic> GetLoadDiagnostics() const noexcept
+        {
+            return load_diagnostics_;
+        };
+
     private:
         std::unique_ptr<compiler::CompiledBank> compiled_bank_;
+        std::unique_ptr<assets::AssetBank> asset_bank_;
+        std::vector<compiler::Diagnostic> load_diagnostics_;
         runtime::ControlRuntime control_runtime_;
         uint32_t api_version_;
         void *user_data_;

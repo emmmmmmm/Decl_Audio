@@ -1,0 +1,27 @@
+{
+  "behaviors": [
+    {
+      "id": "movement.bad_sample_rate",
+      "matchTags": [
+        "movement.grounded"
+      ],
+      "parameters": [
+        "speed"
+      ],
+      "matchConditions": [
+        {
+          "parameter": "speed",
+          "op": ">=",
+          "value": 0.1
+        }
+      ],
+      "program": [
+        {
+          "type": "oneshot",
+          "asset": "audio/test_441_16_1ch.wav",
+          "volume": 1.0
+        }
+      ]
+    }
+  ]
+}

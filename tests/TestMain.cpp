@@ -1,6 +1,7 @@
 #include <iostream>
 
 bool RunCompilerTests();
+bool RunAssetBankTests();
 bool RunRingBufferTests();
 bool RunWorldStateTests();
 
@@ -10,6 +11,9 @@ int main()
         return 1;
 
     if (!RunCompilerTests())
+        return 1;
+
+    if (!RunAssetBankTests())
         return 1;
 
     if (!RunWorldStateTests())

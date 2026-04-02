@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "../../src/assets/AssetBank.hpp"
 #include "../../src/compiler/Compiler.hpp"
 
 int main(int argc, char **argv)
@@ -18,6 +19,14 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    const decl_audio::assets::LoadResult asset_result = decl_audio::assets::LoadAssetBank(result.bank, argv[1]);
+    if (asset_result.HasErrors())
+    {
+        std::cerr << decl_audio::compiler::DumpDiagnostics(asset_result.diagnostics);
+        return 1;
+    }
+
     std::cout << decl_audio::compiler::DumpCompiledBank(result.bank);
+    std::cout << decl_audio::assets::DumpAssetBank(result.bank, asset_result.bank);
     return 0;
 }
