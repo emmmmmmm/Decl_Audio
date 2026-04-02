@@ -36,17 +36,21 @@ bool TestValidFixtureCompilesAndLoads()
         return false;
     }
 
-    if (!Expect(compile_result.bank.behaviors.size() == 1, "valid fixture should compile one behavior"))
+    if (!Expect(compile_result.bank.behaviors.size() == 2, "valid fixture should compile two behaviors"))
         return false;
-    if (!Expect(compile_result.bank.programs.size() == 1, "valid fixture should compile one program"))
+    if (!Expect(compile_result.bank.programs.size() == 2, "valid fixture should compile two programs"))
         return false;
-    if (!Expect(compile_result.bank.containers.size() == 3, "sequence container should flatten into three compiled containers"))
+    if (!Expect(compile_result.bank.containers.size() == 4, "valid fixture should flatten into four compiled containers"))
         return false;
     if (!Expect(compile_result.bank.asset_paths.size() == 2, "valid fixture should discover two unique referenced assets"))
         return false;
     if (!Expect(compile_result.bank.GetBehaviorTags(0).size() == 2, "valid fixture should intern two match tags"))
         return false;
     if (!Expect(compile_result.bank.GetBehaviorConditions(0).size() == 1, "valid fixture should compile one condition"))
+        return false;
+    if (!Expect(compile_result.bank.GetBehaviorTags(1).size() == 1, "resolver fixture should intern one match tag"))
+        return false;
+    if (!Expect(compile_result.bank.GetBehaviorConditions(1).size() == 1, "resolver fixture should compile one condition"))
         return false;
 
     const std::span<const decl_audio::compiler::CompiledContainer> containers = compile_result.bank.GetProgramContainers(0);
@@ -55,6 +59,12 @@ bool TestValidFixtureCompilesAndLoads()
     if (!Expect(containers[1].type == decl_audio::compiler::ContainerType::Random, "second compiled container should be random"))
         return false;
     if (!Expect(containers[2].type == decl_audio::compiler::ContainerType::Loop, "third compiled container should be loop"))
+        return false;
+
+    const std::span<const decl_audio::compiler::CompiledContainer> resolver_containers = compile_result.bank.GetProgramContainers(1);
+    if (!Expect(resolver_containers.size() == 1, "resolver program should compile one loop container"))
+        return false;
+    if (!Expect(resolver_containers[0].type == decl_audio::compiler::ContainerType::Loop, "resolver program should compile to a loop"))
         return false;
 
     EngineConfig config{};

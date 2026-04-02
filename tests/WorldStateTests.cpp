@@ -94,6 +94,7 @@ bool TestRemoveTagAndDestroyEntity()
 
     engine.SetTag("player", "movement.grounded");
     engine.SetTag("player", "movement.walking");
+    engine.SetValue("player", "speed", 1.0f);
     engine.Update();
 
     engine.RemoveTag("player", "movement.walking");

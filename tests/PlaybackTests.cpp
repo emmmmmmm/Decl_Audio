@@ -219,6 +219,126 @@ bool TestStubBackendPumpsPlaybackWithoutOutputBuffer()
 
     return true;
 }
+
+bool TestResolverCreatesAndStopsLoopOnTagMatch()
+{
+    const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
+    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+
+    if (!Expect(!compile_result.HasErrors(), "phase 5 tag-match fixture should compile"))
+        return false;
+
+    EngineConfig config{};
+    config.struct_size = sizeof(EngineConfig);
+    config.api_version = DECL_AUDIO_API_VERSION;
+
+    decl_audio::Engine engine(config);
+    if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 5 tag-match fixture should load"))
+        return false;
+
+    const decl_audio::compiler::AssetId asset_id = compile_result.bank.GetAssetId("audio/test_48_24_1ch.wav");
+    const decl_audio::assets::DecodedBuffer &buffer = engine.GetAssetBank().GetBuffer(asset_id);
+    if (!Expect(buffer.frame_count > 8, "phase 5 loop fixture should contain enough frames"))
+        return false;
+
+    engine.SetTag("player", "resolver.active");
+    engine.SetValue("player", "speed", 1.0f);
+    engine.Update();
+
+    std::vector<float> startup_output(static_cast<std::size_t>(1) * decl_audio::playback::AudioRuntime::OutputChannelCount);
+    engine.RenderAudioForTesting(startup_output.data(), 1);
+
+    if (!Expect(engine.GetActiveAudioInstanceCountForTesting() == 1, "new match should create one audio instance"))
+        return false;
+
+    const float expected_start = buffer.samples[0] * 0.4f;
+    if (!ExpectNear(startup_output[0], expected_start, 1e-6f, "resolver-created loop should render expected left-channel samples"))
+        return false;
+    if (!ExpectNear(startup_output[1], expected_start, 1e-6f, "resolver-created loop should render expected right-channel samples"))
+        return false;
+
+    engine.RemoveTag("player", "resolver.active");
+    engine.Update();
+
+    const std::uint32_t remaining_frames = static_cast<std::uint32_t>(buffer.frame_count - 1);
+    std::vector<float> stop_output(static_cast<std::size_t>(remaining_frames + 8) * decl_audio::playback::AudioRuntime::OutputChannelCount);
+    engine.RenderAudioForTesting(stop_output.data(), remaining_frames + 8);
+
+    if (!Expect(engine.GetActiveAudioInstanceCountForTesting() == 0, "lost match should retire the bound instance after the current pass"))
+        return false;
+
+    for (std::uint32_t frame_index = 0; frame_index < remaining_frames; ++frame_index)
+    {
+        const float expected = buffer.samples[frame_index + 1] * 0.4f;
+        const std::size_t sample_index = static_cast<std::size_t>(frame_index) * decl_audio::playback::AudioRuntime::OutputChannelCount;
+        if (!ExpectNear(stop_output[sample_index + 0], expected, 1e-6f, "stopped resolver loop should finish the current pass on the left channel"))
+            return false;
+        if (!ExpectNear(stop_output[sample_index + 1], expected, 1e-6f, "stopped resolver loop should finish the current pass on the right channel"))
+            return false;
+    }
+
+    for (std::size_t sample_index = static_cast<std::size_t>(remaining_frames) * decl_audio::playback::AudioRuntime::OutputChannelCount;
+         sample_index < stop_output.size();
+         ++sample_index)
+    {
+        if (!ExpectNear(stop_output[sample_index], 0.0f, 1e-6f, "retired resolver loop should leave trailing samples silent"))
+            return false;
+    }
+
+    return true;
+}
+
+bool TestDestroyEntityStopsBoundLoop()
+{
+    const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
+    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+
+    if (!Expect(!compile_result.HasErrors(), "phase 5 destroy fixture should compile"))
+        return false;
+
+    EngineConfig config{};
+    config.struct_size = sizeof(EngineConfig);
+    config.api_version = DECL_AUDIO_API_VERSION;
+
+    decl_audio::Engine engine(config);
+    if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 5 destroy fixture should load"))
+        return false;
+
+    const decl_audio::compiler::AssetId asset_id = compile_result.bank.GetAssetId("audio/test_48_24_1ch.wav");
+    const decl_audio::assets::DecodedBuffer &buffer = engine.GetAssetBank().GetBuffer(asset_id);
+    if (!Expect(buffer.frame_count > 8, "phase 5 destroy loop fixture should contain enough frames"))
+        return false;
+
+    engine.SetTag("player", "resolver.active");
+    engine.SetValue("player", "speed", 1.0f);
+    engine.Update();
+
+    std::vector<float> startup_output(static_cast<std::size_t>(4) * decl_audio::playback::AudioRuntime::OutputChannelCount);
+    engine.RenderAudioForTesting(startup_output.data(), 4);
+
+    if (!Expect(engine.GetActiveAudioInstanceCountForTesting() == 1, "destroy test should start one bound loop"))
+        return false;
+
+    engine.DestroyEntity("player");
+    engine.Update();
+
+    const std::uint32_t remaining_frames = static_cast<std::uint32_t>(buffer.frame_count - 4);
+    std::vector<float> stop_output(static_cast<std::size_t>(remaining_frames + 8) * decl_audio::playback::AudioRuntime::OutputChannelCount);
+    engine.RenderAudioForTesting(stop_output.data(), remaining_frames + 8);
+
+    if (!Expect(engine.GetActiveAudioInstanceCountForTesting() == 0, "DestroyEntity should stop every bound instance after its current pass"))
+        return false;
+
+    for (std::size_t sample_index = static_cast<std::size_t>(remaining_frames) * decl_audio::playback::AudioRuntime::OutputChannelCount;
+         sample_index < stop_output.size();
+         ++sample_index)
+    {
+        if (!ExpectNear(stop_output[sample_index], 0.0f, 1e-6f, "destroyed entity should not leave a looping instance alive"))
+            return false;
+    }
+
+    return true;
+}
 } // namespace
 
 bool RunPlaybackTests()
@@ -233,6 +353,12 @@ bool RunPlaybackTests()
         return false;
 
     if (!TestStubBackendPumpsPlaybackWithoutOutputBuffer())
+        return false;
+
+    if (!TestResolverCreatesAndStopsLoopOnTagMatch())
+        return false;
+
+    if (!TestDestroyEntityStopsBoundLoop())
         return false;
 
     std::cout << "Playback tests passed\n";

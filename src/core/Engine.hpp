@@ -11,6 +11,7 @@
 #include "../compiler/CompiledBank.hpp"
 #include "../playback/AudioCommands.hpp"
 #include "../playback/AudioRuntime.hpp"
+#include "../runtime/BehaviorResolver.hpp"
 #include "../runtime/ControlRuntime.hpp"
 #include "../runtime/WorldState.hpp"
 
@@ -86,6 +87,7 @@ namespace decl_audio
         std::unique_ptr<assets::AssetBank> asset_bank_;
         std::vector<compiler::Diagnostic> load_diagnostics_;
         runtime::ControlRuntime control_runtime_;
+        runtime::BehaviorResolver behavior_resolver_;
         playback::AudioRuntime audio_runtime_;
         backends::StubBackend stub_backend_;
         uint32_t api_version_;

@@ -45,6 +45,7 @@ namespace decl_audio
 
         compiled_bank_ = std::make_unique<compiler::CompiledBank>(std::move(compile_result.bank));
         asset_bank_ = std::make_unique<assets::AssetBank>(std::move(asset_result.bank));
+        behavior_resolver_.Reset();
         audio_runtime_.SetBanks(compiled_bank_.get(), asset_bank_.get());
 
         return true;
@@ -53,8 +54,13 @@ namespace decl_audio
     void Engine::Update() noexcept
     {
         control_runtime_.Tick();
-        // update matching logic / run BehaviorResolver
-        // send commands to audiothread
+        behavior_resolver_.Resolve(
+            control_runtime_.GetWorldState(),
+            *compiled_bank_,
+            [this](const playback::AudioCommand &command)
+            {
+                audio_runtime_.Submit(command);
+            });
     }
 
     void Engine::SetTag(const char *entity_id, const char *tag) noexcept
