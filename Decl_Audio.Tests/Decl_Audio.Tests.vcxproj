@@ -145,9 +145,11 @@
     <ClCompile Include="..\src\api\Decl_Audio.cpp" />
     <ClCompile Include="..\src\compiler\Compiler.cpp" />
     <ClCompile Include="..\src\core\Engine.cpp" />
+    <ClCompile Include="..\src\runtime\ControlRuntime.cpp" />
     <ClCompile Include="..\tests\CompilerTests.cpp" />
     <ClCompile Include="..\tests\RingBufferTests.cpp" />
     <ClCompile Include="..\tests\TestMain.cpp" />
+    <ClCompile Include="..\tests\WorldStateTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\tests\data\InvalidBehaviorBank.json" />

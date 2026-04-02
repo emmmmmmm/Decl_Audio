@@ -36,14 +36,17 @@ extern "C"
     DECL_AUDIO_API bool LoadBehaviors(DeclAudioEngine *engine, const char *source_path);
     DECL_AUDIO_API void Update(DeclAudioEngine *engine);
 
-    // TODO
-    DECL_AUDIO_API void SetTag(DeclAudioEngine *engine, const char *entityId, const char *key, const char *tag);
-    DECL_AUDIO_API void SetValue(DeclAudioEngine *engine, const char *entityId, const char *key, float value);
+    DECL_AUDIO_API void SetTag(DeclAudioEngine *engine, const char *entity_id, const char *tag);
+    DECL_AUDIO_API void RemoveTag(DeclAudioEngine *engine, const char *entity_id, const char *tag);
+    DECL_AUDIO_API void SetValue(DeclAudioEngine *engine, const char *entity_id, const char *parameter, float value);
+    DECL_AUDIO_API void DestroyEntity(DeclAudioEngine *engine, const char *entity_id);
+
+    // Future typed setters.
     DECL_AUDIO_API void SetPosition(DeclAudioEngine *engine, const char *entityId, const char *key, float x, float y, float z);
-    DECL_AUDIO_API void AudioManager_SetQuatValue(DeclAudioEngine *engine, const char *entityId, const char *key, float a, float b, float c, float d);
-    DECL_AUDIO_API void AudioManager_SetTransform(DeclAudioEngine *engine, const char *entityId, float x, float y, float z, float a, float b, float c, float d);
-    DECL_AUDIO_API void AudioManager_ClearValue(DeclAudioEngine *engine, const char *entityId, const char *key);
-    DECL_AUDIO_API void AudioManager_ClearEntity(DeclAudioEngine *engine, const char *entityId);
+    DECL_AUDIO_API void SetQuatValue(DeclAudioEngine *engine, const char *entityId, const char *key, float a, float b, float c, float d);
+    DECL_AUDIO_API void SetTransform(DeclAudioEngine *engine, const char *entityId, float x, float y, float z, float a, float b, float c, float d);
+    DECL_AUDIO_API void ClearValue(DeclAudioEngine *engine, const char *entityId, const char *key);
+    DECL_AUDIO_API void ClearEntity(DeclAudioEngine *engine, const char *entityId);
 
 #ifdef __cplusplus
 }

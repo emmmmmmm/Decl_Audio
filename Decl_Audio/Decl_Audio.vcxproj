@@ -161,6 +161,10 @@
     <ClInclude Include="..\src\compiler\Compiler.hpp" />
     <ClInclude Include="..\src\compiler\CompilerTypes.hpp" />
     <ClInclude Include="..\src\core\Engine.hpp" />
+    <ClInclude Include="..\src\runtime\ControlRuntime.hpp" />
+    <ClInclude Include="..\src\runtime\HostCommands.hpp" />
+    <ClInclude Include="..\src\runtime\WorldState.hpp" />
+    <ClInclude Include="..\src\core\vec3.hpp" />
     <ClInclude Include="..\src\platform\win32\framework.h" />
     <ClInclude Include="..\src\platform\win32\pch.h" />
   </ItemGroup>
@@ -175,6 +179,7 @@
     <ClCompile Include="..\src\api\Decl_Audio.cpp" />
     <ClCompile Include="..\src\compiler\Compiler.cpp" />
     <ClCompile Include="..\src\core\Engine.cpp" />
+    <ClCompile Include="..\src\runtime\ControlRuntime.cpp" />
     <ClCompile Include="..\src\platform\win32\dllmain.cpp" />
     <ClCompile Include="..\src\platform\win32\pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>

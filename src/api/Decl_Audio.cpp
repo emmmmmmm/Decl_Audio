@@ -87,4 +87,24 @@ extern "C"
     {
         engine->engine.Update();
     }
+
+    void SetTag(DeclAudioEngine *engine, const char *entity_id, const char *tag)
+    {
+        engine->engine.SetTag(entity_id, tag);
+    }
+
+    void RemoveTag(DeclAudioEngine *engine, const char *entity_id, const char *tag)
+    {
+        engine->engine.RemoveTag(entity_id, tag);
+    }
+
+    void SetValue(DeclAudioEngine *engine, const char *entity_id, const char *parameter, float value)
+    {
+        engine->engine.SetValue(entity_id, parameter, value);
+    }
+
+    void DestroyEntity(DeclAudioEngine *engine, const char *entity_id)
+    {
+        engine->engine.DestroyEntity(entity_id);
+    }
 }

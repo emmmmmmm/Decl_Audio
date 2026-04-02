@@ -2,6 +2,9 @@
 
 #include "Engine.hpp"
 #include "../compiler/Compiler.hpp"
+#include "../runtime/HostCommands.hpp"
+
+#include <string>
 
 namespace decl_audio
 {
@@ -35,10 +38,37 @@ namespace decl_audio
 
     void Engine::Update() noexcept
     {
-        // drain input buffer
-        // update WorldState
+        control_runtime_.Tick();
         // update matching logic / run BehaviorResolver
         // send commands to audiothread
+    }
+
+    void Engine::SetTag(const char *entity_id, const char *tag) noexcept
+    {
+        control_runtime_.Submit(runtime::SetTagCommand{
+            std::string(entity_id),
+            compiled_bank_->GetTagId(tag)});
+    }
+
+    void Engine::RemoveTag(const char *entity_id, const char *tag) noexcept
+    {
+        control_runtime_.Submit(runtime::RemoveTagCommand{
+            std::string(entity_id),
+            compiled_bank_->GetTagId(tag)});
+    }
+
+    void Engine::SetValue(const char *entity_id, const char *parameter, float value) noexcept
+    {
+        control_runtime_.Submit(runtime::SetFloatValueCommand{
+            std::string(entity_id),
+            compiled_bank_->GetParameterId(parameter),
+            value});
+    }
+
+    void Engine::DestroyEntity(const char *entity_id) noexcept
+    {
+        control_runtime_.Submit(runtime::DestroyEntityCommand{
+            std::string(entity_id)});
     }
 
 } // namespace decl_audio

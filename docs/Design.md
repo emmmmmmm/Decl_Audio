@@ -1,4 +1,4 @@
-# Decl_Audio — Design Document
+# Decl_Audio - Design Document
 
 ---
 
@@ -11,9 +11,9 @@ Game code says *what is happening in the world*. The engine decides *what should
 **The three things that exist:**
 
 ```
-CompiledBank      immutable blueprints — loaded once, never touched at runtime
-AssetBank         immutable decoded audio — loaded once, read freely
-ProgramInstance[] live running things   — created/destroyed by audio thread on command
+CompiledBank      immutable blueprints - loaded once, never touched at runtime
+AssetBank         immutable decoded audio - loaded once, read freely
+ProgramInstance[] live running things   - created/destroyed by audio thread on command
 ```
 
 **The full pipeline:**
@@ -24,7 +24,7 @@ ProgramInstance[] live running things   — created/destroyed by audio thread on
         ↓  command queue
 [Control Thread]
   updates WorldState (entities, tags, values)
-  runs BehaviorResolver → decides which instances should exist
+  runs BehaviorResolver -> decides which instances should exist
   mints InstanceIds, sends commands to audio thread
         ↓  command queue (thin, timestamped)
 [Audio Thread]
@@ -36,13 +36,13 @@ ProgramInstance[] live running things   — created/destroyed by audio thread on
 ```
 
 **Two handoffs:**
-- Host → Control: game submits world facts
-- Control → Audio: thin commands, timestamped
+- Host -> Control: game submits world facts
+- Control -> Audio: thin commands, timestamped
 
 **Who owns what:**
 - Control owns: *why* and *what* (matching, instance decisions, param values)
 - Audio owns: *execution* (playheads, container transitions, mixing)
-- Entities never cross the thread boundary. Control resolves entity→behavior mapping and sends the result, not the inputs.
+- Entities never cross the thread boundary. Control resolves entity->behavior mapping and sends the result, not the inputs.
 
 **Distribution:**
 The engine is distributed as a compiled shared library (.dll / .so). The public interface is a C API defined in a single header. C++ wrappers over that API are provided for convenience but are not the contract.
@@ -51,11 +51,11 @@ The engine is distributed as a compiled shared library (.dll / .so). The public 
 ```cpp
 Engine
   │
-  ├── host→control queue        (lock-free)
+  ├── host->control queue        (lock-free)
   │
   ├── Control                   (thread + WorldState + Resolver)
   │     │
-  │     └── control→audio queue (lock-free)
+  │     └── control->audio queue (lock-free)
   │
   └── Audio                     (thread + ProgramInstances + Mixer)
 ```
@@ -146,7 +146,7 @@ This layer can allocate, parse, and log freely. For MVP it runs inside `LoadBeha
 - Owns all `ProgramInstances`
 - Applies incoming commands at correct sample offsets
 - Each block: iterates instances, fills output buffer via container execution
-- Handles all playback-driven transitions (container exhausted → advance cursor)
+- Handles all playback-driven transitions (container exhausted -> advance cursor)
 - Spatializes and mixes to output
 - Must be real-time safe at all times
 
@@ -165,7 +165,7 @@ Owned by the audio backend callback. Owns `ProgramInstance[]`. Executes compiled
 
 ---
 
-## 7. The Command Interface (Control → Audio)
+## 7. The Command Interface (Control -> Audio)
 
 The command set is intentionally thin. Control does all the semantic work before sending anything.
 
@@ -178,11 +178,11 @@ RequestStop(instanceId)
 
 That's essentially it.
 
-**On param updates:** when entity X's values change, control looks up which instances are bound to entity X and sends targeted commands to each. Entity structs never cross the boundary — only their effects do, as targeted commands to specific instances.
+**On param updates:** when entity X's values change, control looks up which instances are bound to entity X and sends targeted commands to each. Entity structs never cross the boundary - only their effects do, as targeted commands to specific instances.
 
 **On timing:** params that drift slowly (health, speed, distance) are fine at block accuracy (~5ms). Hard events (gunshot, footstep) should carry a sample timestamp so the audio thread can apply them at the exact offset within the block.
 
-**On stage transitions:** the audio thread handles all playback-driven transitions autonomously (container exhausted → advance to next). Control only sends world-driven transitions (`RequestStop` when a match condition is lost). No return signalling needed.
+**On stage transitions:** the audio thread handles all playback-driven transitions autonomously (container exhausted -> advance to next). Control only sends world-driven transitions (`RequestStop` when a match condition is lost). No return signalling needed.
 
 ---
 
@@ -190,7 +190,7 @@ That's essentially it.
 
 Four distinct kinds of data, with very different lifetimes:
 
-### AuthoringDocument — parsed but unresolved
+### AuthoringDocument - parsed but unresolved
 Created immediately after json parse. This is compiler-only data, never touched by runtime threads.
 
 ```cpp
@@ -216,7 +216,7 @@ struct AuthoringBehavior {
 };
 ```
 
-### CompiledBank — immutable blueprints
+### CompiledBank - immutable blueprints
 Created during `LoadBehaviors()`. Never mutated. Reload creates a new bank.
 
 ```cpp
@@ -264,7 +264,7 @@ struct CompiledBank {
 };
 ```
 
-### AssetBank — immutable decoded audio
+### AssetBank - immutable decoded audio
 All assets preloaded at load time. Immutable after decode. Both threads can read freely.
 
 ```cpp
@@ -276,7 +276,7 @@ struct DecodedBuffer {
 };
 ```
 
-### ProgramInstance — live runtime state (audio thread only)
+### ProgramInstance - live runtime state (audio thread only)
 Created when `CreateInstance` command arrives. Destroyed when program finishes.
 
 ```cpp
@@ -318,7 +318,7 @@ struct OneShotInstance : ContainerInstance {
 struct LoopInstance : ContainerInstance {
     uint64_t samplePosition;
     bool     stopRequested;
-    // wraps at asset end — never exhausts unless stopRequested
+    // wraps at asset end - never exhausts unless stopRequested
 };
 
 struct RandomInstance : ContainerInstance {
@@ -343,7 +343,7 @@ int ProgramInstance::getSamples(float* buf, int framesRequested) {
         int w = current()->getSamples(buf + written, framesRequested - written);
         written += w;
         if (written < framesRequested) {
-            // container exhausted mid-block — advance cursor
+            // container exhausted mid-block - advance cursor
             cursor++;
             if (cursor >= containers.size()) break;  // program finished
         }
@@ -352,7 +352,7 @@ int ProgramInstance::getSamples(float* buf, int framesRequested) {
 }
 ```
 
-Because one container hands off to the next within the same block, intro→loop and loop→outro seams are sample-accurate with zero gap. Attack/release envelopes at zero give hard cuts; non-zero gives crossfades.
+Because one container hands off to the next within the same block, intro->loop and loop->outro seams are sample-accurate with zero gap. Attack/release envelopes at zero give hard cuts; non-zero gives crossfades.
 
 ---
 
@@ -401,7 +401,7 @@ for (uint32_t i = 0; i < compiled->containerCount; ++i) {
 instances.push_back(inst);
 ```
 
-`makeContainerInstance()` is a factory that creates the right subclass based on `ContainerType`. Compiled data is never copied — only pointed to.
+`makeContainerInstance()` is a factory that creates the right subclass based on `ContainerType`. Compiled data is never copied - only pointed to.
 
 ---
 
@@ -439,7 +439,7 @@ Long-term: a custom `.audio` DSL is allowed if authoring ergonomics become the b
 
 `sequence` is authoring-only in MVP. The compiler flattens it into ordered `CompiledContainer` entries inside `CompiledProgram`. The runtime only executes flat program order.
 
-**Rule:** compile-time errors are strongly preferred. Unknown types, missing assets, type mismatches — reject at load with actionable diagnostics.
+**Rule:** compile-time errors are strongly preferred. Unknown types, missing assets, type mismatches - reject at load with actionable diagnostics.
 
 ---
 
@@ -468,7 +468,7 @@ Streaming is a later addition with its own state machine.
 - `AssetBank` buffers are immutable after decode. Both threads read freely.
 - `ProgramInstances` are owned exclusively by the audio thread.
 - `WorldState` is owned exclusively by the control thread.
-- Commands flow one way: host → control → audio. Nothing flows back as shared mutable state.
+- Commands flow one way: host -> control -> audio. Nothing flows back as shared mutable state.
 
 ---
 
@@ -508,7 +508,7 @@ tests/                            unit and integration tests
 - Load json, compile into `CompiledBank`, preload all assets into `AssetBank`
 - Submit tags and float values for entities
 - Submit transient events
-- Resolve behaviors → send `CreateInstance` commands
+- Resolve behaviors -> send `CreateInstance` commands
 - Audio thread instantiates `ProgramInstance` objects from compiled programs, executes containers, mixes output
 - Seamless container transitions within a block
 - `RequestStop` triggers loop exit and program retirement
@@ -532,7 +532,7 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 ## 22. Roadmap
 
-**Phase 0 — Scaffolding**
+**Phase 0 - Scaffolding**
 
 * [x] repo layout, build system, CI stub
 * [x] empty Engine struct, public C API shell (just the header, no impl)
@@ -541,36 +541,36 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 * [x] Testable: project compiles, queue passes unit tests (single producer / single consumer, no drops, no races)
 
 
-**Phase 1 — Compiler + CompiledBank**
+**Phase 1 - Compiler + CompiledBank**
 
 * [x] json parser (thirdparty json)
 * [x] parse json into `AuthoringDocument`
 * [x] schema validation
 * [x] lower to `CompiledBehavior` + `CompiledProgram` + `CompiledContainer`
-* [x] `CompiledBank` with id→behavior/program lookup and symbol tables
+* [x] `CompiledBank` with id->behavior/program lookup and symbol tables
 * [x] LoadBehaviors() entry point
 
-* [x] Testable: Validator CLI — load a json file, print compiled bank contents or emit diagnostics
+* [x] Testable: Validator CLI - load a json file, print compiled bank contents or emit diagnostics
 
-**Phase 2 — Control side: world state**
+**Phase 2 - Control side: world state**
 
-* [ ] EntityState (tags + values)
-* [ ] WorldState (flat entity map)
-* [ ] host→control command queue + drain loop
-* [ ] SetTag, RemoveTag, SetValue, DestroyEntity commands implemented
+* [x] EntityState (tags + values)
+* [x] WorldState (flat entity map)
+* [x] host->control command queue + drain loop
+* [x] SetTag, RemoveTag, SetValue, DestroyEntity commands implemented
 
-* [ ] Testable: submit commands from a test harness, inspect WorldState after drain, verify entity state is correct
+* [x] Testable: submit commands from a test harness, inspect WorldState after drain, verify entity state is correct
 
-**Phase 3 — AssetBank**
+**Phase 3 - AssetBank**
 
 * [ ] asset discovery from compiled bank manifest
 * [ ] decode to DecodedBuffer (via miniaudio or stb_vorbis)
-* [ ] id→buffer lookup
+* [ ] id->buffer lookup
 * [ ] missing asset diagnostics
 
 * [ ] Testable: load a bank, verify all assets decoded, print asset manifest
 
-**Phase 4 — Audio side: playback**
+**Phase 4 - Audio side: playback**
 
 * [ ] ContainerInstance base + OneShotInstance, LoopInstance, RandomInstance
 * [ ] ProgramInstance with cursor + fill loop
@@ -579,31 +579,31 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 * [ ] Testable: manually send CreateInstance from a test harness, verify getSamples() produces correct output (compare against known buffer), verify RequestStop retires cleanly
 
-**Phase 5 — Resolver: matching**
+**Phase 5 - Resolver: matching**
 
-* [ ] BehaviorResolver — match tags + conditions against CompiledBank
+* [ ] BehaviorResolver - match tags + conditions against CompiledBank
 * [ ] emit CreateInstance on new match
 * [ ] emit RequestStop on lost match
-* [ ] control→audio command queue wired up
+* [ ] control->audio command queue wired up
 
 * [ ] Testable: set tags on an entity, verify correct ProgramInstance is created on audio side. remove tag, verify RequestStop is sent and instance retires
 
-**Phase 6 — Audible output**
+**Phase 6 - Audible output**
 
 * [ ] miniaudio backend wired up
 * [ ] audio thread callback calls fill loop, mixes, spatializes
 * [ ] stereo pan for MVP spatialization
 
-* [ ] Testable: sandbox CLI — load behaviors, set a tag, hear a sound. remove tag, hear it stop.
+* [ ] Testable: sandbox CLI - load behaviors, set a tag, hear a sound. remove tag, hear it stop.
 
-**Phase 7 — Resolver: param forwarding**
+**Phase 7 - Resolver: param forwarding**
 
-* [ ] SetValue on entity → SetVolume / SetPosition forwarded to bound instances
-* [ ] value→param mapping in authored behaviors
+* [ ] SetValue on entity -> SetVolume / SetPosition forwarded to bound instances
+* [ ] value->param mapping in authored behaviors
 
 * [ ] Testable: change entity position value, verify audio instance position updates
 
-**Phase 8 — Debugging + CLI**
+**Phase 8 - Debugging + CLI**
 
 * [ ] runtime debug dump (active instances, current container, asset playing)
 * [ ] match explanation (why did/didn't behavior B match entity X)
@@ -611,10 +611,10 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 * [ ] Testable: interactive session, inspect everything
 
-**Phase 9 — Hardening**
+**Phase 9 - Hardening**
 
 * [ ] unit tests for compiler, resolver, container types
-* [ ] integration test: full round-trip from json → audible output
+* [ ] integration test: full round-trip from json -> audible output
 * [ ] reload test: swap bank while instances are playing
 * [ ] profiling pass
 
@@ -643,7 +643,7 @@ Audio:    executes CompiledProgram via ContainerInstance subclasses
           fills blocks, handles transitions, spatializes, mixes
 ```
 
-Control is the brain. Audio is a small deterministic executor. The compiler is where the real complexity lives — and it runs once, offline, with no RT constraints.
+Control is the brain. Audio is a small deterministic executor. The compiler is where the real complexity lives - and it runs once, offline, with no RT constraints.
 
 If those boundaries hold, the engine is debuggable, reloadable, and RT-safe by construction.
 If they blur, it collapses.
