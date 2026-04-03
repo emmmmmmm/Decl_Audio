@@ -1,30 +1,30 @@
 #include <chrono>
 #include <filesystem>
 #include <iostream>
-#include <string>
 #include <sstream>
+#include <string>
 #include <thread>
 
 #include "../../src/compiler/Compiler.hpp"
 #include "../../src/core/Engine.hpp"
 
 namespace fs = std::filesystem;
+
 namespace
 {
-
     struct CliOptions
     {
         fs::path bankPath = fs::current_path();
-        fs::path assetPath = fs::current_path();
         bool autoTests = false;
     };
 
-    void PrintUsage(const char *exeName)
+    void PrintUsage(const char *exe_name)
     {
         std::cout
-            << "Usage: " << exeName << " [options]\n"
-            << "  --banks <path>        Asset root directory\n"
-            << "  --automatedTesting     Starts auto-testing routine\n"
+            << "Usage: " << exe_name << " [options]\n"
+            << "  --bank <path>          Behavior bank JSON path\n"
+            << "  --banks <path>         Alias for --bank\n"
+            << "  --automatedTesting     Run the built-in sandbox routine before the prompt\n"
             << "  --help                 Show this help\n";
     }
 
@@ -37,15 +37,14 @@ namespace
             << "  clear <entity> <tag>\n"
             << "  transient <entity> <tag>\n"
             << "  float <entity> <key> <value>\n"
-            << "  string <entity> <key> <value...>\n"
             << "  pos <entity> <x> <y> <z>\n"
-            << "  quat <entity> <a> <b> <c> <d>\n"
-            << "  transform <entity> <x> <y> <z> <a> <b> <c> <d>\n"
+            << "  listener <x> <y> <z>\n"
+            << "  destroy <entity>\n"
             << "  dump\n"
             << "  exit\n";
     }
 
-    bool ParseArgs(int argc, char **argv, CliOptions &options, bool &shouldExit)
+    bool ParseArgs(int argc, char **argv, CliOptions &options, bool &should_exit)
     {
         for (int i = 1; i < argc; ++i)
         {
@@ -54,33 +53,30 @@ namespace
             if (arg == "--help" || arg == "-h")
             {
                 PrintUsage(argv[0]);
-                shouldExit = true;
-                return false;
-            }
-            if (i + 1 >= argc)
-            {
-                std::cerr << "Missing value for " << arg << '\n';
+                should_exit = true;
                 return false;
             }
 
-            const std::string value = argv[++i];
-            if (arg == "--assets")
-            {
-                options.assetPath = value;
-            }
-            else if (arg == "--banks")
-            {
-                options.bankPath = value;
-            }
-            else if (arg == "--automatedTesting")
+            if (arg == "--automatedTesting")
             {
                 options.autoTests = true;
+                continue;
             }
-            else
+
+            if (arg == "--bank" || arg == "--banks")
             {
-                std::cerr << "Unknown option: " << arg << '\n';
-                return false;
+                if (i + 1 >= argc)
+                {
+                    std::cerr << "Missing value for " << arg << '\n';
+                    return false;
+                }
+
+                options.bankPath = argv[++i];
+                continue;
             }
+
+            std::cerr << "Unknown option: " << arg << '\n';
+            return false;
         }
 
         return true;
@@ -102,157 +98,182 @@ namespace
 
     fs::path GetDefaultBankPath()
     {
-        return fs::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "PlaybackBehaviorBank.json";
-    }
-
-    fs::path GetPhase7BankPath()
-    {
-        return fs::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "ParameterForwardingBehaviorBank.json";
-    }
-    fs::path GetSpatializationBankPath()
-    {
-        return fs::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "SpatializationBehaviorBank.json";
+        return fs::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "SandboxBehaviorBank.json";
     }
 
     void PrintSection(const char *label, const char *description)
     {
         std::cout << '\n'
-                  << label << '\n';
-        std::cout << description << '\n';
+                  << label << '\n'
+                  << description << '\n';
     }
 
-    bool RunOneShotTest(decl_audio::Engine &engine, const decl_audio::compiler::CompiledBank &bank)
+    bool ClearEntity(decl_audio::Engine &engine, const char *entity_id, const std::uint32_t wait_ms = 100)
     {
+        engine.DestroyEntity(entity_id);
+        engine.Update();
+        return RunWait(engine, wait_ms);
+    }
+
+    bool RunOneShotTest(decl_audio::Engine &engine)
+    {
+        constexpr const char *kEntityId = "sandbox.oneshot";
+
         PrintSection("OneShot", "You should hear one short hit, then silence.");
-        engine.SubmitCreateInstanceForTesting(1001, bank.GetProgramId("playback.oneshot"));
-        return RunWait(engine, 1000);
+        engine.SetTransientTag(kEntityId, "sandbox.playback.oneshot");
+        engine.Update();
+        if (!RunWait(engine, 1000))
+        {
+            return false;
+        }
+
+        return ClearEntity(engine, kEntityId);
     }
 
-    bool RunLoopTest(decl_audio::Engine &engine, const decl_audio::compiler::CompiledBank &bank)
+    bool RunLoopTest(decl_audio::Engine &engine)
     {
-        constexpr decl_audio::playback::InstanceId kLoopInstanceId = 1002;
+        constexpr const char *kEntityId = "sandbox.loop";
 
         PrintSection("Loop", "You should hear a steady loop for two seconds, then it should stop cleanly.");
-        engine.SubmitCreateInstanceForTesting(kLoopInstanceId, bank.GetProgramId("playback.loop"));
+        engine.SetTag(kEntityId, "sandbox.playback.loop");
+        engine.Update();
         if (!RunWait(engine, 2000))
         {
             return false;
         }
 
-        engine.SubmitRequestStopForTesting(kLoopInstanceId);
-        return RunWait(engine, 1000);
+        engine.RemoveTag(kEntityId, "sandbox.playback.loop");
+        engine.Update();
+        if (!RunWait(engine, 1000))
+        {
+            return false;
+        }
+
+        return ClearEntity(engine, kEntityId);
     }
 
-    bool RunRandomTest(decl_audio::Engine &engine, const decl_audio::compiler::CompiledBank &bank)
+    bool RunRandomTest(decl_audio::Engine &engine)
     {
+        constexpr const char *kEntityId = "sandbox.random";
+
         PrintSection("Random", "You should hear three short hits. They may alternate between the two source assets.");
-        engine.SubmitCreateInstanceForTesting(1003, bank.GetProgramId("playback.random"));
+        engine.SetTransientTag(kEntityId, "sandbox.playback.random");
+        engine.Update();
         if (!RunWait(engine, 700))
         {
             return false;
         }
 
-        engine.SubmitCreateInstanceForTesting(1004, bank.GetProgramId("playback.random"));
+        engine.SetTransientTag(kEntityId, "sandbox.playback.random");
+        engine.Update();
         if (!RunWait(engine, 700))
         {
             return false;
         }
 
-        engine.SubmitCreateInstanceForTesting(1005, bank.GetProgramId("playback.random"));
-        return RunWait(engine, 700);
+        engine.SetTransientTag(kEntityId, "sandbox.playback.random");
+        engine.Update();
+        if (!RunWait(engine, 700))
+        {
+            return false;
+        }
+
+        return ClearEntity(engine, kEntityId);
     }
 
     bool RunParamForwardingTest(decl_audio::Engine &engine)
     {
-        const fs::path bank_path = GetPhase7BankPath();
+        constexpr const char *kEntityId = "sandbox.param";
+
         PrintSection("Param Forwarding", "You should hear a quiet loop first, then a louder loop after the runtime volume parameter changes.");
-
-        if (!engine.LoadBehaviors(bank_path.string().c_str()))
-        {
-            std::cerr << decl_audio::compiler::DumpDiagnostics(engine.GetLoadDiagnostics());
-            return false;
-        }
-
-        engine.SetValue("player", "volume", 0.2f);
-        engine.SetTag("player", "resolver.active");
+        engine.SetValue(kEntityId, "volume", 0.2f);
+        engine.SetTag(kEntityId, "resolver.active");
         engine.Update();
         if (!RunWait(engine, 1000))
         {
             return false;
         }
 
-        engine.SetValue("player", "volume", 1.0f);
+        engine.SetValue(kEntityId, "volume", 1.0f);
         engine.Update();
         if (!RunWait(engine, 1000))
         {
             return false;
         }
 
-        engine.RemoveTag("player", "resolver.active");
+        engine.RemoveTag(kEntityId, "resolver.active");
         engine.Update();
-        return RunWait(engine, 700);
+        if (!RunWait(engine, 700))
+        {
+            return false;
+        }
+
+        return ClearEntity(engine, kEntityId);
     }
+
     bool RunPanningTest(decl_audio::Engine &engine)
     {
-        const fs::path bank_path = GetSpatializationBankPath();
-        PrintSection("Panning Test", "you should hear a sound on your right");
+        constexpr const char *kEntityId = "sandbox.pan";
 
-        if (!engine.LoadBehaviors(bank_path.string().c_str()))
-        {
-            std::cerr << decl_audio::compiler::DumpDiagnostics(engine.GetLoadDiagnostics());
-            return false;
-        }
-        engine.SetListenerPosition(-1, 0, 0);
-        engine.SetPosition("player", 3, 0, 0);
-        engine.SetTag("player", "spatial.mono");
+        PrintSection("Panning Test", "You should hear a sound on your right.");
+        engine.SetListenerPosition(-1.0f, 0.0f, 0.0f);
+        engine.SetPosition(kEntityId, 3.0f, 0.0f, 0.0f);
+        engine.SetTag(kEntityId, "spatial.mono");
         engine.Update();
         if (!RunWait(engine, 500))
         {
             return false;
         }
-        engine.SetListenerPosition(-1, 0, 0);
-        engine.SetPosition("player", 1, 0, 0);
-        engine.Update();
-        if (!RunWait(engine, 500))
-        {
-            return false;
-        }
-        PrintSection("Panning Test", "you should hear a sound on your left");
 
-        engine.SetListenerPosition(1, 0, 0);
-        engine.SetPosition("player", -1, 0, 0);
+        engine.SetPosition(kEntityId, 1.0f, 0.0f, 0.0f);
         engine.Update();
         if (!RunWait(engine, 500))
         {
             return false;
         }
-        engine.SetListenerPosition(1, 0, 0);
-        engine.SetPosition("player", -3, 0, 0);
+
+        PrintSection("Panning Test", "You should hear a sound on your left.");
+        engine.SetListenerPosition(1.0f, 0.0f, 0.0f);
+        engine.SetPosition(kEntityId, -1.0f, 0.0f, 0.0f);
         engine.Update();
         if (!RunWait(engine, 500))
         {
             return false;
         }
-        engine.RemoveTag("player", "spatial.mono");
+
+        engine.SetPosition(kEntityId, -3.0f, 0.0f, 0.0f);
         engine.Update();
-        return RunWait(engine, 700);
+        if (!RunWait(engine, 500))
+        {
+            return false;
+        }
+
+        engine.RemoveTag(kEntityId, "spatial.mono");
+        engine.SetListenerPosition(0.0f, 0.0f, 0.0f);
+        engine.Update();
+        if (!RunWait(engine, 700))
+        {
+            return false;
+        }
+
+        return ClearEntity(engine, kEntityId);
     }
 
     bool RunTransientTagTest(decl_audio::Engine &engine)
     {
-        const fs::path bank_path = GetSpatializationBankPath();
-        PrintSection("TransientTag Test", "you should hear a sound");
+        constexpr const char *kEntityId = "sandbox.transient";
 
-        if (!engine.LoadBehaviors(bank_path.string().c_str()))
+        PrintSection("TransientTag Test", "You should hear a short sound triggered by a transient tag.");
+        engine.SetListenerPosition(0.0f, 0.0f, 0.0f);
+        engine.SetPosition(kEntityId, 0.0f, 0.0f, 0.0f);
+        engine.SetTransientTag(kEntityId, "spatial.mono");
+        engine.Update();
+        if (!RunWait(engine, 700))
         {
-            std::cerr << decl_audio::compiler::DumpDiagnostics(engine.GetLoadDiagnostics());
             return false;
         }
-        engine.SetListenerPosition(0, 0, 0);
-        engine.SetPosition("player", 0, 0, 0);
-        engine.SetTransientTag("player", "spatial.mono");
-        engine.Update();
-        return RunWait(engine, 700);
+
+        return ClearEntity(engine, kEntityId);
     }
 
     bool ProcessCommand(decl_audio::Engine &engine, const std::string &line)
@@ -320,7 +341,6 @@ namespace
                 return true;
             }
         }
-
         else if (command == "pos")
         {
             std::string entity;
@@ -333,50 +353,33 @@ namespace
                 return true;
             }
         }
-        // else if (command == "quat")
-        // {
-        //     std::string entity;
-        //     float a = 0.0f;
-        //     float b = 0.0f;
-        //     float c = 0.0f;
-        //     float d = 1.0f;
-        //     if (input >> entity >> a >> b >> c >> d)
-        //     {
-        //         AudioManager_SetQuatValue(entity.c_str(), "rotation", a, b, c, d);
-        //         return true;
-        //     }
-        // }
-        // else if (command == "transform")
-        // {
-        //     std::string entity;
-        //     float x = 0.0f;
-        //     float y = 0.0f;
-        //     float z = 0.0f;
-        //     float a = 0.0f;
-        //     float b = 0.0f;
-        //     float c = 0.0f;
-        //     float d = 1.0f;
-        //     if (input >> entity >> x >> y >> z >> a >> b >> c >> d)
-        //     {
-        //         AudioManager_SetTransform(entity.c_str(), x, y, z, a, b, c, d);
-        //         return true;
-        //     }
-        // }
+        else if (command == "listener")
+        {
+            float x = 0.0f;
+            float y = 0.0f;
+            float z = 0.0f;
+            if (input >> x >> y >> z)
+            {
+                engine.SetListenerPosition(x, y, z);
+                return true;
+            }
+        }
+        else if (command == "destroy")
+        {
+            std::string entity;
+            if (input >> entity)
+            {
+                engine.DestroyEntity(entity.c_str());
+                return true;
+            }
+        }
 
         std::cout << "Invalid command. Type `help` for supported commands.\n";
         return true;
     }
+
     bool RunInteractiveTest(decl_audio::Engine &engine)
     {
-        const fs::path bank_path = GetSpatializationBankPath();
-
-        // that's kind of stupid and we should not do that! xD really we need to reconsider how we load banks in the test-thing at all
-        if (!engine.LoadBehaviors(bank_path.string().c_str()))
-        {
-            std::cerr << decl_audio::compiler::DumpDiagnostics(engine.GetLoadDiagnostics());
-            return false;
-        }
-
         PrintPromptHelp();
 
         std::string line;
@@ -384,29 +387,30 @@ namespace
         {
             if (!ProcessCommand(engine, line))
             {
-                return 0;
+                return true;
             }
-            engine.Update(); // huh?
-        }
-        return 0;
-    }
 
+            engine.Update();
+        }
+
+        return true;
+    }
 } // namespace
 
 int main(int argc, char **argv)
 {
-
     CliOptions options;
     options.bankPath = GetDefaultBankPath();
-    bool shouldExit = false;
-    if (!ParseArgs(argc, argv, options, shouldExit))
+
+    bool should_exit = false;
+    if (!ParseArgs(argc, argv, options, should_exit))
     {
-        return shouldExit ? 0 : 1;
+        return should_exit ? 0 : 1;
     }
 
     EngineConfig config = GetDefaultConfig();
-
     decl_audio::Engine engine(config);
+
     std::cout << "Loading bank: " << options.bankPath << '\n';
     if (!engine.LoadBehaviors(options.bankPath.string().c_str()))
     {
@@ -414,30 +418,18 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(options.bankPath);
-    if (compile_result.HasErrors())
-    {
-        std::cerr << decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
-        return 1;
-    }
-
     if (options.autoTests)
     {
-        if (!RunOneShotTest(engine, compile_result.bank))
+        if (!RunOneShotTest(engine))
             return 1;
-
-        if (!RunLoopTest(engine, compile_result.bank))
+        if (!RunLoopTest(engine))
             return 1;
-
-        if (!RunRandomTest(engine, compile_result.bank))
+        if (!RunRandomTest(engine))
             return 1;
-
         if (!RunParamForwardingTest(engine))
             return 1;
-
         if (!RunPanningTest(engine))
             return 1;
-
         if (!RunTransientTagTest(engine))
             return 1;
     }

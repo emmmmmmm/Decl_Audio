@@ -146,54 +146,6 @@ namespace decl_audio
             std::string(entity_id)});
     }
 
-    void Engine::SubmitCreateInstanceForTesting(const playback::InstanceId instance_id,
-                                                const compiler::ProgramId program_id,
-                                                const float volume,
-                                                const Vec3 position) noexcept
-    {
-        audio_runtime_.Submit(playback::CreateInstanceCommand{
-            instance_id,
-            program_id,
-            position,
-            volume});
-    }
-
-    void Engine::SubmitSetVolumeForTesting(const playback::InstanceId instance_id, const float volume) noexcept
-    {
-        audio_runtime_.Submit(playback::SetVolumeCommand{
-            instance_id,
-            volume});
-    }
-
-    void Engine::SubmitSetPositionForTesting(const playback::InstanceId instance_id, const Vec3 position) noexcept
-    {
-        audio_runtime_.Submit(playback::SetPositionCommand{
-            instance_id,
-            position});
-    }
-
-    void Engine::SubmitSetListenerPositionForTesting(const Vec3 position) noexcept
-    {
-        audio_runtime_.Submit(playback::SetListenerPositionCommand{
-            position});
-    }
-
-    void Engine::SubmitRequestStopForTesting(const playback::InstanceId instance_id) noexcept
-    {
-        audio_runtime_.Submit(playback::RequestStopCommand{
-            instance_id});
-    }
-
-    void Engine::RenderAudioForTesting(float *output, const std::uint32_t frames) noexcept
-    {
-        audio_runtime_.Render(output, frames);
-    }
-
-    void Engine::PumpAudioForTesting(const std::uint32_t frames) noexcept
-    {
-        stub_backend_.Pump(audio_runtime_, frames);
-    }
-
     bool Engine::StartConfiguredAudioBackend(const char *source_path) noexcept
     {
         if (config.backend == DECL_AUDIO_BACKEND_SILENT)

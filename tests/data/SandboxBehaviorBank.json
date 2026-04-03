@@ -1,0 +1,98 @@
+{
+  "behaviors": [
+    {
+      "id": "sandbox.playback.oneshot",
+      "matchTags": [
+        "sandbox.playback.oneshot"
+      ],
+      "program": [
+        {
+          "type": "oneshot",
+          "asset": "audio/test_48_24_1ch.wav",
+          "volume": 0.5
+        }
+      ]
+    },
+    {
+      "id": "sandbox.playback.loop",
+      "matchTags": [
+        "sandbox.playback.loop"
+      ],
+      "program": [
+        {
+          "type": "loop",
+          "asset": "audio/test_48_24_1ch.wav",
+          "loopCount": -1,
+          "volume": 0.75
+        }
+      ]
+    },
+    {
+      "id": "sandbox.playback.random",
+      "matchTags": [
+        "sandbox.playback.random"
+      ],
+      "program": [
+        {
+          "type": "random",
+          "assets": [
+            "audio/test_48_24_1ch.wav",
+            "audio/test_48_24_2ch.wav"
+          ],
+          "volume": 0.8
+        }
+      ]
+    },
+    {
+      "id": "resolver.param_forwarding",
+      "matchTags": [
+        "resolver.active"
+      ],
+      "program": [
+        {
+          "type": "loop",
+          "asset": "audio/test_48_24_1ch.wav",
+          "loopCount": -1,
+          "volume": 0.4
+        }
+      ]
+    },
+    {
+      "id": "spatial.mono",
+      "matchTags": [
+        "spatial.mono"
+      ],
+      "spatialization": {
+        "minDistance": 1.0,
+        "maxDistance": 5.0,
+        "attenuation": "linear"
+      },
+      "program": [
+        {
+          "type": "loop",
+          "asset": "audio/test_48_24_1ch.wav",
+          "loopCount": -1,
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "id": "spatial.stereo",
+      "matchTags": [
+        "spatial.stereo"
+      ],
+      "spatialization": {
+        "minDistance": 1.0,
+        "maxDistance": 5.0,
+        "attenuation": "linear"
+      },
+      "program": [
+        {
+          "type": "oneshot",
+          "asset": "audio/test_48_24_2ch.wav",
+          "volume": 1.0
+        }
+      ]
+    }
+  ]
+}
