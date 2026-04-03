@@ -186,12 +186,14 @@ namespace decl_audio
             std::string(entity_id),
             compiled_bank_->GetTagId(tag)});
     }
+
     void Engine::SetTransientTag(const char *entity_id, const char *tag) noexcept
     {
         control_runtime_.Submit(runtime::SetTransientTagCommand{
             std::string(entity_id),
             compiled_bank_->GetTagId(tag)}); // transient
     }
+
     void Engine::SetValue(const char *entity_id, const char *parameter, float value) noexcept
     {
         if (std::string_view(parameter) == "volume")
@@ -235,11 +237,11 @@ namespace decl_audio
                                                                                 ? BuildReverseLookup(compiled_bank_->tag_name_to_id)
                                                                                 : std::unordered_map<compiler::TagId, std::string>{};
         const std::unordered_map<compiler::ParameterId, std::string> parameters_by_id = compiled_bank_ != nullptr
-                                                                                             ? BuildReverseLookup(compiled_bank_->parameter_name_to_id)
-                                                                                             : std::unordered_map<compiler::ParameterId, std::string>{};
+                                                                                            ? BuildReverseLookup(compiled_bank_->parameter_name_to_id)
+                                                                                            : std::unordered_map<compiler::ParameterId, std::string>{};
         const std::unordered_map<compiler::ProgramId, std::string> programs_by_id = compiled_bank_ != nullptr
-                                                                                         ? BuildReverseLookup(compiled_bank_->program_name_to_id)
-                                                                                         : std::unordered_map<compiler::ProgramId, std::string>{};
+                                                                                        ? BuildReverseLookup(compiled_bank_->program_name_to_id)
+                                                                                        : std::unordered_map<compiler::ProgramId, std::string>{};
 
         std::vector<std::string> entity_ids;
         entity_ids.reserve(world_state.entities.size());
@@ -360,16 +362,7 @@ namespace decl_audio
 
             if (compiled_bank_ != nullptr)
             {
-                const compiler::CompiledProgram &program = compiled_bank_->GetProgram(instance.program_id);
-                const compiler::CompiledContainer &container = compiled_bank_->containers[program.first_container + instance.cursor];
-                const std::span<const compiler::AssetId> asset_ids = compiled_bank_->GetContainerAssets(container);
-                std::cout << "    assets: " << asset_ids.size() << '\n';
-                for (std::size_t asset_index = 0; asset_index < asset_ids.size(); ++asset_index)
-                {
-                    const compiler::AssetId asset_id = asset_ids[asset_index];
-                    std::cout << "      [" << asset_index << "] " << compiled_bank_->GetAssetPath(asset_id)
-                              << " (asset_id=" << asset_id << ")\n";
-                }
+                std::cout << decl_audio::compiler::DumpCompiledBank(*compiled_bank_.get());
             }
         }
 
