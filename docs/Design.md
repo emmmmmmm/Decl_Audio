@@ -652,7 +652,7 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 ## 23. Open Decisions
 
 - Which `AudioConfig` fields are required in the public API for MVP beyond sample rate, sample format, output channels, callback frames, and backend preference?
-- Should phase 7.5 attenuation be authored only as a fixed range first, or should parameter-driven range mapping ship in the same phase?
+
 - When spatialization expands beyond pan/range, do we want one listener only for MVP+1, or should multi-listener support be planned into the command shape immediately?
 
 ---
