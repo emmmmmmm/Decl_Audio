@@ -39,6 +39,11 @@ namespace decl_audio::runtime
         Vec3 position{};
     };
 
+    struct SetListenerPositionCommand final
+    {
+        Vec3 position{};
+    };
+
     struct DestroyEntityCommand final
     {
         std::string entity_id;
@@ -50,5 +55,6 @@ namespace decl_audio::runtime
         SetFloatValueCommand,
         SetEntityVolumeCommand,
         SetEntityPositionCommand,
+        SetListenerPositionCommand,
         DestroyEntityCommand>;
 } // namespace decl_audio::runtime

@@ -5,6 +5,7 @@
 
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -114,6 +115,17 @@ namespace decl_audio::compiler
 
             is_valid = false;
             return AuthoringContainerType::OneShot;
+        }
+
+        [[nodiscard]] AttenuationMode ParseAttenuationMode(std::string_view attenuation_name, bool &is_valid)
+        {
+            is_valid = true;
+
+            if (attenuation_name == "linear")
+                return AttenuationMode::Linear;
+
+            is_valid = false;
+            return AttenuationMode::Linear;
         }
 
         AuthoringCondition ParseCondition(const Json &condition_json,
@@ -274,6 +286,75 @@ namespace decl_audio::compiler
             return container;
         }
 
+        AuthoringSpatializationSettings ParseSpatialization(const Json &spatialization_json,
+                                                            std::string_view source_path,
+                                                            std::string_view field_path,
+                                                            std::vector<Diagnostic> &diagnostics)
+        {
+            AuthoringSpatializationSettings spatialization;
+            spatialization.location = MakeLocation(source_path, field_path);
+            spatialization.mode = SpatializationMode::Pan;
+            spatialization.min_distance = std::numeric_limits<float>::quiet_NaN();
+            spatialization.max_distance = std::numeric_limits<float>::quiet_NaN();
+
+            if (!spatialization_json.is_object())
+            {
+                diagnostics.push_back(MakeError(source_path, field_path, "must be an object"));
+                return spatialization;
+            }
+
+            for (auto it = spatialization_json.begin(); it != spatialization_json.end(); ++it)
+            {
+                const std::string key = it.key();
+                if (key != "minDistance" && key != "maxDistance" && key != "attenuation")
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + "." + key, "is not a supported spatialization field"));
+            }
+
+            if (!spatialization_json.contains("minDistance"))
+            {
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".minDistance", "is required"));
+            }
+            else if (!IsNumber(spatialization_json["minDistance"]))
+            {
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".minDistance", "must be numeric"));
+            }
+            else
+            {
+                spatialization.min_distance = spatialization_json["minDistance"].get<float>();
+            }
+
+            if (!spatialization_json.contains("maxDistance"))
+            {
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".maxDistance", "is required"));
+            }
+            else if (!IsNumber(spatialization_json["maxDistance"]))
+            {
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".maxDistance", "must be numeric"));
+            }
+            else
+            {
+                spatialization.max_distance = spatialization_json["maxDistance"].get<float>();
+            }
+
+            if (!spatialization_json.contains("attenuation"))
+            {
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".attenuation", "is required"));
+            }
+            else if (!spatialization_json["attenuation"].is_string())
+            {
+                diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".attenuation", "must be a string"));
+            }
+            else
+            {
+                bool is_valid = false;
+                spatialization.attenuation = ParseAttenuationMode(spatialization_json["attenuation"].get<std::string>(), is_valid);
+                if (!is_valid)
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".attenuation", "has unsupported attenuation mode"));
+            }
+
+            return spatialization;
+        }
+
         AuthoringBehavior ParseBehavior(const Json &behavior_json,
                                         std::string_view source_path,
                                         std::string_view field_path,
@@ -305,6 +386,9 @@ namespace decl_audio::compiler
 
             if (behavior_json.contains("parameters"))
                 AppendStringArray(behavior_json["parameters"], behavior.location, std::string(field_path) + ".parameters", behavior.parameters, diagnostics);
+
+            if (behavior_json.contains("spatialization"))
+                behavior.spatialization = ParseSpatialization(behavior_json["spatialization"], source_path, std::string(field_path) + ".spatialization", diagnostics);
 
             if (behavior_json.contains("matchConditions"))
             {
@@ -450,6 +534,30 @@ namespace decl_audio::compiler
 
             return "<invalid>";
         }
+
+        [[nodiscard]] const char *ToString(SpatializationMode mode)
+        {
+            switch (mode)
+            {
+            case SpatializationMode::None:
+                return "none";
+            case SpatializationMode::Pan:
+                return "pan";
+            }
+
+            return "<invalid>";
+        }
+
+        [[nodiscard]] const char *ToString(AttenuationMode attenuation)
+        {
+            switch (attenuation)
+            {
+            case AttenuationMode::Linear:
+                return "linear";
+            }
+
+            return "<invalid>";
+        }
     } // namespace
 
     ParseResult ParseAuthoringJson(std::string_view source_text, std::string_view source_path)
@@ -568,6 +676,20 @@ namespace decl_audio::compiler
             compiled_program.id = program_id;
             compiled_program.first_container = first_container;
             compiled_program.container_count = container_count;
+            compiled_program.spatialization.mode = behavior.spatialization.mode;
+            compiled_program.spatialization.min_distance = behavior.spatialization.min_distance;
+            compiled_program.spatialization.max_distance = behavior.spatialization.max_distance;
+            compiled_program.spatialization.attenuation = behavior.spatialization.attenuation;
+
+            if (compiled_program.spatialization.mode == SpatializationMode::Pan)
+            {
+                if (compiled_program.spatialization.min_distance < 0.0f)
+                    result.diagnostics.push_back(MakeError(behavior.spatialization.location, "behavior '" + behavior.id + "' spatialization minDistance must be >= 0"));
+
+                if (compiled_program.spatialization.max_distance <= compiled_program.spatialization.min_distance)
+                    result.diagnostics.push_back(MakeError(behavior.spatialization.location, "behavior '" + behavior.id + "' spatialization maxDistance must be > minDistance"));
+            }
+
             result.bank.programs.push_back(compiled_program);
 
             CompiledBehavior compiled_behavior;
@@ -650,6 +772,15 @@ namespace decl_audio::compiler
         {
             stream << "Behavior[" << behavior.id << "]\n";
             stream << "  program: " << behavior.program_id << '\n';
+            const CompiledProgram &program = bank.GetProgram(behavior.program_id);
+            stream << "  spatialization: mode=" << ToString(program.spatialization.mode);
+            if (program.spatialization.mode != SpatializationMode::None)
+            {
+                stream << " minDistance=" << program.spatialization.min_distance
+                       << " maxDistance=" << program.spatialization.max_distance
+                       << " attenuation=" << ToString(program.spatialization.attenuation);
+            }
+            stream << '\n';
             stream << "  tags:";
 
             for (TagId tag_id : bank.GetBehaviorTags(behavior.id))

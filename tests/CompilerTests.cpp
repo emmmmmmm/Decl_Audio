@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <string_view>
 
 #include "../include/Decl_Audio/Decl_Audio.h"
 #include "../src/compiler/CompiledBank.hpp"
@@ -150,6 +151,105 @@ bool TestReservedRuntimeParamsNeedNoDeclarations()
     return true;
 }
 
+bool TestSpatializationFixtureCompilesProgramSettings()
+{
+    const std::filesystem::path fixture_path = GetFixturePath("SpatializationBehaviorBank.json");
+    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+
+    if (!Expect(!compile_result.HasErrors(), "phase 7.5 spatialization fixture should compile without errors"))
+    {
+        std::cerr << decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
+        return false;
+    }
+
+    const decl_audio::compiler::CompiledProgram &mono_program = compile_result.bank.GetProgram(compile_result.bank.GetProgramId("spatial.mono"));
+    if (!Expect(mono_program.spatialization.mode == decl_audio::compiler::SpatializationMode::Pan, "spatialized mono program should compile with pan mode"))
+        return false;
+    if (!Expect(mono_program.spatialization.min_distance == 1.0f, "spatialized mono program should retain minDistance"))
+        return false;
+    if (!Expect(mono_program.spatialization.max_distance == 5.0f, "spatialized mono program should retain maxDistance"))
+        return false;
+    if (!Expect(mono_program.spatialization.attenuation == decl_audio::compiler::AttenuationMode::Linear, "spatialized mono program should compile linear attenuation"))
+        return false;
+
+    const decl_audio::compiler::CompiledProgram &stereo_program = compile_result.bank.GetProgram(compile_result.bank.GetProgramId("spatial.stereo"));
+    if (!Expect(stereo_program.spatialization.mode == decl_audio::compiler::SpatializationMode::Pan, "spatialized stereo program should compile with pan mode"))
+        return false;
+
+    return true;
+}
+
+bool TestSpatializationValidationFailsLoudly()
+{
+    constexpr std::string_view kInvalidSpatializationSource = R"json(
+{
+  "behaviors": [
+    {
+      "id": "spatial.invalid.parse",
+      "spatialization": {
+        "minDistance": 1.0,
+        "attenuation": "quadratic",
+        "mode": "pan"
+      },
+      "program": [
+        {
+          "type": "oneshot",
+          "asset": "audio/test_48_24_1ch.wav"
+        }
+      ]
+    }
+  ]
+}
+)json";
+
+    const decl_audio::compiler::ParseResult parse_result = decl_audio::compiler::ParseAuthoringJson(kInvalidSpatializationSource, "SpatializationValidation.parse.json");
+    if (!Expect(parse_result.HasErrors(), "invalid spatialization parse fixture should emit parse errors"))
+        return false;
+
+    const std::string parse_diagnostics = decl_audio::compiler::DumpDiagnostics(parse_result.diagnostics);
+    if (!Expect(parse_diagnostics.find(".mode: is not a supported spatialization field") != std::string::npos, "spatialization diagnostics should report unsupported fields"))
+        return false;
+    if (!Expect(parse_diagnostics.find(".maxDistance: is required") != std::string::npos, "spatialization diagnostics should report missing maxDistance"))
+        return false;
+    if (!Expect(parse_diagnostics.find(".attenuation: has unsupported attenuation mode") != std::string::npos, "spatialization diagnostics should report unsupported attenuation"))
+        return false;
+
+    constexpr std::string_view kInvalidSpatializationRangeSource = R"json(
+{
+  "behaviors": [
+    {
+      "id": "spatial.invalid.compile",
+      "spatialization": {
+        "minDistance": 4.0,
+        "maxDistance": 2.0,
+        "attenuation": "linear"
+      },
+      "program": [
+        {
+          "type": "oneshot",
+          "asset": "audio/test_48_24_1ch.wav"
+        }
+      ]
+    }
+  ]
+}
+)json";
+
+    const decl_audio::compiler::ParseResult compile_parse_result = decl_audio::compiler::ParseAuthoringJson(kInvalidSpatializationRangeSource, "SpatializationValidation.compile.json");
+    if (!Expect(!compile_parse_result.HasErrors(), "range validation fixture should parse before compile validation"))
+        return false;
+
+    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::CompileAuthoringDocument(compile_parse_result.document);
+    if (!Expect(compile_result.HasErrors(), "invalid spatialization range fixture should emit compile errors"))
+        return false;
+
+    const std::string compile_diagnostics = decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
+    if (!Expect(compile_diagnostics.find("spatialization maxDistance must be > minDistance") != std::string::npos, "spatialization diagnostics should report invalid ranges"))
+        return false;
+
+    return true;
+}
+
 bool TestAudioConfigDefaultsAndValidation()
 {
     AudioConfig audio_config{};
@@ -194,6 +294,12 @@ bool RunCompilerTests()
         return false;
 
     if (!TestReservedRuntimeParamsNeedNoDeclarations())
+        return false;
+
+    if (!TestSpatializationFixtureCompilesProgramSettings())
+        return false;
+
+    if (!TestSpatializationValidationFailsLoudly())
         return false;
 
     std::cout << "Compiler tests passed\n";

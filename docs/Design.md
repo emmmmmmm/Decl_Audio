@@ -175,6 +175,7 @@ The command set is intentionally thin. Control does all the semantic work before
 CreateInstance(instanceId, programId, position, volume)
 SetVolume(instanceId, value)
 SetPosition(instanceId, vec3)
+SetListenerPosition(vec3)
 RequestStop(instanceId)
 ```
 
@@ -185,6 +186,8 @@ That's essentially it.
 **On source kinds:** control may spawn either fire-and-forget instances or entity-bound instances. Fire-and-forget instances carry their initial snapshot on `CreateInstance` and receive no further updates. Entity-bound instances keep a control-side binding so `SetVolume` / `SetPosition` can be forwarded while the match remains active. The audio thread still only sees instance ids and commands; it never sees entities.
 
 **On default instance params:** every instance always has a runtime `volume` and `position`. They default to `1.0` and `Vec3{}`. Authored container `volume` remains a compiled blueprint gain baked into the program. Runtime forwarding updates the instance-level values on top of that.
+
+**On listener state:** listener state is global engine state, not entity state. The host submits it through `SetListenerPosition()`. Control forwards it to audio through the same command path as all other audio updates, so listener changes are block-accurate at MVP timing just like source position and volume changes.
 
 **On reserved runtime values:** `volume` and `position` are reserved entity-side runtime values. They do not need to be declared in authored `parameters`, and they are not valid match-condition inputs. `SetValue(engine, entity, "volume", x)` updates instance volume. `SetPosition(engine, entity, x, y, z)` updates instance position.
 
@@ -226,6 +229,7 @@ struct AuthoringBehavior {
     std::vector<AuthoringCondition> matchConditions;
     std::vector<AuthoringContainer> program;
     std::vector<std::string> parameters; // optional named float params for match conditions
+    AuthoringSpatializationSettings spatialization; // programwide, defaults to none when absent
 };
 ```
 
@@ -261,6 +265,7 @@ struct CompiledProgram {
     ProgramId id;
     uint32_t  firstContainer;
     uint32_t  containerCount;
+    CompiledSpatializationSettings spatialization;
 };
 
 struct CompiledBank {
@@ -442,7 +447,7 @@ Why: mature parsers, human-readable (comments, trailing commas), easy schema val
 Long-term: a custom `.audio` DSL is allowed if authoring ergonomics become the bottleneck. It must compile to the same IR. It is a frontend only, never interpreted at runtime.
 
 **MVP supported behavior fields:**
-`id`, `matchTags`, `matchConditions`, `program`, `parameters`
+`id`, `matchTags`, `matchConditions`, `program`, `parameters`, `spatialization`
 
 **Phase 7 runtime value model:**
 
@@ -455,6 +460,20 @@ Rules:
 - `SetValue()` writes named float values into world state. If the key is `volume`, it updates the reserved runtime volume instead of a generic match parameter.
 - `SetPosition(entityId, x, y, z)` writes the reserved runtime position.
 - Reserved runtime values are not valid in authored `parameters` or `matchConditions`.
+
+**Phase 7.5 spatialization model:**
+
+Rules:
+- `spatialization` is an optional programwide behavior field.
+- If `spatialization` is absent, the program is effectively in `none` mode: positionless and rangeless.
+- If `spatialization` is present, the program is spatialized in `pan` mode.
+- Spatialization is programwide for MVP. A single program cannot mix spatialized and non-spatialized containers.
+- `spatialization` requires exactly `minDistance`, `maxDistance`, and `attenuation`.
+- The only valid `attenuation` value in MVP is `linear`.
+- Compile-time validation rejects partial `spatialization`, unknown spatialization fields, `minDistance < 0`, and `maxDistance <= minDistance`.
+- Listener position is a dedicated engine state updated via `SetListenerPosition(x, y, z)`.
+- Pan uses `clamp(relative.x / length(relative), -1, 1)` with `0` when distance is zero.
+- Range uses full 3D distance `length(source - listener)`.
 
 **MVP container types:**
 `oneshot`, `loop`, `random`, `sequence`
@@ -482,7 +501,7 @@ For MVP: preload everything.
 
 **Internal mix format:** the runtime renders stereo interleaved float at 48 kHz. Asset channel count is an input property, not the runtime bus format. Mono assets are duplicated to L/R at read time. Stereo assets remain stereo.
 
-**Spatialization rule for MVP:** mono assets can be treated as point sources and panned. Stereo assets keep their authored width; spatialization applies gain/balance without folding them down to mono.
+**Spatialization rule for MVP:** mono assets are treated as point sources and spatialized with equal-power pan plus range attenuation. Stereo assets keep their authored width; spatialization applies per-channel balance and attenuation without folding them down to mono. Mixed mono/stereo assets inside a `random` container are legal and are spatialized according to the picked asset's decoded channel layout.
 
 **Audio device config:** device settings are fixed at engine creation time. `EngineConfig` owns an `AudioConfig` payload with default values that can be overridden before `CreateEngine()`. Runtime reconfiguration is out of scope for MVP and, if added later, must be handled as an explicit device recreation path rather than a mutable setter.
 
@@ -641,15 +660,16 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 **Phase 7.5 - Spatialization**
 
-* [ ] authored sources declare spatialization explicitly (`none`, `pan`, later richer modes)
-* [ ] spatialization settings live in a dedicated authored/runtime struct so range, attenuation model, and later falloff-curve options have a stable home
-* [ ] listener position can be set with a new command `SetListenerPosition()`, forwarded to the audio thread
-* [ ] audio thread owns listener state
-* [ ] audio is spatialized relative to listener position
-* [ ] pan-only spatialization for mono sources
-* [ ] range-based attenuation for spatialized sources
+* [x] authored programs declare spatialization explicitly through optional programwide `spatialization`
+* [x] spatialization settings live in dedicated authored/compiled structs so range, attenuation model, and later falloff-curve options have a stable home
+* [x] listener position can be set with a new command `SetListenerPosition()`, forwarded to the audio thread
+* [x] audio thread owns listener state
+* [x] audio is spatialized relative to listener position
+* [x] pan-only spatialization for mono sources
+* [x] range-based attenuation for spatialized sources
+* [x] stereo sources keep authored width while spatialization applies balance + attenuation
 
-* [ ] Testable: change entity position value and hear output adapt relative position. same for moving listener.
+* [x] Testable: change entity position value and hear output adapt relative position. same for moving listener.
 
 **Phase 8 - Debugging + CLI**
 

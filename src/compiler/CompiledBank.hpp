@@ -37,11 +37,20 @@ namespace decl_audio::compiler
         std::int32_t loop_count = 0;
     };
 
+    struct CompiledSpatializationSettings final
+    {
+        SpatializationMode mode = SpatializationMode::None;
+        float min_distance = 0.0f;
+        float max_distance = 0.0f;
+        AttenuationMode attenuation = AttenuationMode::Linear;
+    };
+
     struct CompiledProgram final
     {
         ProgramId id = 0;
         std::uint32_t first_container = 0;
         std::uint32_t container_count = 0;
+        CompiledSpatializationSettings spatialization;
     };
 
     struct CompiledBank final

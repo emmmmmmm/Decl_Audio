@@ -3,6 +3,7 @@
 #include "AudioRuntime.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <exception>
 #include <limits>
 #include <variant>
@@ -12,6 +13,7 @@ namespace decl_audio::playback
     namespace
     {
         constexpr std::size_t kNotFound = std::numeric_limits<std::size_t>::max();
+        constexpr float kQuarterTurn = 0.78539816339744830962f;
 
         // MixSeed64 finalizer used as a deterministic 64-bit seed mixer.
         // We use this to decorrelate stable ids before modulo-picking random assets.
@@ -45,6 +47,55 @@ namespace decl_audio::playback
             }
 
             return *typed_state;
+        }
+
+        struct StereoMixGains final
+        {
+            float left = 1.0f;
+            float right = 1.0f;
+        };
+
+        [[nodiscard]] StereoMixGains ComputeSpatialMixGains(const compiler::CompiledSpatializationSettings &spatialization,
+                                                            const Vec3 &source_position,
+                                                            const Vec3 &listener_position) noexcept
+        {
+            if (spatialization.mode == compiler::SpatializationMode::None)
+            {
+                return StereoMixGains{};
+            }
+
+            const Vec3 relative = Vec3::subtract(source_position, listener_position);
+            const float distance = relative.magnitude();
+
+            float attenuation = 1.0f;
+            switch (spatialization.attenuation)
+            {
+            case compiler::AttenuationMode::Linear:
+                if (distance <= spatialization.min_distance)
+                {
+                    attenuation = 1.0f;
+                }
+                else if (distance >= spatialization.max_distance)
+                {
+                    attenuation = 0.0f;
+                }
+                else
+                {
+                    attenuation = 1.0f - ((distance - spatialization.min_distance) / (spatialization.max_distance - spatialization.min_distance));
+                }
+                break;
+            }
+
+            float pan = 0.0f;
+            if (distance > 0.0f)
+            {
+                pan = std::clamp(relative.x / distance, -1.0f, 1.0f);
+            }
+
+            const float angle = (pan + 1.0f) * kQuarterTurn;
+            return StereoMixGains{
+                std::cos(angle) * attenuation,
+                std::sin(angle) * attenuation};
         }
     } // namespace
 
@@ -107,10 +158,14 @@ namespace decl_audio::playback
             std::fill_n(scratch_.data(), static_cast<std::size_t>(frames) * OutputChannelCount, 0.0f);
 
             const std::uint32_t written = RenderProgramInstance(instance, scratch_.data(), frames);
-            const float instance_volume = instance.volume;
-            for (std::size_t sample_index = 0; sample_index < static_cast<std::size_t>(frames) * OutputChannelCount; ++sample_index)
+            const StereoMixGains mix_gains = ComputeSpatialMixGains(instance.compiled->spatialization, instance.position, listener_.position);
+            const float left_gain = mix_gains.left * instance.volume;
+            const float right_gain = mix_gains.right * instance.volume;
+            for (std::uint32_t frame_index = 0; frame_index < written; ++frame_index)
             {
-                output[sample_index] += scratch_[sample_index] * instance_volume;
+                const std::size_t sample_index = static_cast<std::size_t>(frame_index) * OutputChannelCount;
+                output[sample_index + 0] += scratch_[sample_index + 0] * left_gain;
+                output[sample_index + 1] += scratch_[sample_index + 1] * right_gain;
             }
 
             if (written < frames)
@@ -226,6 +281,11 @@ namespace decl_audio::playback
         {
             RequireState<LoopState>(instance.current).remaining_loops = 0;
         }
+    }
+
+    void AudioRuntime::Apply(const SetListenerPositionCommand &command) noexcept
+    {
+        listener_.position = command.position;
     }
 
     std::uint32_t AudioRuntime::RenderProgramInstance(ProgramInstance &instance, float *output, const std::uint32_t frames) noexcept

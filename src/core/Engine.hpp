@@ -36,6 +36,7 @@ namespace decl_audio
         virtual void RemoveTag(const char *entity_id, const char *tag) noexcept;
         virtual void SetValue(const char *entity_id, const char *parameter, float value) noexcept;
         virtual void SetPosition(const char *entity_id, float x, float y, float z) noexcept;
+        virtual void SetListenerPosition(float x, float y, float z) noexcept;
         virtual void DestroyEntity(const char *entity_id) noexcept;
 
         // Phase 4 test seam. The C API stays unchanged until resolver/backend work is in place.
@@ -45,6 +46,7 @@ namespace decl_audio
                                                     Vec3 position = {}) noexcept;
         virtual void SubmitSetVolumeForTesting(playback::InstanceId instance_id, float volume) noexcept;
         virtual void SubmitSetPositionForTesting(playback::InstanceId instance_id, Vec3 position) noexcept;
+        virtual void SubmitSetListenerPositionForTesting(Vec3 position) noexcept;
         virtual void SubmitRequestStopForTesting(playback::InstanceId instance_id) noexcept;
         virtual void RenderAudioForTesting(float *output, std::uint32_t frames) noexcept;
         virtual void PumpAudioForTesting(std::uint32_t frames) noexcept;
@@ -58,6 +60,11 @@ namespace decl_audio
                                                                  playback::InstanceSnapshot &snapshot) const noexcept
         {
             return audio_runtime_.TryGetInstanceSnapshot(instance_id, snapshot);
+        }
+
+        [[nodiscard]] const Vec3 &GetListenerPositionForTesting() const noexcept
+        {
+            return audio_runtime_.GetListenerPositionForTesting();
         }
 
         [[nodiscard]] uint32_t GetApiVersion() const noexcept

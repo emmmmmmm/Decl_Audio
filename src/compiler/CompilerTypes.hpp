@@ -20,6 +20,17 @@ namespace decl_audio::compiler
         Greater
     };
 
+    enum class SpatializationMode : std::uint8_t
+    {
+        None,
+        Pan
+    };
+
+    enum class AttenuationMode : std::uint8_t
+    {
+        Linear
+    };
+
     enum class ContainerType : std::uint8_t
     {
         OneShot,

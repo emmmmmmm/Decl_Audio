@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
@@ -34,6 +35,48 @@ bool ExpectNear(float actual, float expected, float tolerance, const char *messa
 std::filesystem::path GetFixturePath(const char *file_name)
 {
     return std::filesystem::path(__FILE__).parent_path() / "data" / file_name;
+}
+
+struct StereoMixGains final
+{
+    float left = 1.0f;
+    float right = 1.0f;
+};
+
+StereoMixGains ComputeExpectedSpatialMix(const Vec3 &source_position,
+                                         const Vec3 &listener_position,
+                                         const float min_distance,
+                                         const float max_distance)
+{
+    constexpr float kQuarterTurn = 0.78539816339744830962f;
+
+    const Vec3 relative = Vec3::subtract(source_position, listener_position);
+    const float distance = relative.magnitude();
+
+    float attenuation = 1.0f;
+    if (distance <= min_distance)
+    {
+        attenuation = 1.0f;
+    }
+    else if (distance >= max_distance)
+    {
+        attenuation = 0.0f;
+    }
+    else
+    {
+        attenuation = 1.0f - ((distance - min_distance) / (max_distance - min_distance));
+    }
+
+    float pan = 0.0f;
+    if (distance > 0.0f)
+    {
+        pan = std::clamp(relative.x / distance, -1.0f, 1.0f);
+    }
+
+    const float angle = (pan + 1.0f) * kQuarterTurn;
+    return StereoMixGains{
+        std::cos(angle) * attenuation,
+        std::sin(angle) * attenuation};
 }
 
 bool TestCreateInstanceProducesExpectedStereoSamples()
@@ -409,6 +452,105 @@ bool TestResolverForwardsBoundParams()
 
     return true;
 }
+
+bool TestSpatializedMonoRespondsToEntityAndListenerMovement()
+{
+    const std::filesystem::path fixture_path = GetFixturePath("SpatializationBehaviorBank.json");
+    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+
+    if (!Expect(!compile_result.HasErrors(), "phase 7.5 mono spatialization fixture should compile"))
+        return false;
+
+    EngineConfig config{};
+    config.struct_size = sizeof(EngineConfig);
+    config.api_version = DECL_AUDIO_API_VERSION;
+
+    decl_audio::Engine engine(config);
+    if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 7.5 mono spatialization fixture should load"))
+        return false;
+
+    const decl_audio::compiler::AssetId asset_id = compile_result.bank.GetAssetId("audio/test_48_24_1ch.wav");
+    const decl_audio::assets::DecodedBuffer &buffer = engine.GetAssetBank().GetBuffer(asset_id);
+    if (!Expect(buffer.frame_count > 2, "phase 7.5 mono fixture should contain enough frames"))
+        return false;
+
+    engine.SetListenerPosition(0.0f, 0.0f, 0.0f);
+    engine.SetPosition("player", 3.0f, 0.0f, 0.0f);
+    engine.SetTag("player", "spatial.mono");
+    engine.Update();
+
+    std::vector<float> startup_output(static_cast<std::size_t>(1) * decl_audio::playback::AudioRuntime::OutputChannelCount);
+    engine.RenderAudioForTesting(startup_output.data(), 1);
+
+    if (!Expect(engine.GetActiveAudioInstanceCountForTesting() == 1, "phase 7.5 mono match should create one bound instance"))
+        return false;
+    if (!Expect(engine.GetListenerPositionForTesting() == Vec3{0.0f, 0.0f, 0.0f}, "listener position should forward through the control and audio chain"))
+        return false;
+
+    const StereoMixGains startup_gains = ComputeExpectedSpatialMix(Vec3{3.0f, 0.0f, 0.0f}, Vec3{0.0f, 0.0f, 0.0f}, 1.0f, 5.0f);
+    const float startup_sample = buffer.samples[0];
+    if (!ExpectNear(startup_output[0], startup_sample * startup_gains.left, 1e-6f, "spatialized mono should pan and attenuate on the left channel"))
+        return false;
+    if (!ExpectNear(startup_output[1], startup_sample * startup_gains.right, 1e-6f, "spatialized mono should pan and attenuate on the right channel"))
+        return false;
+
+    engine.SetListenerPosition(4.0f, 0.0f, 0.0f);
+    engine.Update();
+
+    std::vector<float> updated_output(static_cast<std::size_t>(1) * decl_audio::playback::AudioRuntime::OutputChannelCount);
+    engine.RenderAudioForTesting(updated_output.data(), 1);
+
+    if (!Expect(engine.GetListenerPositionForTesting() == Vec3{4.0f, 0.0f, 0.0f}, "listener movement should stick on the audio thread"))
+        return false;
+
+    const StereoMixGains updated_gains = ComputeExpectedSpatialMix(Vec3{3.0f, 0.0f, 0.0f}, Vec3{4.0f, 0.0f, 0.0f}, 1.0f, 5.0f);
+    const float updated_sample = buffer.samples[1];
+    if (!ExpectNear(updated_output[0], updated_sample * updated_gains.left, 1e-6f, "listener movement should update mono spatialization on the left channel"))
+        return false;
+    if (!ExpectNear(updated_output[1], updated_sample * updated_gains.right, 1e-6f, "listener movement should update mono spatialization on the right channel"))
+        return false;
+
+    return true;
+}
+
+bool TestSpatializedStereoAppliesBalanceAndAttenuation()
+{
+    const std::filesystem::path fixture_path = GetFixturePath("SpatializationBehaviorBank.json");
+    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+
+    if (!Expect(!compile_result.HasErrors(), "phase 7.5 stereo spatialization fixture should compile"))
+        return false;
+
+    EngineConfig config{};
+    config.struct_size = sizeof(EngineConfig);
+    config.api_version = DECL_AUDIO_API_VERSION;
+
+    decl_audio::Engine engine(config);
+    if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 7.5 stereo spatialization fixture should load"))
+        return false;
+
+    const decl_audio::compiler::ProgramId program_id = compile_result.bank.GetProgramId("spatial.stereo");
+    const decl_audio::compiler::AssetId asset_id = compile_result.bank.GetAssetId("audio/test_48_24_2ch.wav");
+    const decl_audio::assets::DecodedBuffer &buffer = engine.GetAssetBank().GetBuffer(asset_id);
+    if (!Expect(buffer.frame_count > 1, "phase 7.5 stereo fixture should contain enough frames"))
+        return false;
+
+    constexpr decl_audio::playback::InstanceId kInstanceId = 7007;
+    const Vec3 source_position{1.0f, 0.0f, 1.7320508f};
+    engine.SubmitSetListenerPositionForTesting(Vec3{0.0f, 0.0f, 0.0f});
+    engine.SubmitCreateInstanceForTesting(kInstanceId, program_id, 1.0f, source_position);
+
+    std::vector<float> output(static_cast<std::size_t>(1) * decl_audio::playback::AudioRuntime::OutputChannelCount);
+    engine.RenderAudioForTesting(output.data(), 1);
+
+    const StereoMixGains gains = ComputeExpectedSpatialMix(source_position, Vec3{0.0f, 0.0f, 0.0f}, 1.0f, 5.0f);
+    if (!ExpectNear(output[0], buffer.samples[0] * gains.left, 1e-6f, "spatialized stereo should apply balance and attenuation to the left channel"))
+        return false;
+    if (!ExpectNear(output[1], buffer.samples[1] * gains.right, 1e-6f, "spatialized stereo should apply balance and attenuation to the right channel"))
+        return false;
+
+    return true;
+}
 } // namespace
 
 bool RunPlaybackTests()
@@ -432,6 +574,12 @@ bool RunPlaybackTests()
         return false;
 
     if (!TestResolverForwardsBoundParams())
+        return false;
+
+    if (!TestSpatializedMonoRespondsToEntityAndListenerMovement())
+        return false;
+
+    if (!TestSpatializedStereoAppliesBalanceAndAttenuation())
         return false;
 
     std::cout << "Playback tests passed\n";

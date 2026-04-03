@@ -25,6 +25,15 @@ namespace decl_audio::compiler
         std::int32_t loop_count = 0;
     };
 
+    struct AuthoringSpatializationSettings final
+    {
+        SourceLocation location;
+        SpatializationMode mode = SpatializationMode::None;
+        float min_distance = 0.0f;
+        float max_distance = 0.0f;
+        AttenuationMode attenuation = AttenuationMode::Linear;
+    };
+
     struct AuthoringBehavior final
     {
         SourceLocation location;
@@ -33,6 +42,7 @@ namespace decl_audio::compiler
         std::vector<AuthoringCondition> match_conditions;
         std::vector<AuthoringContainer> program;
         std::vector<std::string> parameters;
+        AuthoringSpatializationSettings spatialization;
     };
 
     struct AuthoringDocument final

@@ -1,0 +1,41 @@
+{
+  "behaviors": [
+    {
+      "id": "spatial.mono",
+      "matchTags": [
+        "spatial.mono"
+      ],
+      "spatialization": {
+        "minDistance": 1.0,
+        "maxDistance": 5.0,
+        "attenuation": "linear"
+      },
+      "program": [
+        {
+          "type": "loop",
+          "asset": "audio/test_48_24_1ch.wav",
+          "loopCount": -1,
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "id": "spatial.stereo",
+      "matchTags": [
+        "spatial.stereo"
+      ],
+      "spatialization": {
+        "minDistance": 1.0,
+        "maxDistance": 5.0,
+        "attenuation": "linear"
+      },
+      "program": [
+        {
+          "type": "oneshot",
+          "asset": "audio/test_48_24_2ch.wav",
+          "volume": 1.0
+        }
+      ]
+    }
+  ]
+}

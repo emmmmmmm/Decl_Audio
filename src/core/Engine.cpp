@@ -76,6 +76,12 @@ namespace decl_audio
     void Engine::Update() noexcept
     {
         control_runtime_.Tick();
+        Vec3 listener_position;
+        if (control_runtime_.ConsumeListenerPositionChange(listener_position))
+        {
+            audio_runtime_.Submit(playback::SetListenerPositionCommand{
+                listener_position});
+        }
         behavior_resolver_.Resolve(
             control_runtime_.GetWorldState(),
             *compiled_bank_,
@@ -122,6 +128,12 @@ namespace decl_audio
             Vec3{x, y, z}});
     }
 
+    void Engine::SetListenerPosition(const float x, const float y, const float z) noexcept
+    {
+        control_runtime_.Submit(runtime::SetListenerPositionCommand{
+            Vec3{x, y, z}});
+    }
+
     void Engine::DestroyEntity(const char *entity_id) noexcept
     {
         control_runtime_.Submit(runtime::DestroyEntityCommand{
@@ -151,6 +163,12 @@ namespace decl_audio
     {
         audio_runtime_.Submit(playback::SetPositionCommand{
             instance_id,
+            position});
+    }
+
+    void Engine::SubmitSetListenerPositionForTesting(const Vec3 position) noexcept
+    {
+        audio_runtime_.Submit(playback::SetListenerPositionCommand{
             position});
     }
 

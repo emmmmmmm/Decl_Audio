@@ -32,10 +32,15 @@ namespace
     {
         return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "ParameterForwardingBehaviorBank.json";
     }
+    std::filesystem::path GetSpatializationBankPath()
+    {
+        return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "SpatializationBehaviorBank.json";
+    }
 
     void PrintSection(const char *label, const char *description)
     {
-        std::cout << '\n' << label << '\n';
+        std::cout << '\n'
+                  << label << '\n';
         std::cout << description << '\n';
     }
 
@@ -110,6 +115,51 @@ namespace
         engine.Update();
         return RunWait(engine, 700);
     }
+    bool RunPanningTest(decl_audio::Engine &engine)
+    {
+        const std::filesystem::path bank_path = GetSpatializationBankPath();
+        PrintSection("Panning Test", "you should hear a sound on your right");
+
+        if (!engine.LoadBehaviors(bank_path.string().c_str()))
+        {
+            std::cerr << decl_audio::compiler::DumpDiagnostics(engine.GetLoadDiagnostics());
+            return false;
+        }
+        engine.SetListenerPosition(-1, 0, 0);
+        engine.SetPosition("player", 3, 0, 0);
+        engine.SetTag("player", "spatial.mono");
+        engine.Update();
+        if (!RunWait(engine, 500))
+        {
+            return false;
+        }
+        engine.SetListenerPosition(-1, 0, 0);
+        engine.SetPosition("player", 1, 0, 0);
+        engine.Update();
+        if (!RunWait(engine, 500))
+        {
+            return false;
+        }
+        PrintSection("Panning Test", "you should hear a sound on your left");
+
+        engine.SetListenerPosition(1, 0, 0);
+        engine.SetPosition("player", -1, 0, 0);
+        engine.Update();
+        if (!RunWait(engine, 500))
+        {
+            return false;
+        }
+        engine.SetListenerPosition(1, 0, 0);
+        engine.SetPosition("player", -3, 0, 0);
+        engine.Update();
+        if (!RunWait(engine, 500))
+        {
+            return false;
+        }
+        engine.RemoveTag("player", "spatial.mono");
+        engine.Update();
+        return RunWait(engine, 700);
+    }
 } // namespace
 
 int main(int argc, char **argv)
@@ -142,24 +192,19 @@ int main(int argc, char **argv)
     }
 
     if (!RunOneShotTest(engine, compile_result.bank))
-    {
         return 1;
-    }
 
     if (!RunLoopTest(engine, compile_result.bank))
-    {
         return 1;
-    }
 
     if (!RunRandomTest(engine, compile_result.bank))
-    {
         return 1;
-    }
 
     if (!RunParamForwardingTest(engine))
-    {
         return 1;
-    }
+
+    if (!RunPanningTest(engine))
+        return 1;
 
     return 0;
 }

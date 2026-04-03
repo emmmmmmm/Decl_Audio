@@ -35,9 +35,15 @@ namespace decl_audio::playback
         InstanceId instance_id = 0;
     };
 
+    struct SetListenerPositionCommand final
+    {
+        Vec3 position{};
+    };
+
     using AudioCommand = std::variant<
         CreateInstanceCommand,
         SetVolumeCommand,
         SetPositionCommand,
-        RequestStopCommand>;
+        RequestStopCommand,
+        SetListenerPositionCommand>;
 } // namespace decl_audio::playback

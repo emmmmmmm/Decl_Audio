@@ -64,6 +64,12 @@ namespace decl_audio::runtime
         entity.has_position = true;
     }
 
+    void ControlRuntime::Apply(const SetListenerPositionCommand &command) noexcept
+    {
+        listener_position_ = command.position;
+        listener_position_dirty_ = true;
+    }
+
     void ControlRuntime::Apply(const DestroyEntityCommand &command) noexcept
     {
         world_state_.entities.erase(command.entity_id);

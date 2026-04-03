@@ -53,6 +53,11 @@ namespace decl_audio::playback
         bool stop_requested = false;
     };
 
+    struct ListenerState final
+    {
+        Vec3 position{};
+    };
+
     class AudioRuntime final
     {
     public:
@@ -76,6 +81,10 @@ namespace decl_audio::playback
         }
 
         [[nodiscard]] bool TryGetInstanceSnapshot(InstanceId instance_id, InstanceSnapshot &snapshot) const noexcept;
+        [[nodiscard]] const Vec3 &GetListenerPositionForTesting() const noexcept
+        {
+            return listener_.position;
+        }
 
     private:
         void ApplyPendingCommands() noexcept;
@@ -83,6 +92,7 @@ namespace decl_audio::playback
         void Apply(const SetVolumeCommand &command) noexcept;
         void Apply(const SetPositionCommand &command) noexcept;
         void Apply(const RequestStopCommand &command) noexcept;
+        void Apply(const SetListenerPositionCommand &command) noexcept;
 
         [[nodiscard]] std::uint32_t RenderProgramInstance(ProgramInstance &instance, float *output, std::uint32_t frames) noexcept;
         [[nodiscard]] std::uint32_t RenderCurrentContainer(ProgramInstance &instance, float *output, std::uint32_t frames) noexcept;
@@ -97,6 +107,7 @@ namespace decl_audio::playback
         std::vector<float> scratch_;
         const compiler::CompiledBank *compiled_bank_ = nullptr;
         const assets::AssetBank *asset_bank_ = nullptr;
+        ListenerState listener_{};
         std::uint64_t root_seed_ = 0;
         std::size_t max_instances_ = 0;
         std::uint32_t max_block_frames_ = 0;
