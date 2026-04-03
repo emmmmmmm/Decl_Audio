@@ -35,6 +35,7 @@ namespace decl_audio
         virtual void SetTag(const char *entity_id, const char *tag) noexcept;
         virtual void RemoveTag(const char *entity_id, const char *tag) noexcept;
         virtual void SetValue(const char *entity_id, const char *parameter, float value) noexcept;
+        virtual void SetPosition(const char *entity_id, float x, float y, float z) noexcept;
         virtual void DestroyEntity(const char *entity_id) noexcept;
 
         // Phase 4 test seam. The C API stays unchanged until resolver/backend work is in place.

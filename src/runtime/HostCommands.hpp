@@ -4,6 +4,7 @@
 #include <variant>
 
 #include "../compiler/CompilerTypes.hpp"
+#include "../core/vec3.hpp"
 
 namespace decl_audio::runtime
 {
@@ -26,6 +27,18 @@ namespace decl_audio::runtime
         float value = 0.0f;
     };
 
+    struct SetEntityVolumeCommand final
+    {
+        std::string entity_id;
+        float volume = 1.0f;
+    };
+
+    struct SetEntityPositionCommand final
+    {
+        std::string entity_id;
+        Vec3 position{};
+    };
+
     struct DestroyEntityCommand final
     {
         std::string entity_id;
@@ -35,5 +48,7 @@ namespace decl_audio::runtime
         SetTagCommand,
         RemoveTagCommand,
         SetFloatValueCommand,
+        SetEntityVolumeCommand,
+        SetEntityPositionCommand,
         DestroyEntityCommand>;
 } // namespace decl_audio::runtime

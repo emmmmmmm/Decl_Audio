@@ -50,6 +50,20 @@ namespace decl_audio::runtime
         world_state_.GetOrCreateEntity(command.entity_id).float_values[command.parameter_id] = command.value;
     }
 
+    void ControlRuntime::Apply(const SetEntityVolumeCommand &command) noexcept
+    {
+        EntityState &entity = world_state_.GetOrCreateEntity(command.entity_id);
+        entity.volume = command.volume;
+        entity.has_volume = true;
+    }
+
+    void ControlRuntime::Apply(const SetEntityPositionCommand &command) noexcept
+    {
+        EntityState &entity = world_state_.GetOrCreateEntity(command.entity_id);
+        entity.position = command.position;
+        entity.has_position = true;
+    }
+
     void ControlRuntime::Apply(const DestroyEntityCommand &command) noexcept
     {
         world_state_.entities.erase(command.entity_id);

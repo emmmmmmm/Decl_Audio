@@ -28,6 +28,11 @@ namespace
         return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "PlaybackBehaviorBank.json";
     }
 
+    std::filesystem::path GetPhase7BankPath()
+    {
+        return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "ParameterForwardingBehaviorBank.json";
+    }
+
     void PrintSection(const char *label, const char *description)
     {
         std::cout << '\n' << label << '\n';
@@ -74,6 +79,37 @@ namespace
         engine.SubmitCreateInstanceForTesting(1005, bank.GetProgramId("playback.random"));
         return RunWait(engine, 700);
     }
+
+    bool RunParamForwardingTest(decl_audio::Engine &engine)
+    {
+        const std::filesystem::path bank_path = GetPhase7BankPath();
+        PrintSection("Param Forwarding", "You should hear a quiet loop first, then a louder loop after the runtime volume parameter changes.");
+
+        if (!engine.LoadBehaviors(bank_path.string().c_str()))
+        {
+            std::cerr << decl_audio::compiler::DumpDiagnostics(engine.GetLoadDiagnostics());
+            return false;
+        }
+
+        engine.SetValue("player", "volume", 0.2f);
+        engine.SetTag("player", "resolver.active");
+        engine.Update();
+        if (!RunWait(engine, 1000))
+        {
+            return false;
+        }
+
+        engine.SetValue("player", "volume", 1.0f);
+        engine.Update();
+        if (!RunWait(engine, 1000))
+        {
+            return false;
+        }
+
+        engine.RemoveTag("player", "resolver.active");
+        engine.Update();
+        return RunWait(engine, 700);
+    }
 } // namespace
 
 int main(int argc, char **argv)
@@ -116,6 +152,11 @@ int main(int argc, char **argv)
     }
 
     if (!RunRandomTest(engine, compile_result.bank))
+    {
+        return 1;
+    }
+
+    if (!RunParamForwardingTest(engine))
     {
         return 1;
     }

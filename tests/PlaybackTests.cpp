@@ -339,6 +339,76 @@ bool TestDestroyEntityStopsBoundLoop()
 
     return true;
 }
+
+bool TestResolverForwardsBoundParams()
+{
+    const std::filesystem::path fixture_path = GetFixturePath("ParameterForwardingBehaviorBank.json");
+    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+
+    if (!Expect(!compile_result.HasErrors(), "phase 7 forwarding fixture should compile"))
+        return false;
+
+    EngineConfig config{};
+    config.struct_size = sizeof(EngineConfig);
+    config.api_version = DECL_AUDIO_API_VERSION;
+
+    decl_audio::Engine engine(config);
+    if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 7 forwarding fixture should load"))
+        return false;
+
+    const decl_audio::compiler::AssetId asset_id = compile_result.bank.GetAssetId("audio/test_48_24_1ch.wav");
+    const decl_audio::assets::DecodedBuffer &buffer = engine.GetAssetBank().GetBuffer(asset_id);
+    if (!Expect(buffer.frame_count > 4, "phase 7 fixture should contain enough frames"))
+        return false;
+
+    engine.SetValue("player", "volume", 0.5f);
+    engine.SetPosition("player", 1.0f, 2.0f, 3.0f);
+    engine.SetTag("player", "resolver.active");
+    engine.Update();
+
+    std::vector<float> startup_output(static_cast<std::size_t>(1) * decl_audio::playback::AudioRuntime::OutputChannelCount);
+    engine.RenderAudioForTesting(startup_output.data(), 1);
+
+    if (!Expect(engine.GetActiveAudioInstanceCountForTesting() == 1, "phase 7 match should create one bound instance"))
+        return false;
+
+    decl_audio::playback::InstanceSnapshot snapshot;
+    constexpr decl_audio::playback::InstanceId kResolverInstanceId = 1;
+    if (!Expect(engine.TryGetAudioInstanceSnapshotForTesting(kResolverInstanceId, snapshot), "phase 7 bound instance should expose a testing snapshot"))
+        return false;
+    if (!ExpectNear(snapshot.volume, 0.5f, 1e-6f, "initial bound volume should come from the current entity value"))
+        return false;
+    if (!Expect(snapshot.position == Vec3{1.0f, 2.0f, 3.0f}, "initial bound position should come from the current entity value"))
+        return false;
+
+    const float expected_start = buffer.samples[0] * 0.4f * 0.5f;
+    if (!ExpectNear(startup_output[0], expected_start, 1e-6f, "initial forwarded volume should affect the left channel"))
+        return false;
+    if (!ExpectNear(startup_output[1], expected_start, 1e-6f, "initial forwarded volume should affect the right channel"))
+        return false;
+
+    engine.SetValue("player", "volume", 0.25f);
+    engine.SetPosition("player", 4.0f, 5.0f, 6.0f);
+    engine.Update();
+
+    std::vector<float> updated_output(static_cast<std::size_t>(1) * decl_audio::playback::AudioRuntime::OutputChannelCount);
+    engine.RenderAudioForTesting(updated_output.data(), 1);
+
+    if (!Expect(engine.TryGetAudioInstanceSnapshotForTesting(kResolverInstanceId, snapshot), "phase 7 bound instance should remain active after parameter updates"))
+        return false;
+    if (!ExpectNear(snapshot.volume, 0.25f, 1e-6f, "updated bound volume should stick on the audio instance"))
+        return false;
+    if (!Expect(snapshot.position == Vec3{4.0f, 5.0f, 6.0f}, "updated bound position should stick on the audio instance"))
+        return false;
+
+    const float expected_updated = buffer.samples[1] * 0.4f * 0.25f;
+    if (!ExpectNear(updated_output[0], expected_updated, 1e-6f, "updated forwarded volume should affect the next block on the left channel"))
+        return false;
+    if (!ExpectNear(updated_output[1], expected_updated, 1e-6f, "updated forwarded volume should affect the next block on the right channel"))
+        return false;
+
+    return true;
+}
 } // namespace
 
 bool RunPlaybackTests()
@@ -359,6 +429,9 @@ bool RunPlaybackTests()
         return false;
 
     if (!TestDestroyEntityStopsBoundLoop())
+        return false;
+
+    if (!TestResolverForwardsBoundParams())
         return false;
 
     std::cout << "Playback tests passed\n";

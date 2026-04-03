@@ -132,6 +132,11 @@ extern "C"
         engine->engine.SetValue(entity_id, parameter, value);
     }
 
+    void SetPosition(DeclAudioEngine *engine, const char *entity_id, const float x, const float y, const float z)
+    {
+        engine->engine.SetPosition(entity_id, x, y, z);
+    }
+
     void DestroyEntity(DeclAudioEngine *engine, const char *entity_id)
     {
         engine->engine.DestroyEntity(entity_id);

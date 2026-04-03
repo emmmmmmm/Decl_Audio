@@ -1,0 +1,18 @@
+{
+  "behaviors": [
+    {
+      "id": "resolver.param_forwarding",
+      "matchTags": [
+        "resolver.active"
+      ],
+      "program": [
+        {
+          "type": "loop",
+          "asset": "audio/test_48_24_1ch.wav",
+          "loopCount": -1,
+          "volume": 0.4
+        }
+      ]
+    }
+  ]
+}

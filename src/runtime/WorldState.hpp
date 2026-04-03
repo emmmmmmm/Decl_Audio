@@ -5,6 +5,7 @@
 #include <unordered_set>
 
 #include "../compiler/CompilerTypes.hpp"
+#include "../core/vec3.hpp"
 
 namespace decl_audio::runtime
 {
@@ -12,15 +13,44 @@ namespace decl_audio::runtime
     {
         std::unordered_set<compiler::TagId> tags;
         std::unordered_map<compiler::ParameterId, float> float_values;
+        float volume = 1.0f;
+        Vec3 position{};
+        bool has_volume = false;
+        bool has_position = false;
 
         [[nodiscard]] bool HasTag(compiler::TagId tag_id) const noexcept
         {
             return tags.contains(tag_id);
         }
 
+        [[nodiscard]] bool HasFloatValue(compiler::ParameterId parameter_id) const noexcept
+        {
+            return float_values.contains(parameter_id);
+        }
+
         [[nodiscard]] float GetFloatValue(compiler::ParameterId parameter_id) const
         {
             return float_values.at(parameter_id);
+        }
+
+        [[nodiscard]] bool HasVolume() const noexcept
+        {
+            return has_volume;
+        }
+
+        [[nodiscard]] float GetVolume() const noexcept
+        {
+            return volume;
+        }
+
+        [[nodiscard]] bool HasPosition() const noexcept
+        {
+            return has_position;
+        }
+
+        [[nodiscard]] const Vec3 &GetPosition() const noexcept
+        {
+            return position;
         }
     };
 

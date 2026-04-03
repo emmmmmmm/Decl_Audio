@@ -16,6 +16,8 @@ namespace decl_audio::runtime
         std::string entity_id;
         compiler::BehaviorId behavior_id = 0;
         playback::InstanceId instance_id = 0;
+        float volume = 1.0f;
+        Vec3 position{};
     };
 
     class BehaviorResolver final
@@ -35,7 +37,7 @@ namespace decl_audio::runtime
             std::size_t binding_index = 0;
             while (binding_index < active_bindings_.size())
             {
-                const ActiveBehaviorBinding &binding = active_bindings_[binding_index];
+                ActiveBehaviorBinding &binding = active_bindings_[binding_index];
                 const auto entity_it = world_state.entities.find(binding.entity_id);
                 if (entity_it == world_state.entities.end() ||
                     !MatchesBehavior(entity_it->second, compiled_bank.GetBehavior(binding.behavior_id), compiled_bank))
@@ -44,6 +46,22 @@ namespace decl_audio::runtime
                     active_bindings_[binding_index] = active_bindings_.back();
                     active_bindings_.pop_back();
                     continue;
+                }
+
+                if (entity_it->second.HasVolume() && entity_it->second.GetVolume() != binding.volume)
+                {
+                    emit_command(playback::SetVolumeCommand{
+                        binding.instance_id,
+                        entity_it->second.GetVolume()});
+                    binding.volume = entity_it->second.GetVolume();
+                }
+
+                if (entity_it->second.HasPosition() && entity_it->second.GetPosition() != binding.position)
+                {
+                    emit_command(playback::SetPositionCommand{
+                        binding.instance_id,
+                        entity_it->second.GetPosition()});
+                    binding.position = entity_it->second.GetPosition();
                 }
 
                 ++binding_index;
@@ -64,15 +82,19 @@ namespace decl_audio::runtime
                     }
 
                     const playback::InstanceId instance_id = MintInstanceId();
+                    const float initial_volume = entity_state.HasVolume() ? entity_state.GetVolume() : 1.0f;
+                    const Vec3 initial_position = entity_state.HasPosition() ? entity_state.GetPosition() : Vec3{};
                     emit_command(playback::CreateInstanceCommand{
                         instance_id,
                         behavior.program_id,
-                        Vec3{},
-                        1.0f});
+                        initial_position,
+                        initial_volume});
                     active_bindings_.push_back(ActiveBehaviorBinding{
                         entity_id,
                         behavior.id,
-                        instance_id});
+                        instance_id,
+                        initial_volume,
+                        initial_position});
                 }
             }
         }

@@ -150,9 +150,40 @@ bool TestRemoveCommandsDoNotCreateEntities()
     return true;
 }
 
+bool TestVec3CommandsDrainIntoWorldState()
+{
+    const std::filesystem::path fixture_path = GetFixturePath("ParameterForwardingBehaviorBank.json");
+
+    EngineConfig config{};
+    config.struct_size = sizeof(EngineConfig);
+    config.api_version = DECL_AUDIO_API_VERSION;
+
+    decl_audio::Engine engine(config);
+    if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 7 fixture should load"))
+    {
+        return false;
+    }
+
+    engine.SetPosition("player", 1.0f, 2.0f, 3.0f);
+    engine.Update();
+
+    const decl_audio::runtime::EntityState &entity = engine.GetWorldState().GetEntity("player");
+    if (!Expect(entity.HasPosition(), "SetPosition should mark the entity as having a runtime position"))
+    {
+        return false;
+    }
+
+    if (!Expect(entity.GetPosition() == Vec3{1.0f, 2.0f, 3.0f}, "position value should be applied"))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 bool TestPhase2ApiSmoke()
 {
-    const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
+    const std::filesystem::path fixture_path = GetFixturePath("ParameterForwardingBehaviorBank.json");
 
     EngineConfig config{};
     config.struct_size = sizeof(EngineConfig);
@@ -170,11 +201,11 @@ bool TestPhase2ApiSmoke()
         return false;
     }
 
-    SetTag(engine, "player", "movement.grounded");
-    SetTag(engine, "player", "movement.walking");
-    SetValue(engine, "player", "speed", 2.0f);
+    SetTag(engine, "player", "resolver.active");
+    SetValue(engine, "player", "volume", 0.5f);
+    SetPosition(engine, "player", 1.0f, 2.0f, 3.0f);
     Update(engine);
-    RemoveTag(engine, "player", "movement.walking");
+    RemoveTag(engine, "player", "resolver.active");
     Update(engine);
     DestroyEntity(engine, "player");
     Update(engine);
@@ -202,6 +233,11 @@ bool RunWorldStateTests()
     }
 
     if (!TestPhase2ApiSmoke())
+    {
+        return false;
+    }
+
+    if (!TestVec3CommandsDrainIntoWorldState())
     {
         return false;
     }

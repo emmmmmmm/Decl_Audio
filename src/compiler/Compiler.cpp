@@ -512,7 +512,21 @@ namespace decl_audio::compiler
                 result.diagnostics.push_back(MakeError(behavior.location, "duplicate behavior id '" + behavior.id + "'"));
 
             for (const std::string &parameter_name : behavior.parameters)
+            {
+                if (parameter_name.empty())
+                {
+                    result.diagnostics.push_back(MakeError(behavior.location, "behavior '" + behavior.id + "' declares an empty parameter name"));
+                    continue;
+                }
+
+                if (parameter_name == "volume" || parameter_name == "position")
+                {
+                    result.diagnostics.push_back(MakeError(behavior.location, "behavior '" + behavior.id + "' must not declare reserved runtime parameter '" + parameter_name + "'"));
+                    continue;
+                }
+
                 (void)InternName(result.bank.parameter_name_to_id, parameter_name);
+            }
 
             const std::uint32_t first_tag = static_cast<std::uint32_t>(result.bank.behavior_tags.size());
             for (const std::string &tag_name : behavior.match_tags)
@@ -524,6 +538,12 @@ namespace decl_audio::compiler
                 if (condition.parameter.empty())
                 {
                     result.diagnostics.push_back(MakeError(condition.location, "behavior '" + behavior.id + "' has a condition with an empty parameter name"));
+                    continue;
+                }
+
+                if (condition.parameter == "volume" || condition.parameter == "position")
+                {
+                    result.diagnostics.push_back(MakeError(condition.location, "behavior '" + behavior.id + "' must not use reserved runtime parameter '" + condition.parameter + "' in match conditions"));
                     continue;
                 }
 

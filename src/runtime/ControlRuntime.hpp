@@ -25,6 +25,8 @@ namespace decl_audio::runtime
         void Apply(const SetTagCommand &command) noexcept;
         void Apply(const RemoveTagCommand &command) noexcept;
         void Apply(const SetFloatValueCommand &command) noexcept;
+        void Apply(const SetEntityVolumeCommand &command) noexcept;
+        void Apply(const SetEntityPositionCommand &command) noexcept;
         void Apply(const DestroyEntityCommand &command) noexcept;
 
         RingBuffer<HostCommand, HostQueueCapacity> host_to_control_;

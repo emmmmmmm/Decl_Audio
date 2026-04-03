@@ -133,6 +133,23 @@ bool TestInvalidFixtureFailsLoudly()
     return true;
 }
 
+bool TestReservedRuntimeParamsNeedNoDeclarations()
+{
+    const std::filesystem::path fixture_path = GetFixturePath("ParameterForwardingBehaviorBank.json");
+    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+
+    if (!Expect(!compile_result.HasErrors(), "phase 7 fixture should compile without errors"))
+    {
+        std::cerr << decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
+        return false;
+    }
+
+    if (!Expect(compile_result.bank.parameter_name_to_id.empty(), "phase 7 fixture should not need any declared match parameters"))
+        return false;
+
+    return true;
+}
+
 bool TestAudioConfigDefaultsAndValidation()
 {
     AudioConfig audio_config{};
@@ -174,6 +191,9 @@ bool RunCompilerTests()
         return false;
 
     if (!TestAudioConfigDefaultsAndValidation())
+        return false;
+
+    if (!TestReservedRuntimeParamsNeedNoDeclarations())
         return false;
 
     std::cout << "Compiler tests passed\n";

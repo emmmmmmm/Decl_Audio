@@ -184,6 +184,12 @@ That's essentially it.
 
 **On source kinds:** control may spawn either fire-and-forget instances or entity-bound instances. Fire-and-forget instances carry their initial snapshot on `CreateInstance` and receive no further updates. Entity-bound instances keep a control-side binding so `SetVolume` / `SetPosition` can be forwarded while the match remains active. The audio thread still only sees instance ids and commands; it never sees entities.
 
+**On default instance params:** every instance always has a runtime `volume` and `position`. They default to `1.0` and `Vec3{}`. Authored container `volume` remains a compiled blueprint gain baked into the program. Runtime forwarding updates the instance-level values on top of that.
+
+**On reserved runtime values:** `volume` and `position` are reserved entity-side runtime values. They do not need to be declared in authored `parameters`, and they are not valid match-condition inputs. `SetValue(engine, entity, "volume", x)` updates instance volume. `SetPosition(engine, entity, x, y, z)` updates instance position.
+
+**On spawn vs change:** control applies the current `volume` and `position` values when the instance is created if the entity already has them. After that, control only sends `SetVolume` / `SetPosition` when those runtime values actually change.
+
 **On timing:** for MVP, commands are block-accurate only. Params that drift slowly (health, speed, distance) are applied at the next block boundary. Sample-offset timestamps are a later addition once the real backend is in place.
 
 **On stage transitions:** the audio thread handles all playback-driven transitions autonomously (container exhausted -> advance to next). Control only sends world-driven transitions (`RequestStop` when a match condition is lost). No return signalling needed.
@@ -219,6 +225,7 @@ struct AuthoringBehavior {
     std::vector<std::string> matchTags;
     std::vector<AuthoringCondition> matchConditions;
     std::vector<AuthoringContainer> program;
+    std::vector<std::string> parameters; // optional named float params for match conditions
 };
 ```
 
@@ -437,6 +444,18 @@ Long-term: a custom `.audio` DSL is allowed if authoring ergonomics become the b
 **MVP supported behavior fields:**
 `id`, `matchTags`, `matchConditions`, `program`, `parameters`
 
+**Phase 7 runtime value model:**
+
+Rules:
+- `parameters` remains optional and float-only. It exists for named gameplay values that are used in match conditions.
+- `volume` and `position` are implicit reserved runtime values, not authored parameter declarations.
+- Authored container `volume` is still just a static blueprint gain.
+- Runtime entity `volume` overrides the instance gain multiplier.
+- Runtime entity `position` overrides the instance position.
+- `SetValue()` writes named float values into world state. If the key is `volume`, it updates the reserved runtime volume instead of a generic match parameter.
+- `SetPosition(entityId, x, y, z)` writes the reserved runtime position.
+- Reserved runtime values are not valid in authored `parameters` or `matchConditions`.
+
 **MVP container types:**
 `oneshot`, `loop`, `random`, `sequence`
 
@@ -614,11 +633,11 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 **Phase 7 - Resolver: param forwarding**
 
-* [ ] SetValue on entity -> SetVolume / SetPosition forwarded to bound instances
-* [ ] value->param mapping in authored behaviors
+* [x] SetValue on entity -> SetVolume / SetPosition forwarded to bound instances
+* [x] reserved runtime values `volume` / `position` forwarded without authored bindings
 
-* [ ] Testable: change entity value, verify audio instance updates
-* [ ] Testable: add test in sandboxCLI that incorporates a parameter change (volume)
+* [x] Testable: change entity value, verify audio instance updates
+* [x] Testable: add test in sandboxCLI that incorporates a parameter change (volume)
 
 **Phase 7.5 - Spatialization**
 

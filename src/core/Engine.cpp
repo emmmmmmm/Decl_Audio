@@ -7,6 +7,7 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 namespace decl_audio
 {
@@ -100,10 +101,25 @@ namespace decl_audio
 
     void Engine::SetValue(const char *entity_id, const char *parameter, float value) noexcept
     {
+        if (std::string_view(parameter) == "volume")
+        {
+            control_runtime_.Submit(runtime::SetEntityVolumeCommand{
+                std::string(entity_id),
+                value});
+            return;
+        }
+
         control_runtime_.Submit(runtime::SetFloatValueCommand{
             std::string(entity_id),
             compiled_bank_->GetParameterId(parameter),
             value});
+    }
+
+    void Engine::SetPosition(const char *entity_id, const float x, const float y, const float z) noexcept
+    {
+        control_runtime_.Submit(runtime::SetEntityPositionCommand{
+            std::string(entity_id),
+            Vec3{x, y, z}});
     }
 
     void Engine::DestroyEntity(const char *entity_id) noexcept
