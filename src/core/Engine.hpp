@@ -33,6 +33,7 @@ namespace decl_audio
         virtual bool LoadBehaviors(const char *source_path) noexcept;
         virtual void Update() noexcept;
         virtual void SetTag(const char *entity_id, const char *tag) noexcept;
+        virtual void SetTransientTag(const char *entity_id, const char *tag) noexcept;
         virtual void RemoveTag(const char *entity_id, const char *tag) noexcept;
         virtual void SetValue(const char *entity_id, const char *parameter, float value) noexcept;
         virtual void SetPosition(const char *entity_id, float x, float y, float z) noexcept;

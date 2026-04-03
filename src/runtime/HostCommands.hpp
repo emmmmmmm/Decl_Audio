@@ -13,6 +13,11 @@ namespace decl_audio::runtime
         std::string entity_id;
         compiler::TagId tag_id = 0;
     };
+    struct SetTransientTagCommand final
+    {
+        std::string entity_id;
+        compiler::TagId tag_id = 0;
+    };
 
     struct RemoveTagCommand final
     {
@@ -51,6 +56,7 @@ namespace decl_audio::runtime
 
     using HostCommand = std::variant<
         SetTagCommand,
+        SetTransientTagCommand,
         RemoveTagCommand,
         SetFloatValueCommand,
         SetEntityVolumeCommand,

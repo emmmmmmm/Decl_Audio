@@ -612,7 +612,7 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 * [x] host->control command queue + drain loop
 * [x] SetTag, RemoveTag, SetValue, DestroyEntity commands implemented
 
-* [x] Testable: submit commands from a test harness, inspect WorldState after drain, godverify entity state is correct
+* [x] Testable: submit commands from a test harness, inspect WorldState after drain, verify entity state is correct
 
 **Phase 3 - AssetBank**
 
@@ -673,18 +673,165 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 **Phase 8 - Debugging + CLI**
 
-* [ ] runtime debug dump (active instances, current container, asset playing)
-* [ ] match explanation (why did/didn't behavior B match entity X)
-* [ ] full sandbox CLI with interactive commands
+* [ ] `DA_GetDebugSnapshot()` - serialize current engine state to readable struct or JSON dump
+  * active instances (instanceId, programId, current container type, asset playing)
+  * entity->behavior matches and why (tags considered, conditions evaluated)
+  * current param values per entity
+* [ ] ring buffer trace log (CreateInstance / RequestStop / match / unmatch events, timestamped)
+* [ ] full sandbox CLI with interactive commands: `entity`, `tag`, `untag`, `setval`, `setpos`, `setlistener`, `step`, `dump`, `reload`
 
-* [ ] Testable: interactive session, inspect everything
+* [ ] Testable: interactive session that exercises every command type, verify dump output is accurate and readable
 
 **Phase 9 - Hardening**
 
-* [ ] unit tests for compiler, resolver, container types
-* [ ] integration test: full round-trip from json -> audible output
-* [ ] reload test: swap bank while instances are playing
-* [ ] profiling pass
+*RT safety + operational edge cases (unit test suite already exists)*
+
+* [ ] lock/allocation scan of audio thread path (static analysis + manual trace of every callback codepath)
+* [ ] instance capacity exhaustion: verify fail-loudly behavior, document the contract
+* [ ] missed/late `Update()` handling: document the contract explicitly
+  * transient events submitted but not yet drained wait for next Update() - this is correct, document it
+  * burst catch-up after missed calls: command queue handles it, verify under test
+  * if Update() is never called again: transient events never fire, persistent state freezes - document as host responsibility
+* [ ] profiling pass: block timing, worst-case per-instance cost, mixer overhead at realistic instance counts
+
+* [ ] Testable: RT safety audit produces no findings; capacity exhaustion path verified; missed-Update scenarios documented and tested
+
+**Phase 10 - Multichannel output**
+
+*Parking lot - decision pending*
+
+* [ ] decide: does the engine accommodate system output channel count, or always output stereo and let the host/platform upmix?
+  * "fold to stereo + let system handle it" is honest and probably correct for an embeddable library
+  * accommodating arbitrary channel counts requires channel-layout-aware spatialization (pan logic is stereo-specific right now)
+  * no authored `AudioConfig` channel override is likely the right call - read system config, adapt or fold
+* [ ] if multichannel: introduce channel layout abstraction (stereo, 5.1, 7.1 - enum, not arbitrary)
+* [ ] if multichannel: spatialization must become channel-layout-aware (not just [-1,1] pan)
+* [ ] if fold: document the policy and verify stereo output is correct for all spatialization modes
+
+*Note: deprioritize until a concrete use case demands it. Most games route through their own mixer before hitting the speaker layout.*
+
+**Phase 11 - Virtualization**
+
+*Keep it practical - no priority system yet, just the useful subset*
+
+* [ ] hard voice ceiling: `maxInstances` in `EngineConfig`, exceeded at runtime -> steal or reject (policy TBD)
+  * steal policy: steal instance with lowest effective volume (attenuation already gives this number)
+  * ? or: reject new instance, keep existing (simpler, possibly wrong perceptually)
+  * ? or: steal oldest
+* [ ] skip-mix culling: instances with effective output volume below threshold skip accumulate step but still advance playhead
+  * threshold: ? (needs tuning - maybe authored per-behavior, maybe global config)
+  * cost saving: buffer copy still happens, mix accumulate is skipped - modest but free
+* [ ] out-of-range oneshot cancellation: control policy - if entity is beyond `maxDistance` at CreateInstance time, don't create
+  * alternatively: send RequestStop if entity moves beyond maxDistance while matched oneshot is active
+  * ? which is more useful in practice
+* [ ] out-of-range loop: call getSamples(), zero the output before accumulate - keeps playhead in sync for when source re-enters range
+  * ? is playhead coherence actually worth the buffer copy cost for loops? probably yes for music/ambient layers
+* [ ] ? voice stealing is probably the bigger practical win - prioritize over OOR policies if scope needs trimming
+
+* [ ] Testable: exceed voice ceiling, verify steal/reject behavior; entity moves OOR, verify oneshot cancelled; OOR loop re-enters range, verify no seam
+
+*Note: authored priority system deferred - add once real use cases reveal what priority actually means in practice*
+
+**Phase 12 - Hot Reloading**
+
+*Hard wipe + world state preservation. No behavior identity mapping across reloads.*
+
+* [ ] `ReloadBehaviors(path)` - compiler re-runs, produces new CompiledBank + new AssetBank
+* [ ] audio side: hard reset - flush instance list directly (no graceful RequestStop drain, timing loss is acceptable for a tooling workflow)
+* [ ] control side: flush entity->instanceId binding table
+* [ ] swap banks atomically (control stops reading old bank before audio thread does)
+* [ ] re-resolve current WorldState against new bank -> emit fresh CreateInstance commands
+* [ ] world state survives: tags, values, entity set all preserved across reload
+* [ ] document the contract: ReloadBehaviors() is a hard audio state reset. World state survives. Instance timing does not.
+
+*Note: identity mapping across reloads deliberately out of scope. New params, new assets, new behaviors all change IDs. Preserving world state is already a big usability win.*
+
+* [ ] ? asset reuse across reloads: if path+hash match, reuse DecodedBuffer from old AssetBank (optimization, not required for correctness)
+
+* [ ] Testable: load bank A, start instances, reload bank B, verify audio hard-resets, verify world state re-resolves correctly against new bank
+
+**Phase 12.5 - Bank loading / unloading**
+
+*Additive bank management - load additional banks at runtime without full reload*
+
+* [ ] `LoadAdditionalBank(path)` - compile and merge into running engine without stopping playback
+  * ? merge strategy: new behaviors added to resolver, conflicts (duplicate behavior ids) -> error or override?
+  * ? does this create a second CompiledBank, or merge into one? separate banks with resolver iterating all feels cleaner
+* [ ] `UnloadBank(bankId)` - remove a bank's behaviors from the resolver
+  * instances currently playing from that bank: let them drain (RequestStop) or hard-stop?
+  * ? reference tracking: audio thread needs to know which bank a ProgramInstance came from
+* [ ] asset management: unloading a bank must not free assets still referenced by active instances
+
+*Note: this is probably more immediately useful than streaming for most use cases (level loading, DLC, dynamic content). Streaming and bank management are complementary but independent features.*
+
+* [ ] ? Testable: load base bank, load addional bank, verify new behaviors resolve, unload additional bank, verify behaviors removed and instances drain
+
+**Phase 13 - BlendContainer**
+
+*A/B parameter-driven blend. Multi-blend deferred until base concept proven.*
+
+* [ ] new container type: `blend` (authored + compiled)
+  * authored fields: `assets` (exactly 2 for now), `parameter` (name of the blend control param), `range` ([minVal, maxVal] mapped to [0,1] blend ratio)
+  * compiled: assetA, assetB, parameterId, rangeMin, rangeMax
+* [ ] `BlendState` runtime struct:
+  * samplePositionA, samplePositionB (both always advance)
+  * current blend ratio [0,1]
+  * output: `lerp(sampleA, sampleB, ratio)` per frame
+* [ ] new command: `SetParam(instanceId, parameterId, value)`
+  * control watches entity values, forwards to bound instances when blend parameter changes
+  * audio thread applies to BlendState of matching instance
+  * ? scope question: is SetParam only for blend, or the start of a general per-instance parameter mechanism?
+    * if general: sets up expression-driven volume, pitch, etc. later - worth deciding scope now even if only blend uses it for now
+    * if blend-only: simpler, can be generalized later - but API shape might need to change
+* [ ] both playheads always advance regardless of blend ratio (keeps B in sync even at ratio=0)
+* [ ] blend parameter is not a match condition input - it is a runtime modulator only
+
+* [ ] Testable: author a blend behavior, set entity value, verify output crossfades correctly; verify both playheads stay in sync at ratio extremes
+
+**Phase 14 - Linux**
+
+*Mostly build/CI work - miniaudio already handles ALSA/PipeWire*
+
+* [ ] CI matrix: Ubuntu, GCC + Clang
+* [ ] verify ALSA backend; test PipeWire if feasible
+* [ ] .so artifact
+* [ ] SandboxCLI binary for Linux
+* [ ] fix whatever breaks (likely include paths, compiler warnings treated as errors, minor portability issues)
+
+**Phase 15 - OSX**
+
+*Same story - CoreAudio via miniaudio*
+
+* [ ] CI: macOS, Clang
+* [ ] CoreAudio backend verified
+* [ ] ? Universal binary (arm64 + x86_64) if distributing prebuilts
+* [ ] .dylib artifact
+* [ ] fix whatever breaks
+
+**Phase 16 - Multi-listener**
+
+*Small API change with some non-trivial policy decisions*
+
+* [ ] `SetListenerPosition(listenerId, x, y, z)` - listener 0 is implicit (no-id call routes to listener 0)
+* [ ] `maxListeners` in `EngineConfig` (default 1) - fixed at engine creation, not dynamic
+* [ ] audio thread owns listener state as indexed array, not a single vec3
+* [ ] spatialization policy: nearest-listener assignment per instance
+  * pick the listener that minimizes distance, spatialize from that perspective
+  * avoids N-render problem, perceptually fine for non-VR cases
+  * ? should assignment be re-evaluated every block, or only on position change? (every block is safer)
+* [ ] non-spatialized sources: play once at authored volume, no duplication regardless of listener count
+* [ ] ? more than N listeners: reject at config time or silently clamp?
+
+* [ ] Testable: two listeners, spatialized source, verify nearest-listener assignment; non-spatialized source, verify no duplication
+
+**Phase 17 - Streaming**
+
+*Large feature - separate state machine, breaks preload-everything model*
+
+* [ ] ? to be discussed when bank loading/unloading is proven and the asset model is stable
+* [ ] streaming requires: background IO thread, per-instance ring buffer, audio thread reads from ring buffer instead of DecodedBuffer
+* [ ] interaction with bank unloading: streaming instance holds a file reference, not a decoded buffer - unload becomes more complex
+* [ ] ? priority: is streaming more urgent than any of the above? probably not until asset sizes actually become a problem
 
 ---
 
@@ -692,7 +839,19 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 - Which `AudioConfig` fields are required in the public API for MVP beyond sample rate, sample format, output channels, callback frames, and backend preference?
 
-- When spatialization expands beyond pan/range, do we want one listener only for MVP+1, or should multi-listener support be planned into the command shape immediately?
+- Multichannel output policy: accommodate system channel count with channel-layout-aware spatialization, or always fold to stereo and let host/platform handle upmixing? (Phase 10)
+
+- Voice stealing vs. reject policy at voice ceiling: steal lowest-volume instance, or reject the new one? (Phase 11)
+
+- OOR oneshot cancellation: reject at CreateInstance time, or send RequestStop when entity moves OOR? (Phase 11)
+
+- `SetParam` scope: blend-only command, or start of a general per-instance parameter mechanism? Decide before Phase 13 ships since it affects the API shape. (Phase 13)
+
+- Multi-listener spatialization assignment: re-evaluate nearest listener every block, or only on position change? (Phase 16)
+
+- Bank merge strategy for additional bank loading: separate CompiledBank objects with resolver iterating all, or merge into one? Conflict handling on duplicate behavior ids? (Phase 12.5)
+
+- When spatialization expands beyond pan/range, do we want one listener only for MVP+1, or should multi-listener support be planned into the command shape immediately? (answered: listener 0 default, maxListeners in config, fixed at creation)
 
 ---
 

@@ -29,9 +29,27 @@ namespace decl_audio::runtime
         }
     }
 
+    void ControlRuntime::ClearTransientTags()
+    {
+        for (auto [entity, tag] : transientTags_)
+        {
+            const auto entity_it = world_state_.entities.find(entity);
+            if (entity_it == world_state_.entities.end())
+                continue;
+            entity_it->second.transient_tags.erase(tag);
+        }
+        transientTags_.clear();
+    }
+
     void ControlRuntime::Apply(const SetTagCommand &command) noexcept
     {
         world_state_.GetOrCreateEntity(command.entity_id).tags.insert(command.tag_id);
+    }
+
+    void ControlRuntime::Apply(const SetTransientTagCommand &command) noexcept
+    {
+        world_state_.GetOrCreateEntity(command.entity_id).transient_tags.insert(command.tag_id);
+        transientTags_.push_back({command.entity_id, command.tag_id});
     }
 
     void ControlRuntime::Apply(const RemoveTagCommand &command) noexcept

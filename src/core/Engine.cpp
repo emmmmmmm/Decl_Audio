@@ -89,6 +89,9 @@ namespace decl_audio
             {
                 audio_runtime_.Submit(command);
             });
+
+        // TODO: clear transient tags
+        control_runtime_.ClearTransientTags();
     }
 
     void Engine::SetTag(const char *entity_id, const char *tag) noexcept
@@ -104,7 +107,12 @@ namespace decl_audio
             std::string(entity_id),
             compiled_bank_->GetTagId(tag)});
     }
-
+    void Engine::SetTransientTag(const char *entity_id, const char *tag) noexcept
+    {
+        control_runtime_.Submit(runtime::SetTransientTagCommand{
+            std::string(entity_id),
+            compiled_bank_->GetTagId(tag)}); // transient
+    }
     void Engine::SetValue(const char *entity_id, const char *parameter, float value) noexcept
     {
         if (std::string_view(parameter) == "volume")

@@ -5,6 +5,8 @@
 #include "../RingBuffer.hpp"
 #include "HostCommands.hpp"
 #include "WorldState.hpp"
+#include <vector>
+#include <tuple>
 
 namespace decl_audio::runtime
 {
@@ -15,6 +17,8 @@ namespace decl_audio::runtime
 
         void Submit(HostCommand command);
         void Tick() noexcept;
+
+        void ClearTransientTags();
 
         [[nodiscard]] const WorldState &GetWorldState() const noexcept
         {
@@ -35,6 +39,7 @@ namespace decl_audio::runtime
 
     private:
         void Apply(const SetTagCommand &command) noexcept;
+        void Apply(const SetTransientTagCommand &command) noexcept;
         void Apply(const RemoveTagCommand &command) noexcept;
         void Apply(const SetFloatValueCommand &command) noexcept;
         void Apply(const SetEntityVolumeCommand &command) noexcept;
@@ -46,5 +51,7 @@ namespace decl_audio::runtime
         WorldState world_state_;
         Vec3 listener_position_{};
         bool listener_position_dirty_ = false;
+
+        std::vector<std::tuple<std::string, decl_audio::compiler::TagId>> transientTags_{};
     };
 } // namespace decl_audio::runtime

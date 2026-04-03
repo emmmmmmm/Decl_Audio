@@ -121,6 +121,10 @@ extern "C"
     {
         engine->engine.SetTag(entity_id, tag);
     }
+    void SetTransientTag(DeclAudioEngine *engine, const char *entity_id, const char *tag)
+    {
+        engine->engine.SetTransientTag(entity_id, tag);
+    }
 
     void RemoveTag(DeclAudioEngine *engine, const char *entity_id, const char *tag)
     {

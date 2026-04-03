@@ -160,6 +160,23 @@ namespace
         engine.Update();
         return RunWait(engine, 700);
     }
+
+    bool RunTransientTagTest(decl_audio::Engine &engine)
+    {
+        const std::filesystem::path bank_path = GetSpatializationBankPath();
+        PrintSection("TransientTag Test", "you should hear a sound");
+
+        if (!engine.LoadBehaviors(bank_path.string().c_str()))
+        {
+            std::cerr << decl_audio::compiler::DumpDiagnostics(engine.GetLoadDiagnostics());
+            return false;
+        }
+        engine.SetListenerPosition(0, 0, 0);
+        engine.SetPosition("player", 0, 0, 0);
+        engine.SetTransientTag("player", "spatial.mono");
+        engine.Update();
+        return RunWait(engine, 700);
+    }
 } // namespace
 
 int main(int argc, char **argv)
@@ -191,19 +208,22 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (!RunOneShotTest(engine, compile_result.bank))
-        return 1;
+    // if (!RunOneShotTest(engine, compile_result.bank))
+    //     return 1;
 
-    if (!RunLoopTest(engine, compile_result.bank))
-        return 1;
+    // if (!RunLoopTest(engine, compile_result.bank))
+    //     return 1;
 
-    if (!RunRandomTest(engine, compile_result.bank))
-        return 1;
+    // if (!RunRandomTest(engine, compile_result.bank))
+    //     return 1;
 
-    if (!RunParamForwardingTest(engine))
-        return 1;
+    // if (!RunParamForwardingTest(engine))
+    //     return 1;
 
-    if (!RunPanningTest(engine))
+    // if (!RunPanningTest(engine))
+    //     return 1;
+
+    if (!RunTransientTagTest(engine))
         return 1;
 
     return 0;

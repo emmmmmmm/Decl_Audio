@@ -12,6 +12,7 @@ namespace decl_audio::runtime
     struct EntityState final
     {
         std::unordered_set<compiler::TagId> tags;
+        std::unordered_set<compiler::TagId> transient_tags;
         std::unordered_map<compiler::ParameterId, float> float_values;
         float volume = 1.0f;
         Vec3 position{};
@@ -20,7 +21,7 @@ namespace decl_audio::runtime
 
         [[nodiscard]] bool HasTag(compiler::TagId tag_id) const noexcept
         {
-            return tags.contains(tag_id);
+            return tags.contains(tag_id) || transient_tags.contains(tag_id);
         }
 
         [[nodiscard]] bool HasFloatValue(compiler::ParameterId parameter_id) const noexcept

@@ -4,6 +4,7 @@
 #include "../include/Decl_Audio/Decl_Audio.h"
 #include "../src/compiler/Compiler.hpp"
 #include "../src/core/Engine.hpp"
+#include "../src/runtime/ControlRuntime.hpp"
 
 namespace
 {
@@ -150,6 +151,55 @@ bool TestRemoveCommandsDoNotCreateEntities()
     return true;
 }
 
+bool TestTransientTagsExpireWithoutErasingPersistentTags()
+{
+    const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
+    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+    const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
+
+    decl_audio::runtime::ControlRuntime control_runtime;
+    control_runtime.Submit(decl_audio::runtime::SetTransientTagCommand{
+        "player",
+        grounded_tag_id});
+    control_runtime.Tick();
+
+    if (!Expect(control_runtime.GetWorldState().HasEntity("player"), "transient tag should materialize the entity during drain"))
+    {
+        return false;
+    }
+
+    const decl_audio::runtime::EntityState &transient_entity = control_runtime.GetWorldState().GetEntity("player");
+    if (!Expect(transient_entity.HasTag(grounded_tag_id), "transient tag should be visible before cleanup"))
+    {
+        return false;
+    }
+
+    control_runtime.ClearTransientTags();
+
+    const decl_audio::runtime::EntityState &cleared_entity = control_runtime.GetWorldState().GetEntity("player");
+    if (!Expect(!cleared_entity.HasTag(grounded_tag_id), "ClearTransientTags should remove transient tags"))
+    {
+        return false;
+    }
+
+    control_runtime.Submit(decl_audio::runtime::SetTagCommand{
+        "player",
+        grounded_tag_id});
+    control_runtime.Submit(decl_audio::runtime::SetTransientTagCommand{
+        "player",
+        grounded_tag_id});
+    control_runtime.Tick();
+    control_runtime.ClearTransientTags();
+
+    const decl_audio::runtime::EntityState &persistent_entity = control_runtime.GetWorldState().GetEntity("player");
+    if (!Expect(persistent_entity.HasTag(grounded_tag_id), "clearing transient tags should not erase persistent tags"))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 bool TestVec3CommandsDrainIntoWorldState()
 {
     const std::filesystem::path fixture_path = GetFixturePath("ParameterForwardingBehaviorBank.json");
@@ -228,6 +278,11 @@ bool RunWorldStateTests()
     }
 
     if (!TestRemoveCommandsDoNotCreateEntities())
+    {
+        return false;
+    }
+
+    if (!TestTransientTagsExpireWithoutErasingPersistentTags())
     {
         return false;
     }
