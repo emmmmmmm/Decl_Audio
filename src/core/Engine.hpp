@@ -36,7 +36,7 @@ namespace decl_audio
         void SetPosition(const char *entity_id, float x, float y, float z) noexcept;
         void SetListenerPosition(float x, float y, float z) noexcept;
         void DestroyEntity(const char *entity_id) noexcept;
-        void GetDebugSnapshot() noexcept {}; // TODO
+        void GetDebugSnapshot() noexcept;
         [[nodiscard]] uint32_t GetApiVersion() const noexcept
         {
             return api_version_;

@@ -53,6 +53,30 @@ namespace decl_audio::playback
         bool stop_requested = false;
     };
 
+    struct InstanceDebugSnapshot final
+    {
+        InstanceId instance_id = 0;
+        compiler::ProgramId program_id = 0;
+        std::uint32_t cursor = 0;
+        compiler::ContainerType container_type = compiler::ContainerType::OneShot;
+        float volume = 1.0f;
+        Vec3 position{};
+        bool stop_requested = false;
+        std::uint64_t sample_position = 0;
+        std::int32_t remaining_loops = 0;
+        std::uint32_t picked_asset_slot = 0;
+    };
+
+    struct DebugSnapshot final
+    {
+        Vec3 listener_position{};
+        std::uint64_t root_seed = 0;
+        std::size_t max_instances = 0;
+        std::uint32_t max_block_frames = 0;
+        std::size_t active_instance_count = 0;
+        std::vector<InstanceDebugSnapshot> instances;
+    };
+
     struct ListenerState final
     {
         Vec3 position{};
@@ -81,6 +105,7 @@ namespace decl_audio::playback
         }
 
         [[nodiscard]] bool TryGetInstanceSnapshot(InstanceId instance_id, InstanceSnapshot &snapshot) const noexcept;
+        [[nodiscard]] DebugSnapshot GetDebugSnapshot() const noexcept;
         [[nodiscard]] const Vec3 &GetListenerPositionForTesting() const noexcept
         {
             return listener_.position;

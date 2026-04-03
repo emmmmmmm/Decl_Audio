@@ -673,14 +673,14 @@ If this is clean to implement, the foundation is correct. If it feels hard, the 
 
 **Phase 8 - Debugging + CLI**
 
-* [ ] `GetDebugSnapshot()` - serialize current engine state to readable struct or JSON dump
+* [x] `GetDebugSnapshot()` - serialize current engine state to readable struct or JSON dump
   * active instances (instanceId, programId, current container type, asset playing)
   * entity->behavior matches and why (tags considered, conditions evaluated)
   * current param values per entity
 * [ ] ring buffer trace log (CreateInstance / RequestStop / match / unmatch events, timestamped)
-* [ ] full sandbox CLI with interactive commands: `entity`, `tag`, `untag`, `setval`, `setpos`, `setlistener`, `dump`, 
+* [x] full sandbox CLI with interactive commands: `entity`, `tag`, `untag`, `setval`, `setpos`, `setlistener`, `dump`, 
 
-* [ ] Testable: interactive session that exercises every command type, verify dump output is accurate and readable
+* [x] Testable: interactive session that exercises every command type, verify dump output is accurate and readable
 
 **Phase 9 - Hardening**
 

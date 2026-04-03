@@ -6,6 +6,7 @@
 #include <cmath>
 #include <exception>
 #include <limits>
+#include <type_traits>
 #include <variant>
 
 namespace decl_audio::playback
@@ -197,6 +198,51 @@ namespace decl_audio::playback
         snapshot.position = instance.position;
         snapshot.stop_requested = instance.stop_requested;
         return true;
+    }
+
+    DebugSnapshot AudioRuntime::GetDebugSnapshot() const noexcept
+    {
+        DebugSnapshot snapshot;
+        snapshot.listener_position = listener_.position;
+        snapshot.root_seed = root_seed_;
+        snapshot.max_instances = max_instances_;
+        snapshot.max_block_frames = max_block_frames_;
+        snapshot.active_instance_count = instances_.size();
+        snapshot.instances.reserve(instances_.size());
+
+        for (const ProgramInstance &instance : instances_)
+        {
+            InstanceDebugSnapshot instance_snapshot;
+            const compiler::CompiledContainer &container = GetCompiledContainer(instance);
+            instance_snapshot.instance_id = instance.instance_id;
+            instance_snapshot.program_id = instance.compiled->id;
+            instance_snapshot.cursor = instance.cursor;
+            instance_snapshot.container_type = container.type;
+            instance_snapshot.volume = instance.volume;
+            instance_snapshot.position = instance.position;
+            instance_snapshot.stop_requested = instance.stop_requested;
+
+            std::visit(
+                [&](const auto &typed_state)
+                {
+                    using TState = std::decay_t<decltype(typed_state)>;
+                    instance_snapshot.sample_position = typed_state.sample_position;
+
+                    if constexpr (std::is_same_v<TState, LoopState>)
+                    {
+                        instance_snapshot.remaining_loops = typed_state.remaining_loops;
+                    }
+                    else if constexpr (std::is_same_v<TState, RandomState>)
+                    {
+                        instance_snapshot.picked_asset_slot = typed_state.picked_asset_slot;
+                    }
+                },
+                instance.current);
+
+            snapshot.instances.push_back(instance_snapshot);
+        }
+
+        return snapshot;
     }
 
     void AudioRuntime::ApplyPendingCommands() noexcept
