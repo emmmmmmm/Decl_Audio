@@ -10,7 +10,6 @@
 #include "../backends/AudioDeviceBackend.hpp"
 #include "../backends/StubBackend.hpp"
 #include "../compiler/CompiledBank.hpp"
-#include "ConfigSupport.hpp"
 #include "../playback/AudioCommands.hpp"
 #include "../playback/AudioRuntime.hpp"
 #include "../runtime/BehaviorResolver.hpp"
@@ -39,8 +38,9 @@ namespace decl_audio
         virtual void SetPosition(const char *entity_id, float x, float y, float z) noexcept;
         virtual void SetListenerPosition(float x, float y, float z) noexcept;
         virtual void DestroyEntity(const char *entity_id) noexcept;
+        virtual void GetDebugSnapshot() noexcept {};
 
-        // Phase 4 test seam. The C API stays unchanged until resolver/backend work is in place.
+        // TODO: Obsolete: Phase 4 test seam. The C API stays unchanged until resolver/backend work is in place.
         virtual void SubmitCreateInstanceForTesting(playback::InstanceId instance_id,
                                                     compiler::ProgramId program_id,
                                                     float volume = 1.0f,
@@ -105,8 +105,8 @@ namespace decl_audio
         runtime::BehaviorResolver behavior_resolver_;
         playback::AudioRuntime audio_runtime_;
         backends::StubBackend stub_backend_;
-        AudioConfig audio_config_{};
         uint32_t api_version_;
         void *user_data_;
+        EngineConfig config;
     };
 } // namespace decl_audio

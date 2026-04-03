@@ -13,7 +13,7 @@ namespace decl_audio::backends
         ~MiniaudioBackend() override;
 
         bool Start(playback::AudioRuntime &runtime,
-                   const AudioConfig &config,
+                   const EngineConfig &config,
                    std::string &error_message) noexcept override;
         void Stop() noexcept override;
         [[nodiscard]] bool IsStarted() const noexcept override;

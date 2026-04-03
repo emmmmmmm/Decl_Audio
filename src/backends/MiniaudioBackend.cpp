@@ -46,7 +46,7 @@ namespace decl_audio::backends
     }
 
     bool MiniaudioBackend::Start(playback::AudioRuntime &runtime,
-                                 const AudioConfig &config,
+                                 const EngineConfig &config,
                                  std::string &error_message) noexcept
     {
 #if !defined(_WIN32)

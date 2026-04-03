@@ -25,10 +25,8 @@ namespace decl_audio
     } // namespace
 
     Engine::Engine(const EngineConfig &config) noexcept
-        : api_version_(config.api_version),
-          audio_config_(ResolveAudioConfig(config)),
-          user_data_(config.user_data)
     {
+        this->config = config;
     }
 
     Engine::~Engine()
@@ -198,15 +196,15 @@ namespace decl_audio
 
     bool Engine::StartConfiguredAudioBackend(const char *source_path) noexcept
     {
-        if (audio_config_.backend == DECL_AUDIO_BACKEND_SILENT)
+        if (config.backend == DECL_AUDIO_BACKEND_SILENT)
         {
             audio_backend_.reset();
             return true;
         }
 
-        audio_backend_ = backends::CreateAudioDeviceBackend(audio_config_.backend);
+        audio_backend_ = backends::CreateAudioDeviceBackend(config.backend);
         std::string error_message;
-        if (!audio_backend_->Start(audio_runtime_, audio_config_, error_message))
+        if (!audio_backend_->Start(audio_runtime_, config, error_message))
         {
             load_diagnostics_.push_back(MakeAudioBackendError(source_path, std::move(error_message)));
             audio_backend_.reset();

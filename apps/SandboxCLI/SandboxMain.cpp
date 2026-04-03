@@ -2,13 +2,90 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <thread>
 
 #include "../../src/compiler/Compiler.hpp"
 #include "../../src/core/Engine.hpp"
 
+namespace fs = std::filesystem;
 namespace
 {
+
+    struct CliOptions
+    {
+        fs::path bankPath = fs::current_path();
+        fs::path assetPath = fs::current_path();
+        bool autoTests = false;
+    };
+
+    void PrintUsage(const char *exeName)
+    {
+        std::cout
+            << "Usage: " << exeName << " [options]\n"
+            << "  --banks <path>        Asset root directory\n"
+            << "  --automatedTesting     Starts auto-testing routine\n"
+            << "  --help                 Show this help\n";
+    }
+
+    void PrintPromptHelp()
+    {
+        std::cout
+            << "Commands:\n"
+            << "  help\n"
+            << "  tag <entity> <tag>\n"
+            << "  clear <entity> <tag>\n"
+            << "  transient <entity> <tag>\n"
+            << "  float <entity> <key> <value>\n"
+            << "  string <entity> <key> <value...>\n"
+            << "  pos <entity> <x> <y> <z>\n"
+            << "  quat <entity> <a> <b> <c> <d>\n"
+            << "  transform <entity> <x> <y> <z> <a> <b> <c> <d>\n"
+            << "  dump\n"
+            << "  exit\n";
+    }
+
+    bool ParseArgs(int argc, char **argv, CliOptions &options, bool &shouldExit)
+    {
+        for (int i = 1; i < argc; ++i)
+        {
+            const std::string arg = argv[i];
+
+            if (arg == "--help" || arg == "-h")
+            {
+                PrintUsage(argv[0]);
+                shouldExit = true;
+                return false;
+            }
+            if (i + 1 >= argc)
+            {
+                std::cerr << "Missing value for " << arg << '\n';
+                return false;
+            }
+
+            const std::string value = argv[++i];
+            if (arg == "--assets")
+            {
+                options.assetPath = value;
+            }
+            else if (arg == "--banks")
+            {
+                options.bankPath = value;
+            }
+            else if (arg == "--automatedTesting")
+            {
+                options.autoTests = true;
+            }
+            else
+            {
+                std::cerr << "Unknown option: " << arg << '\n';
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     bool RunWait(decl_audio::Engine &engine, const std::uint32_t milliseconds)
     {
         using namespace std::chrono_literals;
@@ -23,18 +100,18 @@ namespace
         return true;
     }
 
-    std::filesystem::path GetDefaultBankPath()
+    fs::path GetDefaultBankPath()
     {
-        return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "PlaybackBehaviorBank.json";
+        return fs::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "PlaybackBehaviorBank.json";
     }
 
-    std::filesystem::path GetPhase7BankPath()
+    fs::path GetPhase7BankPath()
     {
-        return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "ParameterForwardingBehaviorBank.json";
+        return fs::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "ParameterForwardingBehaviorBank.json";
     }
-    std::filesystem::path GetSpatializationBankPath()
+    fs::path GetSpatializationBankPath()
     {
-        return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "SpatializationBehaviorBank.json";
+        return fs::path(__FILE__).parent_path().parent_path().parent_path() / "tests" / "data" / "SpatializationBehaviorBank.json";
     }
 
     void PrintSection(const char *label, const char *description)
@@ -87,7 +164,7 @@ namespace
 
     bool RunParamForwardingTest(decl_audio::Engine &engine)
     {
-        const std::filesystem::path bank_path = GetPhase7BankPath();
+        const fs::path bank_path = GetPhase7BankPath();
         PrintSection("Param Forwarding", "You should hear a quiet loop first, then a louder loop after the runtime volume parameter changes.");
 
         if (!engine.LoadBehaviors(bank_path.string().c_str()))
@@ -117,7 +194,7 @@ namespace
     }
     bool RunPanningTest(decl_audio::Engine &engine)
     {
-        const std::filesystem::path bank_path = GetSpatializationBankPath();
+        const fs::path bank_path = GetSpatializationBankPath();
         PrintSection("Panning Test", "you should hear a sound on your right");
 
         if (!engine.LoadBehaviors(bank_path.string().c_str()))
@@ -163,7 +240,7 @@ namespace
 
     bool RunTransientTagTest(decl_audio::Engine &engine)
     {
-        const std::filesystem::path bank_path = GetSpatializationBankPath();
+        const fs::path bank_path = GetSpatializationBankPath();
         PrintSection("TransientTag Test", "you should hear a sound");
 
         if (!engine.LoadBehaviors(bank_path.string().c_str()))
@@ -177,53 +254,195 @@ namespace
         engine.Update();
         return RunWait(engine, 700);
     }
+
+    bool ProcessCommand(decl_audio::Engine &engine, const std::string &line)
+    {
+        std::istringstream input(line);
+        std::string command;
+        input >> command;
+
+        if (command.empty())
+        {
+            return true;
+        }
+        if (command == "help")
+        {
+            PrintPromptHelp();
+            return true;
+        }
+        if (command == "exit" || command == "quit")
+        {
+            return false;
+        }
+        if (command == "dump")
+        {
+            engine.GetDebugSnapshot();
+            return true;
+        }
+        if (command == "tag")
+        {
+            std::string entity;
+            std::string tag;
+            if (input >> entity >> tag)
+            {
+                engine.SetTag(entity.c_str(), tag.c_str());
+                return true;
+            }
+        }
+        else if (command == "clear")
+        {
+            std::string entity;
+            std::string tag;
+            if (input >> entity >> tag)
+            {
+                engine.RemoveTag(entity.c_str(), tag.c_str());
+                return true;
+            }
+        }
+        else if (command == "transient")
+        {
+            std::string entity;
+            std::string tag;
+            if (input >> entity >> tag)
+            {
+                engine.SetTransientTag(entity.c_str(), tag.c_str());
+                return true;
+            }
+        }
+        else if (command == "float")
+        {
+            std::string entity;
+            std::string key;
+            float value = 0.0f;
+            if (input >> entity >> key >> value)
+            {
+                engine.SetValue(entity.c_str(), key.c_str(), value);
+                return true;
+            }
+        }
+
+        else if (command == "pos")
+        {
+            std::string entity;
+            float x = 0.0f;
+            float y = 0.0f;
+            float z = 0.0f;
+            if (input >> entity >> x >> y >> z)
+            {
+                engine.SetPosition(entity.c_str(), x, y, z);
+                return true;
+            }
+        }
+        // else if (command == "quat")
+        // {
+        //     std::string entity;
+        //     float a = 0.0f;
+        //     float b = 0.0f;
+        //     float c = 0.0f;
+        //     float d = 1.0f;
+        //     if (input >> entity >> a >> b >> c >> d)
+        //     {
+        //         AudioManager_SetQuatValue(entity.c_str(), "rotation", a, b, c, d);
+        //         return true;
+        //     }
+        // }
+        // else if (command == "transform")
+        // {
+        //     std::string entity;
+        //     float x = 0.0f;
+        //     float y = 0.0f;
+        //     float z = 0.0f;
+        //     float a = 0.0f;
+        //     float b = 0.0f;
+        //     float c = 0.0f;
+        //     float d = 1.0f;
+        //     if (input >> entity >> x >> y >> z >> a >> b >> c >> d)
+        //     {
+        //         AudioManager_SetTransform(entity.c_str(), x, y, z, a, b, c, d);
+        //         return true;
+        //     }
+        // }
+
+        std::cout << "Invalid command. Type `help` for supported commands.\n";
+        return true;
+    }
+    bool RunInteractiveTest(decl_audio::Engine &engine)
+    {
+        const fs::path bank_path = GetSpatializationBankPath();
+
+        // that's kind of stupid and we should not do that! xD really we need to reconsider how we load banks in the test-thing at all
+        if (!engine.LoadBehaviors(bank_path.string().c_str()))
+        {
+            std::cerr << decl_audio::compiler::DumpDiagnostics(engine.GetLoadDiagnostics());
+            return false;
+        }
+
+        PrintPromptHelp();
+
+        std::string line;
+        while (std::cout << "> " && std::getline(std::cin, line))
+        {
+            if (!ProcessCommand(engine, line))
+            {
+                return 0;
+            }
+            engine.Update(); // huh?
+        }
+        return 0;
+    }
+
 } // namespace
 
 int main(int argc, char **argv)
 {
-    if (argc > 2)
+
+    CliOptions options;
+    options.bankPath = GetDefaultBankPath();
+    bool shouldExit = false;
+    if (!ParseArgs(argc, argv, options, shouldExit))
     {
-        std::cerr << "Usage: Decl_Audio.SandboxCLI [behavior-bank.json]\n";
-        return 1;
+        return shouldExit ? 0 : 1;
     }
 
-    const std::filesystem::path bank_path = (argc == 2) ? std::filesystem::path(argv[1]) : GetDefaultBankPath();
-
-    EngineConfig config{};
-    Init(&config);
-    config.audio.backend = DECL_AUDIO_BACKEND_PLATFORM_DEFAULT;
+    EngineConfig config = GetDefaultConfig();
 
     decl_audio::Engine engine(config);
-    std::cout << "Loading bank: " << bank_path << '\n';
-    if (!engine.LoadBehaviors(bank_path.string().c_str()))
+    std::cout << "Loading bank: " << options.bankPath << '\n';
+    if (!engine.LoadBehaviors(options.bankPath.string().c_str()))
     {
         std::cerr << decl_audio::compiler::DumpDiagnostics(engine.GetLoadDiagnostics());
         return 1;
     }
 
-    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(bank_path);
+    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(options.bankPath);
     if (compile_result.HasErrors())
     {
         std::cerr << decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
         return 1;
     }
 
-    // if (!RunOneShotTest(engine, compile_result.bank))
-    //     return 1;
+    if (options.autoTests)
+    {
+        if (!RunOneShotTest(engine, compile_result.bank))
+            return 1;
 
-    // if (!RunLoopTest(engine, compile_result.bank))
-    //     return 1;
+        if (!RunLoopTest(engine, compile_result.bank))
+            return 1;
 
-    // if (!RunRandomTest(engine, compile_result.bank))
-    //     return 1;
+        if (!RunRandomTest(engine, compile_result.bank))
+            return 1;
 
-    // if (!RunParamForwardingTest(engine))
-    //     return 1;
+        if (!RunParamForwardingTest(engine))
+            return 1;
 
-    // if (!RunPanningTest(engine))
-    //     return 1;
+        if (!RunPanningTest(engine))
+            return 1;
 
-    if (!RunTransientTagTest(engine))
+        if (!RunTransientTagTest(engine))
+            return 1;
+    }
+
+    if (!RunInteractiveTest(engine))
         return 1;
 
     return 0;

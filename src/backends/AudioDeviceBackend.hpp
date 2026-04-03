@@ -14,7 +14,7 @@ namespace decl_audio::backends
         virtual ~AudioDeviceBackend() = default;
 
         virtual bool Start(playback::AudioRuntime &runtime,
-                           const AudioConfig &config,
+                           const EngineConfig &config,
                            std::string &error_message) noexcept = 0;
         virtual void Stop() noexcept = 0;
         [[nodiscard]] virtual bool IsStarted() const noexcept = 0;

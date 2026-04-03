@@ -8,261 +8,258 @@
 
 namespace
 {
-bool Expect(bool condition, const char *message)
-{
-    if (!condition)
+    bool Expect(bool condition, const char *message)
     {
-        std::cerr << "FAILED: " << message << '\n';
-        return false;
+        if (!condition)
+        {
+            std::cerr << "FAILED: " << message << '\n';
+            return false;
+        }
+
+        return true;
     }
 
-    return true;
-}
-
-std::filesystem::path GetFixturePath(const char *file_name)
-{
-    return std::filesystem::path(__FILE__).parent_path() / "data" / file_name;
-}
-
-bool TestCommandsDrainIntoWorldState()
-{
-    const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
-    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
-
-    EngineConfig config{};
-    config.struct_size = sizeof(EngineConfig);
-    config.api_version = DECL_AUDIO_API_VERSION;
-
-    decl_audio::Engine engine(config);
-    if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 2 fixture should load"))
+    std::filesystem::path GetFixturePath(const char *file_name)
     {
-        return false;
+        return std::filesystem::path(__FILE__).parent_path() / "data" / file_name;
     }
 
-    engine.SetTag("player", "movement.grounded");
-    engine.SetTag("player", "movement.walking");
-    engine.SetValue("player", "speed", 4.2f);
-
-    if (!Expect(!engine.GetWorldState().HasEntity("player"), "queued commands should wait until Update"))
+    EngineConfig GetTestConfig()
     {
-        return false;
+        EngineConfig config = GetDefaultConfig();
+        config.backend = DECL_AUDIO_BACKEND_SILENT;
+        return config;
     }
 
-    engine.Update();
-
-    const decl_audio::runtime::WorldState &world_state = engine.GetWorldState();
-    const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
-    const decl_audio::compiler::TagId walking_tag_id = compile_result.bank.GetTagId("movement.walking");
-    const decl_audio::compiler::ParameterId speed_parameter_id = compile_result.bank.GetParameterId("speed");
-    if (!Expect(world_state.HasEntity("player"), "Update should materialize the entity"))
+    bool TestCommandsDrainIntoWorldState()
     {
-        return false;
+        const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
+        const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+
+        auto config = GetTestConfig();
+
+        decl_audio::Engine engine(config);
+        if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 2 fixture should load"))
+        {
+            return false;
+        }
+
+        engine.SetTag("player", "movement.grounded");
+        engine.SetTag("player", "movement.walking");
+        engine.SetValue("player", "speed", 4.2f);
+
+        if (!Expect(!engine.GetWorldState().HasEntity("player"), "queued commands should wait until Update"))
+        {
+            return false;
+        }
+
+        engine.Update();
+
+        const decl_audio::runtime::WorldState &world_state = engine.GetWorldState();
+        const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
+        const decl_audio::compiler::TagId walking_tag_id = compile_result.bank.GetTagId("movement.walking");
+        const decl_audio::compiler::ParameterId speed_parameter_id = compile_result.bank.GetParameterId("speed");
+        if (!Expect(world_state.HasEntity("player"), "Update should materialize the entity"))
+        {
+            return false;
+        }
+
+        const decl_audio::runtime::EntityState &entity = world_state.GetEntity("player");
+        if (!Expect(entity.HasTag(grounded_tag_id), "grounded tag should be applied"))
+        {
+            return false;
+        }
+
+        if (!Expect(entity.HasTag(walking_tag_id), "walking tag should be applied"))
+        {
+            return false;
+        }
+
+        if (!Expect(entity.GetFloatValue(speed_parameter_id) == 4.2f, "float value should be applied"))
+        {
+            return false;
+        }
+
+        return true;
     }
 
-    const decl_audio::runtime::EntityState &entity = world_state.GetEntity("player");
-    if (!Expect(entity.HasTag(grounded_tag_id), "grounded tag should be applied"))
+    bool TestRemoveTagAndDestroyEntity()
     {
-        return false;
+        const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
+        const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+
+        auto config = GetTestConfig();
+
+        decl_audio::Engine engine(config);
+        if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 2 removal fixture should load"))
+        {
+            return false;
+        }
+
+        engine.SetTag("player", "movement.grounded");
+        engine.SetTag("player", "movement.walking");
+        engine.SetValue("player", "speed", 1.0f);
+        engine.Update();
+
+        engine.RemoveTag("player", "movement.walking");
+        engine.Update();
+
+        const decl_audio::runtime::EntityState &entity = engine.GetWorldState().GetEntity("player");
+        const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
+        const decl_audio::compiler::TagId walking_tag_id = compile_result.bank.GetTagId("movement.walking");
+        if (!Expect(entity.HasTag(grounded_tag_id), "removing one tag should keep other tags"))
+        {
+            return false;
+        }
+
+        if (!Expect(!entity.HasTag(walking_tag_id), "RemoveTag should erase the requested tag"))
+        {
+            return false;
+        }
+
+        engine.DestroyEntity("player");
+        engine.Update();
+
+        if (!Expect(!engine.GetWorldState().HasEntity("player"), "DestroyEntity should erase the entity"))
+        {
+            return false;
+        }
+
+        return true;
     }
 
-    if (!Expect(entity.HasTag(walking_tag_id), "walking tag should be applied"))
+    bool TestRemoveCommandsDoNotCreateEntities()
     {
-        return false;
+        const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
+
+        auto config = GetTestConfig();
+
+        decl_audio::Engine engine(config);
+        if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 2 remove fixture should load"))
+        {
+            return false;
+        }
+
+        engine.RemoveTag("ghost", "movement.walking");
+        engine.DestroyEntity("ghost");
+        engine.Update();
+
+        if (!Expect(!engine.GetWorldState().HasEntity("ghost"), "remove-style commands should not create entities"))
+        {
+            return false;
+        }
+
+        return true;
     }
 
-    if (!Expect(entity.GetFloatValue(speed_parameter_id) == 4.2f, "float value should be applied"))
+    bool TestTransientTagsExpireWithoutErasingPersistentTags()
     {
-        return false;
+        const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
+        const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+        const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
+
+        decl_audio::runtime::ControlRuntime control_runtime;
+        control_runtime.Submit(decl_audio::runtime::SetTransientTagCommand{
+            "player",
+            grounded_tag_id});
+        control_runtime.Tick();
+
+        if (!Expect(control_runtime.GetWorldState().HasEntity("player"), "transient tag should materialize the entity during drain"))
+        {
+            return false;
+        }
+
+        const decl_audio::runtime::EntityState &transient_entity = control_runtime.GetWorldState().GetEntity("player");
+        if (!Expect(transient_entity.HasTag(grounded_tag_id), "transient tag should be visible before cleanup"))
+        {
+            return false;
+        }
+
+        control_runtime.ClearTransientTags();
+
+        const decl_audio::runtime::EntityState &cleared_entity = control_runtime.GetWorldState().GetEntity("player");
+        if (!Expect(!cleared_entity.HasTag(grounded_tag_id), "ClearTransientTags should remove transient tags"))
+        {
+            return false;
+        }
+
+        control_runtime.Submit(decl_audio::runtime::SetTagCommand{
+            "player",
+            grounded_tag_id});
+        control_runtime.Submit(decl_audio::runtime::SetTransientTagCommand{
+            "player",
+            grounded_tag_id});
+        control_runtime.Tick();
+        control_runtime.ClearTransientTags();
+
+        const decl_audio::runtime::EntityState &persistent_entity = control_runtime.GetWorldState().GetEntity("player");
+        if (!Expect(persistent_entity.HasTag(grounded_tag_id), "clearing transient tags should not erase persistent tags"))
+        {
+            return false;
+        }
+
+        return true;
     }
 
-    return true;
-}
-
-bool TestRemoveTagAndDestroyEntity()
-{
-    const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
-    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
-
-    EngineConfig config{};
-    config.struct_size = sizeof(EngineConfig);
-    config.api_version = DECL_AUDIO_API_VERSION;
-
-    decl_audio::Engine engine(config);
-    if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 2 removal fixture should load"))
+    bool TestVec3CommandsDrainIntoWorldState()
     {
-        return false;
+        const std::filesystem::path fixture_path = GetFixturePath("ParameterForwardingBehaviorBank.json");
+
+        auto config = GetTestConfig();
+
+        decl_audio::Engine engine(config);
+        if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 7 fixture should load"))
+        {
+            return false;
+        }
+
+        engine.SetPosition("player", 1.0f, 2.0f, 3.0f);
+        engine.Update();
+
+        const decl_audio::runtime::EntityState &entity = engine.GetWorldState().GetEntity("player");
+        if (!Expect(entity.HasPosition(), "SetPosition should mark the entity as having a runtime position"))
+        {
+            return false;
+        }
+
+        if (!Expect(entity.GetPosition() == Vec3{1.0f, 2.0f, 3.0f}, "position value should be applied"))
+        {
+            return false;
+        }
+
+        return true;
     }
 
-    engine.SetTag("player", "movement.grounded");
-    engine.SetTag("player", "movement.walking");
-    engine.SetValue("player", "speed", 1.0f);
-    engine.Update();
-
-    engine.RemoveTag("player", "movement.walking");
-    engine.Update();
-
-    const decl_audio::runtime::EntityState &entity = engine.GetWorldState().GetEntity("player");
-    const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
-    const decl_audio::compiler::TagId walking_tag_id = compile_result.bank.GetTagId("movement.walking");
-    if (!Expect(entity.HasTag(grounded_tag_id), "removing one tag should keep other tags"))
+    bool TestPhase2ApiSmoke()
     {
-        return false;
-    }
+        const std::filesystem::path fixture_path = GetFixturePath("ParameterForwardingBehaviorBank.json");
 
-    if (!Expect(!entity.HasTag(walking_tag_id), "RemoveTag should erase the requested tag"))
-    {
-        return false;
-    }
+        auto config = GetTestConfig();
 
-    engine.DestroyEntity("player");
-    engine.Update();
+        DeclAudioEngine *engine = nullptr;
+        if (!Expect(CreateEngine(&config, &engine), "CreateEngine should succeed for the phase 2 API smoke test"))
+        {
+            return false;
+        }
 
-    if (!Expect(!engine.GetWorldState().HasEntity("player"), "DestroyEntity should erase the entity"))
-    {
-        return false;
-    }
+        if (!Expect(LoadBehaviors(engine, fixture_path.string().c_str()), "LoadBehaviors should succeed for the phase 2 API smoke test"))
+        {
+            DestroyEngine(engine);
+            return false;
+        }
 
-    return true;
-}
+        SetTag(engine, "player", "resolver.active");
+        SetValue(engine, "player", "volume", 0.5f);
+        SetPosition(engine, "player", 1.0f, 2.0f, 3.0f);
+        Update(engine);
+        RemoveTag(engine, "player", "resolver.active");
+        Update(engine);
+        DestroyEntity(engine, "player");
+        Update(engine);
 
-bool TestRemoveCommandsDoNotCreateEntities()
-{
-    const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
-
-    EngineConfig config{};
-    config.struct_size = sizeof(EngineConfig);
-    config.api_version = DECL_AUDIO_API_VERSION;
-
-    decl_audio::Engine engine(config);
-    if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 2 remove fixture should load"))
-    {
-        return false;
-    }
-
-    engine.RemoveTag("ghost", "movement.walking");
-    engine.DestroyEntity("ghost");
-    engine.Update();
-
-    if (!Expect(!engine.GetWorldState().HasEntity("ghost"), "remove-style commands should not create entities"))
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool TestTransientTagsExpireWithoutErasingPersistentTags()
-{
-    const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
-    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
-    const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
-
-    decl_audio::runtime::ControlRuntime control_runtime;
-    control_runtime.Submit(decl_audio::runtime::SetTransientTagCommand{
-        "player",
-        grounded_tag_id});
-    control_runtime.Tick();
-
-    if (!Expect(control_runtime.GetWorldState().HasEntity("player"), "transient tag should materialize the entity during drain"))
-    {
-        return false;
-    }
-
-    const decl_audio::runtime::EntityState &transient_entity = control_runtime.GetWorldState().GetEntity("player");
-    if (!Expect(transient_entity.HasTag(grounded_tag_id), "transient tag should be visible before cleanup"))
-    {
-        return false;
-    }
-
-    control_runtime.ClearTransientTags();
-
-    const decl_audio::runtime::EntityState &cleared_entity = control_runtime.GetWorldState().GetEntity("player");
-    if (!Expect(!cleared_entity.HasTag(grounded_tag_id), "ClearTransientTags should remove transient tags"))
-    {
-        return false;
-    }
-
-    control_runtime.Submit(decl_audio::runtime::SetTagCommand{
-        "player",
-        grounded_tag_id});
-    control_runtime.Submit(decl_audio::runtime::SetTransientTagCommand{
-        "player",
-        grounded_tag_id});
-    control_runtime.Tick();
-    control_runtime.ClearTransientTags();
-
-    const decl_audio::runtime::EntityState &persistent_entity = control_runtime.GetWorldState().GetEntity("player");
-    if (!Expect(persistent_entity.HasTag(grounded_tag_id), "clearing transient tags should not erase persistent tags"))
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool TestVec3CommandsDrainIntoWorldState()
-{
-    const std::filesystem::path fixture_path = GetFixturePath("ParameterForwardingBehaviorBank.json");
-
-    EngineConfig config{};
-    config.struct_size = sizeof(EngineConfig);
-    config.api_version = DECL_AUDIO_API_VERSION;
-
-    decl_audio::Engine engine(config);
-    if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "phase 7 fixture should load"))
-    {
-        return false;
-    }
-
-    engine.SetPosition("player", 1.0f, 2.0f, 3.0f);
-    engine.Update();
-
-    const decl_audio::runtime::EntityState &entity = engine.GetWorldState().GetEntity("player");
-    if (!Expect(entity.HasPosition(), "SetPosition should mark the entity as having a runtime position"))
-    {
-        return false;
-    }
-
-    if (!Expect(entity.GetPosition() == Vec3{1.0f, 2.0f, 3.0f}, "position value should be applied"))
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool TestPhase2ApiSmoke()
-{
-    const std::filesystem::path fixture_path = GetFixturePath("ParameterForwardingBehaviorBank.json");
-
-    EngineConfig config{};
-    config.struct_size = sizeof(EngineConfig);
-    config.api_version = DECL_AUDIO_API_VERSION;
-
-    DeclAudioEngine *engine = nullptr;
-    if (!Expect(CreateEngine(&config, &engine), "CreateEngine should succeed for the phase 2 API smoke test"))
-    {
-        return false;
-    }
-
-    if (!Expect(LoadBehaviors(engine, fixture_path.string().c_str()), "LoadBehaviors should succeed for the phase 2 API smoke test"))
-    {
         DestroyEngine(engine);
-        return false;
+        return true;
     }
-
-    SetTag(engine, "player", "resolver.active");
-    SetValue(engine, "player", "volume", 0.5f);
-    SetPosition(engine, "player", 1.0f, 2.0f, 3.0f);
-    Update(engine);
-    RemoveTag(engine, "player", "resolver.active");
-    Update(engine);
-    DestroyEntity(engine, "player");
-    Update(engine);
-
-    DestroyEngine(engine);
-    return true;
-}
 } // namespace
 
 bool RunWorldStateTests()

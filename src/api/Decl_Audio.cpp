@@ -1,86 +1,50 @@
 #include "pch.h"
 
 #include "../core/Engine.hpp"
-#include "../core/ConfigSupport.hpp"
 
 #include <new>
 
 struct DeclAudioEngine
 {
-    explicit DeclAudioEngine(const EngineConfig &config) noexcept
-        : engine(config)
+    explicit DeclAudioEngine(const EngineConfig *config) noexcept
+        : engine(*config)
     {
     }
-
     decl_audio::Engine engine;
 };
 
-namespace
+// not sure where to put those
+namespace decl_audio
 {
-    EngineConfig MakeDefaultEngineConfig() noexcept
-    {
-        EngineConfig config{};
-        config.struct_size = sizeof(EngineConfig);
-        config.api_version = DECL_AUDIO_API_VERSION;
-        config.user_data = nullptr;
-        config.audio = decl_audio::MakeDefaultAudioConfig();
-        return config;
-    }
-
-    bool ValidateConfig(const EngineConfig *config) noexcept
-    {
-        if (config == nullptr)
-            return false;
-
-        if (config->struct_size < sizeof(EngineConfig))
-            return false;
-
-        if (config->api_version != DECL_AUDIO_API_VERSION)
-            return false;
-
-        if (config->struct_size >= offsetof(EngineConfig, audio) + sizeof(AudioConfig) &&
-            config->audio.struct_size != 0 &&
-            !decl_audio::ValidateAudioConfig(config->audio))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    EngineConfig ResolveConfig(const EngineConfig *config) noexcept
-    {
-        EngineConfig resolved = MakeDefaultEngineConfig();
-        if (config == nullptr)
-        {
-            return resolved;
-        }
-
-        resolved.struct_size = sizeof(EngineConfig);
-        resolved.api_version = config->api_version;
-        resolved.user_data = config->user_data;
-        resolved.audio = decl_audio::ResolveAudioConfig(*config);
-        return resolved;
-    }
-} // namespace
-
+    inline constexpr std::uint32_t kDefaultSampleRate = 48000;
+    inline constexpr std::uint32_t kDefaultOutputChannelCount = 2;
+    inline constexpr std::uint32_t kDefaultCallbackFrameCount = 1024;
+    inline constexpr std::uint32_t kMaxCallbackFrameCount = 262144;
+}
 extern "C"
 {
-    void InitAudioConfig(AudioConfig *out_config)
+    EngineConfig GetDefaultConfig()
     {
-        *out_config = decl_audio::MakeDefaultAudioConfig();
-    }
-
-    void Init(EngineConfig *out_config)
-    {
-        *out_config = MakeDefaultEngineConfig();
+        EngineConfig config{};
+        config.sample_rate = decl_audio::kDefaultSampleRate;
+        config.output_channel_count = decl_audio::kDefaultOutputChannelCount;
+        config.callback_frame_count = decl_audio::kDefaultCallbackFrameCount;
+        config.backend = DECL_AUDIO_BACKEND_PLATFORM_DEFAULT;
+        return config;
     }
 
     uint32_t GetApiVersion(void)
     {
         return DECL_AUDIO_API_VERSION;
     }
-
+    bool ValidateConfig(const EngineConfig *config)
+    {
+        if (config->output_channel_count < 1 || config->output_channel_count > 2)
+            return false;
+        if (config->callback_frame_count == 0)
+            return false;
+        return true;
+    }
     bool CreateEngine(const EngineConfig *config, DeclAudioEngine **out_engine)
     {
         if (out_engine == nullptr)
@@ -88,12 +52,13 @@ extern "C"
 
         *out_engine = nullptr;
 
-        if (config != nullptr && !ValidateConfig(config))
+        if (config == nullptr)
             return false;
 
-        const EngineConfig resolved_config = ResolveConfig(config);
+        if (!ValidateConfig(config))
+            return false;
 
-        DeclAudioEngine *engine = new (std::nothrow) DeclAudioEngine(resolved_config);
+        DeclAudioEngine *engine = new (std::nothrow) DeclAudioEngine(config);
 
         *out_engine = engine;
         return engine != nullptr;
