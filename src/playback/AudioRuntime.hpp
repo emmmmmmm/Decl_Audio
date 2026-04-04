@@ -40,6 +40,7 @@ namespace decl_audio::playback
         Vec3 position{};
         bool stop_requested = false;
         ActiveContainerState current{};
+        // TODO: list of generic parameters 
     };
 
     struct InstanceSnapshot final

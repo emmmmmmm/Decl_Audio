@@ -72,6 +72,7 @@ namespace decl_audio
         return StartConfiguredAudioBackend(source_path);
     }
 
+    // to be on its own thread in the future i guess...!
     void Engine::Update() noexcept
     {
         control_runtime_.Tick(); // drain control queue
