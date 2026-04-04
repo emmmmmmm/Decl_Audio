@@ -135,7 +135,7 @@ namespace
             control_runtime.Tick();
 
             Vec3 listener_position;
-            if (control_runtime.ConsumeListenerPositionChange(listener_position))
+            if (control_runtime.ListenerPositionChanged(listener_position))
             {
                 audio_runtime.Submit(decl_audio::playback::SetListenerPositionCommand{
                     listener_position});

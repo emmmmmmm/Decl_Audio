@@ -5,7 +5,7 @@
 #include <variant>
 #include <vector>
 
-#include "../RingBuffer.hpp"
+#include "../core/RingBuffer.hpp"
 #include "../assets/AssetBank.hpp"
 #include "../compiler/CompiledBank.hpp"
 #include "AudioCommands.hpp"

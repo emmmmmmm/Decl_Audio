@@ -36,7 +36,7 @@ namespace decl_audio
         void SetPosition(const char *entity_id, float x, float y, float z) noexcept;
         void SetListenerPosition(float x, float y, float z) noexcept;
         void DestroyEntity(const char *entity_id) noexcept;
-        void GetDebugSnapshot() noexcept;
+
         [[nodiscard]] uint32_t GetApiVersion() const noexcept
         {
             return api_version_;
@@ -51,19 +51,43 @@ namespace decl_audio
         {
             return control_runtime_.GetWorldState();
         };
-
+        [[nodiscard]] const playback::DebugSnapshot GetDebugSnapshot() const noexcept
+        {
+            return audio_runtime_.GetDebugSnapshot();
+        };
         [[nodiscard]] const assets::AssetBank &GetAssetBank() const noexcept
         {
             return *asset_bank_;
+        };
+        [[nodiscard]] const compiler::CompiledBank &GetCompiledBank() const noexcept
+        {
+            return *compiled_bank_;
+        };
+        [[nodiscard]] const compiler::CompiledBank *TryGetCompiledBank() const noexcept
+        {
+            return compiled_bank_.get();
+        };
+        [[nodiscard]] const assets::AssetBank *TryGetAssetBank() const noexcept
+        {
+            return asset_bank_.get();
+        };
+        [[nodiscard]] bool HasStartedBackend() const noexcept
+        {
+            return audio_backend_ != nullptr;
         };
 
         [[nodiscard]] std::span<const compiler::Diagnostic> GetLoadDiagnostics() const noexcept
         {
             return load_diagnostics_;
         };
+        [[nodiscard]] EngineConfig GetConfig() const noexcept
+        {
+            return config;
+        };
 
     private:
-        [[nodiscard]] bool StartConfiguredAudioBackend(const char *source_path) noexcept;
+        [[nodiscard]] bool
+        StartConfiguredAudioBackend(const char *source_path) noexcept;
         void StopConfiguredAudioBackend() noexcept;
 
         std::unique_ptr<compiler::CompiledBank> compiled_bank_;

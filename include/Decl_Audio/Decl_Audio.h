@@ -39,11 +39,6 @@ extern "C"
         DeclAudioBackend backend;
     } EngineConfig;
 
-    // the whole flow is kind of weird! the two init config funcs need to go.
-    // we want to just pass a config  when creating the engine, and ... that's it.
-    // like, the whole flow is kind of rewards, no?
-    // we *might* defer load until a call to loadbanks, and we will want loading and unloading of banks to be additive/subtractive eventually.
-
     DECL_AUDIO_API uint32_t GetApiVersion(void);
     DECL_AUDIO_API EngineConfig GetDefaultConfig();
     DECL_AUDIO_API bool CreateEngine(const EngineConfig *config, DeclAudioEngine **out_engine);
@@ -64,8 +59,6 @@ extern "C"
 
     DECL_AUDIO_API void SetQuatValue(DeclAudioEngine *engine, const char *entityId, const char *key, float a, float b, float c, float d);
     DECL_AUDIO_API void SetTransform(DeclAudioEngine *engine, const char *entityId, float x, float y, float z, float a, float b, float c, float d);
-    DECL_AUDIO_API void ClearValue(DeclAudioEngine *engine, const char *entityId, const char *key);
-    DECL_AUDIO_API void ClearEntity(DeclAudioEngine *engine, const char *entityId);
 
 #ifdef __cplusplus
 }

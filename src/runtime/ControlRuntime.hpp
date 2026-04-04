@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-#include "../RingBuffer.hpp"
+#include "../core/RingBuffer.hpp"
 #include "HostCommands.hpp"
 #include "WorldState.hpp"
 #include <vector>
@@ -25,7 +25,7 @@ namespace decl_audio::runtime
             return world_state_;
         }
 
-        [[nodiscard]] bool ConsumeListenerPositionChange(Vec3 &position) noexcept
+        [[nodiscard]] bool ListenerPositionChanged(Vec3 &position) noexcept
         {
             if (!listener_position_dirty_)
             {

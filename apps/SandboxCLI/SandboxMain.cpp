@@ -7,6 +7,7 @@
 
 #include "../../src/compiler/Compiler.hpp"
 #include "../../src/core/Engine.hpp"
+#include "../../src/core/DebugUtils.hpp"
 
 namespace fs = std::filesystem;
 
@@ -297,7 +298,7 @@ namespace
         }
         if (command == "dump")
         {
-            engine.GetDebugSnapshot();
+            decl_audio::DebugUtils::PrintSnapshot(&engine);
             return true;
         }
         if (command == "tag")

@@ -19,7 +19,6 @@ namespace decl_audio
     inline constexpr std::uint32_t kDefaultSampleRate = 48000;
     inline constexpr std::uint32_t kDefaultOutputChannelCount = 2;
     inline constexpr std::uint32_t kDefaultCallbackFrameCount = 1024;
-    inline constexpr std::uint32_t kMaxCallbackFrameCount = 262144;
 }
 extern "C"
 {

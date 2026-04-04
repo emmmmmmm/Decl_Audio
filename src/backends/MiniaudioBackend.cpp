@@ -59,7 +59,7 @@ namespace decl_audio::backends
         {
             Stop();
         }
-
+        
         ma_device_config device_config = ma_device_config_init(ma_device_type_playback);
         device_config.playback.format = ma_format_f32;
         device_config.playback.channels = config.output_channel_count;
