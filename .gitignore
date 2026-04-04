@@ -9,6 +9,9 @@
 *.dbmdl
 *.ipch
 
+CppProperties.json
+
+
 # Build artifacts
 *.obj
 *.log
@@ -53,8 +56,7 @@ Thumbs.db     # (Windows Explorer junk)
 /.vs/
 /.vscode/
 
-# Optional: ignore soundbanks if you build them
-*.soundbank
-
 # ignore archives
 *.zip
+*.7z
+*.rar

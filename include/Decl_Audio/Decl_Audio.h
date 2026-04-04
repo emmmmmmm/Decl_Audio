@@ -10,7 +10,7 @@
 #include "Export.h"
 
 #define DECL_AUDIO_VERSION_MAJOR 0u
-#define DECL_AUDIO_VERSION_MINOR 3u
+#define DECL_AUDIO_VERSION_MINOR 4u
 #define DECL_AUDIO_VERSION_PATCH 0u
 #define DECL_AUDIO_MAKE_VERSION(major, minor, patch) (((major) << 22u) | ((minor) << 12u) | (patch))
 #define DECL_AUDIO_API_VERSION DECL_AUDIO_MAKE_VERSION(DECL_AUDIO_VERSION_MAJOR, DECL_AUDIO_VERSION_MINOR, DECL_AUDIO_VERSION_PATCH)
@@ -32,10 +32,15 @@ extern "C"
     {
         // todo: add bankpath to config.
 
-        // really we should just let the backend auto configure and thats that.
+        // device-facing settings
         uint32_t sample_rate;
         uint32_t output_channel_count;
         uint32_t callback_frame_count;
+
+        // runtime capacity settings
+        uint32_t max_instances;
+        uint32_t max_block_frames;
+
         DeclAudioBackend backend;
     } EngineConfig;
 

@@ -277,6 +277,35 @@ namespace
         return ClearEntity(engine, kEntityId);
     }
 
+    bool RunMassEventsTest(decl_audio::Engine &engine, int numEvents = 100 )
+    {
+        PrintSection("MassEvents Test", "You should hear a cluster of short sounds triggered by a transient tag.");
+
+
+        engine.SetListenerPosition(0.0f, 0.0f, 0.0f);
+
+        for (int i = 0; i < numEvents; i++)
+        {
+            auto name = "test_" + std::to_string(i);
+            engine.SetTransientTag(name.c_str(), "spatial.mono");
+            engine.SetPosition(name.c_str(), (float)i, 0.0f, 0.0f);
+        }
+
+        engine.Update();
+        if (!RunWait(engine, 700))
+        {
+            return false;
+        }
+        for (int i = 0; i < numEvents; i++)
+        {
+            auto name = "test_" + std::to_string(i);
+            engine.DestroyEntity(name.c_str());
+        }
+        engine.Update();
+
+        return RunWait(engine, 100);
+    }
+
     bool ProcessCommand(decl_audio::Engine &engine, const std::string &line)
     {
         std::istringstream input(line);
@@ -419,7 +448,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (options.autoTests)
+    if (options.autoTests || true)
     {
         if (!RunOneShotTest(engine))
             return 1;
@@ -433,6 +462,9 @@ int main(int argc, char **argv)
             return 1;
         if (!RunTransientTagTest(engine))
             return 1;
+        if (!RunMassEventsTest(engine, 100))
+            return 1; 
+       
     }
 
     if (!RunInteractiveTest(engine))

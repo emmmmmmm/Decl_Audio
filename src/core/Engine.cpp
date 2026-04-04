@@ -24,7 +24,10 @@ namespace decl_audio
     } // namespace
 
     Engine::Engine(const EngineConfig &config) noexcept
-        : api_version_(DECL_AUDIO_API_VERSION),
+        : audio_runtime_(0xC0FFEEULL,
+                         static_cast<std::size_t>(config.max_instances),
+                         config.max_block_frames),
+          api_version_(DECL_AUDIO_API_VERSION),
           user_data_(nullptr),
           config(config)
     {

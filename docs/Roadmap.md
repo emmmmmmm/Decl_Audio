@@ -58,7 +58,7 @@ This is still active. It is not glamorous work, but it should be finished before
 - [x] RT safety audit of the callback path
 - [x] document and test fail-loudly behavior at instance-capacity exhaustion
 - [x] document and test the `Update()` cadence contract
-- [ ] profiling pass at realistic instance counts
+- [x] profiling pass at realistic instance counts
 - [-] fold the remaining trace logging work in here if it still feels useful after the audit
 
 Audit note:
@@ -69,6 +69,9 @@ Audit note:
 Capacity note:
 - Current MVP policy is fail-loudly, not virtualization: if `CreateInstance` would exceed `AudioRuntime::max_instances`, the audio thread terminates immediately instead of silently dropping, stealing, or virtualizing a voice.
 - The tests cover this with a subprocess death case so the behavior is locked down without weakening the runtime path with recovery code.
+
+Realistic instances count profiling notes:
+we allocate around 3.5 mb memory + assets and metadata. 100 simultaneous instances peaked at 1% cpu usage. no continuous memory growth. looks quite stable to me.
 
 **Testable:** no RT-safety findings, capacity failure is explicit, missed-`Update()` behavior is documented and covered by tests, and the profiler gives a believable cost envelope.
 

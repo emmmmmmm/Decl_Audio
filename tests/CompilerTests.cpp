@@ -263,6 +263,10 @@ namespace
             return false;
         if (!Expect(audio_config.callback_frame_count == 1024u, "default audio config should expose a callback block size"))
             return false;
+        if (!Expect(audio_config.max_instances == 256u, "default audio config should expose the runtime voice capacity"))
+            return false;
+        if (!Expect(audio_config.max_block_frames == 4096u, "default audio config should reserve a bounded render block slack"))
+            return false;
         if (!Expect(audio_config.backend == DECL_AUDIO_BACKEND_PLATFORM_DEFAULT, "default audio config should use the platform backend"))
             return false;
 
@@ -271,6 +275,20 @@ namespace
         if (!Expect(!CreateEngine(&audio_config, &engine), "CreateEngine should reject unsupported audio channel counts"))
             return false;
         if (!Expect(engine == nullptr, "CreateEngine should leave the output engine pointer null on invalid audio config"))
+            return false;
+
+        audio_config = GetDefaultConfig();
+        audio_config.max_instances = 0;
+        if (!Expect(!CreateEngine(&audio_config, &engine), "CreateEngine should reject zero runtime voice capacity"))
+            return false;
+        if (!Expect(engine == nullptr, "CreateEngine should leave the output engine pointer null on invalid runtime capacity"))
+            return false;
+
+        audio_config = GetDefaultConfig();
+        audio_config.max_block_frames = audio_config.callback_frame_count - 1;
+        if (!Expect(!CreateEngine(&audio_config, &engine), "CreateEngine should reject runtime block capacities smaller than the callback size"))
+            return false;
+        if (!Expect(engine == nullptr, "CreateEngine should leave the output engine pointer null when block capacity is undersized"))
             return false;
 
         return true;

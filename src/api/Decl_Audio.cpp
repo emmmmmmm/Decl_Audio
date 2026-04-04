@@ -19,6 +19,8 @@ namespace decl_audio
     inline constexpr std::uint32_t kDefaultSampleRate = 48000;
     inline constexpr std::uint32_t kDefaultOutputChannelCount = 2;
     inline constexpr std::uint32_t kDefaultCallbackFrameCount = 1024;
+    inline constexpr std::uint32_t kDefaultMaxInstances = static_cast<std::uint32_t>(playback::AudioRuntime::DefaultMaxInstances);
+    inline constexpr std::uint32_t kDefaultMaxBlockFrames = kDefaultCallbackFrameCount * 4;
 }
 extern "C"
 {
@@ -28,6 +30,8 @@ extern "C"
         config.sample_rate = decl_audio::kDefaultSampleRate;
         config.output_channel_count = decl_audio::kDefaultOutputChannelCount;
         config.callback_frame_count = decl_audio::kDefaultCallbackFrameCount;
+        config.max_instances = decl_audio::kDefaultMaxInstances;
+        config.max_block_frames = decl_audio::kDefaultMaxBlockFrames;
         config.backend = DECL_AUDIO_BACKEND_PLATFORM_DEFAULT;
         return config;
     }
@@ -41,6 +45,10 @@ extern "C"
         if (config->output_channel_count < 1 || config->output_channel_count > 2)
             return false;
         if (config->callback_frame_count == 0)
+            return false;
+        if (config->max_instances == 0)
+            return false;
+        if (config->max_block_frames < config->callback_frame_count)
             return false;
         return true;
     }

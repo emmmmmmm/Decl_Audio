@@ -119,6 +119,8 @@ namespace decl_audio::DebugUtils
         std::cout << "  sample_rate: " << config.sample_rate << '\n';
         std::cout << "  output_channel_count: " << config.output_channel_count << '\n';
         std::cout << "  callback_frame_count: " << config.callback_frame_count << '\n';
+        std::cout << "  max_instances: " << config.max_instances << '\n';
+        std::cout << "  max_block_frames: " << config.max_block_frames << '\n';
         std::cout << "  backend_started: " << detail::ToString(engine->HasStartedBackend()) << '\n';
         std::cout << "  behaviors_loaded: " << detail::ToString(compiled_bank != nullptr && asset_bank != nullptr) << '\n';
         std::cout << "  load_diagnostic_count: " << engine->GetLoadDiagnostics().size() << '\n';
