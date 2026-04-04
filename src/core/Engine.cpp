@@ -95,6 +95,11 @@ namespace decl_audio
         control_runtime_.ClearTransientTags();
     }
 
+    void Engine::RenderAudioForTesting(float *output, const std::uint32_t frames) noexcept
+    {
+        audio_runtime_.Render(output, frames);
+    }
+
     void Engine::SetTag(const char *entity_id, const char *tag) noexcept
     {
         control_runtime_.Submit(runtime::SetTagCommand{

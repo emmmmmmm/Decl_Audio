@@ -86,8 +86,9 @@ namespace decl_audio::playback
     class AudioRuntime final
     {
     public:
+        // TODO: move these to engineconfig, and pass to runtime via ctor or init method.
         static constexpr std::size_t CommandQueueCapacity = 1024;
-        static constexpr std::size_t DefaultMaxInstances = 256;
+        static constexpr std::size_t DefaultMaxInstances = 256; 
         static constexpr std::uint32_t DefaultMaxBlockFrames = 262144;
         static constexpr std::uint32_t OutputChannelCount = 2;
 

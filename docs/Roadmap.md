@@ -49,17 +49,26 @@ The foundation through Phase 8 is in place. Phase 9 is still active hardening wo
 **Phase 8 - Debugging + CLI**
 - [x] debug snapshot
 - [x] interactive sandbox CLI
-- [ ] ring buffer trace log
+- [-] ring buffer trace log
 
 **Phase 9 - Stabilization and Contracts**
 
 This is still active. It is not glamorous work, but it should be finished before the runtime gets structurally more complex.
 
-- [ ] RT safety audit of the callback path
-- [ ] document and test fail-loudly behavior at instance-capacity exhaustion
-- [ ] document and test the `Update()` cadence contract
+- [x] RT safety audit of the callback path
+- [x] document and test fail-loudly behavior at instance-capacity exhaustion
+- [x] document and test the `Update()` cadence contract
 - [ ] profiling pass at realistic instance counts
-- [ ] fold the remaining trace logging work in here if it still feels useful after the audit
+- [-] fold the remaining trace logging work in here if it still feels useful after the audit
+
+Audit note:
+- RT-safe as-is: `MiniaudioBackend::DataCallback()` forwards directly to `AudioRuntime::Render()`, which zeroes the output buffer, drains a fixed-capacity SPSC `RingBuffer`, and renders from preallocated runtime state plus immutable bank/asset data. No locks, filesystem, parsing, or logging appear on that callback path.
+- Safe but potentially expensive: the callback drains the entire pending audio-command queue at block start, `FindInstanceIndex()` is linear for per-instance updates, output and scratch buffers are cleared every block, and spatialization does trig work once per active instance per block.
+- Follow-up risks: bursty `Update()` traffic can stack several linear scans into one callback, the RT story depends on `AudioCommand` staying heap-free and the runtime staying preallocated, and there is still no profiling envelope for worst-case block cost.
+
+Capacity note:
+- Current MVP policy is fail-loudly, not virtualization: if `CreateInstance` would exceed `AudioRuntime::max_instances`, the audio thread terminates immediately instead of silently dropping, stealing, or virtualizing a voice.
+- The tests cover this with a subprocess death case so the behavior is locked down without weakening the runtime path with recovery code.
 
 **Testable:** no RT-safety findings, capacity failure is explicit, missed-`Update()` behavior is documented and covered by tests, and the profiler gives a believable cost envelope.
 

@@ -165,6 +165,15 @@ Owned by the audio backend callback. Owns `ProgramInstance[]`. Executes compiled
 
 **For MVP:** control remains host-driven via explicit `Update()` calls. Internal control-thread ownership is a conceptual boundary, not a requirement to spin up a separate worker thread yet.
 
+### MVP Update Cadence Contract
+
+`Engine::Update()` is the only host-to-control synchronization point in the MVP.
+
+1. Host commands accumulate in the control queue until `Update()` runs.
+2. `Update()` drains that queue into `WorldState`, forwards dirty listener state, and runs resolver exactly once against the post-drain state.
+3. `Update()` clears transient tags before it returns, so a transient tag participates in at most one resolver pass unless the host submits it again.
+4. `AudioRuntime` does not see those resolver outputs until the next `Render()` block, because it drains its command queue at the start of render. Missed `Update()` calls therefore delay commands, but do not lose them unless a queue overflows and the fail-loudly path terminates.
+
 ---
 
 ## 7. The Command Interface (Control -> Audio)
@@ -522,6 +531,8 @@ Streaming is a later addition with its own state machine.
 **Deterministic random:** random container picks are derived from an engine root seed plus stable per-instance inputs (`instanceId`, `programId`, container index). Do not use a shared mutable RNG stream as the source of truth; unrelated random draws must not perturb existing playback results.
 
 **RT-safe storage:** avoid heap-owned per-container polymorphic runtime objects. Programs are linear and only one container is active at a time, so `ProgramInstance` stores the current container state by value and rebuilds it when the cursor advances. Active instance storage is reserved up front; capacity exhaustion is a fail-loudly error.
+
+**MVP voice-capacity policy:** until virtualization exists, the runtime does not steal, reject silently, or auto-virtualize when `max_instances` is exhausted. The audio thread terminates on the overflowing `CreateInstance` instead, so capacity pressure is explicit during development.
 
 ---
 

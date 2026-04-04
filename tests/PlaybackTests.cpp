@@ -1,6 +1,9 @@
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -13,8 +16,16 @@
 #include "../src/runtime/BehaviorResolver.hpp"
 #include "../src/runtime/ControlRuntime.hpp"
 
+#if defined(__unix__) || defined(__APPLE__)
+#include <sys/wait.h>
+#endif
+
+const char *GetTestExecutablePath();
+
 namespace
 {
+    constexpr int kDeathTestUnexpectedSuccessExitCode = 99;
+
     bool Expect(bool condition, const char *message)
     {
         if (!condition)
@@ -40,6 +51,21 @@ namespace
     std::filesystem::path GetFixturePath(const char *file_name)
     {
         return std::filesystem::path(__FILE__).parent_path() / "data" / file_name;
+    }
+
+    std::filesystem::path MakeDeathTestStartedFlagPath()
+    {
+        const auto unique_suffix = static_cast<unsigned long long>(std::chrono::steady_clock::now().time_since_epoch().count());
+        return std::filesystem::path("/tmp") / ("decl_audio_capacity_death_test_" + std::to_string(unique_suffix) + ".flag");
+    }
+
+    bool ProcessExitedWithCode(const int status, const int expected_exit_code)
+    {
+#if defined(__unix__) || defined(__APPLE__)
+        return WIFEXITED(status) && WEXITSTATUS(status) == expected_exit_code;
+#else
+        return status == expected_exit_code;
+#endif
     }
 
     struct StereoMixGains final
@@ -614,7 +640,84 @@ namespace
 
         return true;
     }
+
+    bool TestCreateInstanceTerminatesOnCapacityExhaustion()
+    {
+        const char *test_executable_path = GetTestExecutablePath();
+        if (!Expect(test_executable_path != nullptr && test_executable_path[0] != '\0', "death test requires the current test executable path"))
+            return false;
+
+        const std::filesystem::path started_flag_path = MakeDeathTestStartedFlagPath();
+        std::error_code remove_error;
+        std::filesystem::remove(started_flag_path, remove_error);
+
+#if defined(_WIN32)
+        constexpr const char *kNullDevice = "NUL";
+#else
+        constexpr const char *kNullDevice = "/dev/null";
+#endif
+
+        const std::string command = "\"" + std::string(test_executable_path) +
+                                    "\" --death-test-audio-capacity-overflow \"" +
+                                    started_flag_path.string() + "\" >" + kNullDevice + " 2>&1";
+        const int status = std::system(command.c_str());
+
+        const bool child_started = std::filesystem::exists(started_flag_path);
+        std::filesystem::remove(started_flag_path, remove_error);
+
+        if (!Expect(status != -1, "death test subprocess should launch"))
+            return false;
+        if (!Expect(child_started, "death test subprocess should reach the overflow setup path"))
+            return false;
+        if (!Expect(!ProcessExitedWithCode(status, kDeathTestUnexpectedSuccessExitCode), "capacity overflow should terminate, not return normally"))
+            return false;
+        if (!Expect(status != 0, "capacity overflow should not exit successfully"))
+            return false;
+
+        return true;
+    }
 } // namespace
+
+int RunAudioCapacityOverflowDeathTestChild(const char *started_flag_path)
+{
+    std::ofstream started_flag(started_flag_path, std::ios::trunc);
+    started_flag << "started";
+    started_flag.close();
+
+    const std::filesystem::path fixture_path = GetFixturePath("PlaybackBehaviorBank.json");
+    const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+    if (compile_result.HasErrors())
+    {
+        return 2;
+    }
+
+    const decl_audio::assets::LoadResult asset_result = decl_audio::assets::LoadAssetBank(compile_result.bank, fixture_path);
+    if (asset_result.HasErrors())
+    {
+        return 3;
+    }
+
+    decl_audio::compiler::CompiledBank compiled_bank = compile_result.bank;
+    decl_audio::assets::AssetBank asset_bank = asset_result.bank;
+    decl_audio::playback::AudioRuntime audio_runtime(0xC0FFEEULL, 1, 8);
+    audio_runtime.SetBanks(&compiled_bank, &asset_bank);
+
+    const decl_audio::compiler::ProgramId program_id = compiled_bank.GetProgramId("playback.loop");
+    audio_runtime.Submit(decl_audio::playback::CreateInstanceCommand{
+        1,
+        program_id,
+        Vec3{},
+        1.0f});
+    audio_runtime.Submit(decl_audio::playback::CreateInstanceCommand{
+        2,
+        program_id,
+        Vec3{},
+        1.0f});
+
+    float output[decl_audio::playback::AudioRuntime::OutputChannelCount] = {};
+    audio_runtime.Render(output, 1);
+    return kDeathTestUnexpectedSuccessExitCode;
+}
 
 bool RunPlaybackTests()
 {
@@ -643,6 +746,9 @@ bool RunPlaybackTests()
         return false;
 
     if (!TestSpatializedStereoAppliesBalanceAndAttenuation())
+        return false;
+
+    if (!TestCreateInstanceTerminatesOnCapacityExhaustion())
         return false;
 
     std::cout << "Playback tests passed\n";

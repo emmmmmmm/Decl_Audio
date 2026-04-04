@@ -29,6 +29,7 @@ namespace decl_audio
 
         bool LoadBehaviors(const char *source_path) noexcept;
         void Update() noexcept;
+        void RenderAudioForTesting(float *output, std::uint32_t frames) noexcept;
         void SetTag(const char *entity_id, const char *tag) noexcept;
         void SetTransientTag(const char *entity_id, const char *tag) noexcept;
         void RemoveTag(const char *entity_id, const char *tag) noexcept;
