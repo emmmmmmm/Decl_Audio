@@ -93,6 +93,34 @@
           "volume": 1.0
         }
       ]
+    },
+    {
+      "id": "series",
+      "matchTags": [
+        "test.series"
+      ],
+      "spatialization": {
+        "minDistance": 1.0,
+        "maxDistance": 5.0,
+        "attenuation": "linear"
+      },
+      "program": [
+        {
+          "type": "oneshot",
+          "asset": "audio/test_48_24_1ch.wav",
+          "volume": 1.0
+        },
+        {
+          "type": "oneshot",
+          "asset": "audio/test_48_24_1ch.wav",
+          "volume": 1.0
+        },
+        {
+          "type": "oneshot",
+          "asset": "audio/test_48_24_1ch.wav",
+          "volume": 1.0
+        }
+      ]
     }
   ]
 }

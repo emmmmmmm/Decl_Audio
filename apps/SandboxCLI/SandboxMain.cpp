@@ -277,10 +277,9 @@ namespace
         return ClearEntity(engine, kEntityId);
     }
 
-    bool RunMassEventsTest(decl_audio::Engine &engine, int numEvents = 100 )
+    bool RunMassEventsTest(decl_audio::Engine &engine, int numEvents = 100)
     {
         PrintSection("MassEvents Test", "You should hear a cluster of short sounds triggered by a transient tag.");
-
 
         engine.SetListenerPosition(0.0f, 0.0f, 0.0f);
 
@@ -305,7 +304,23 @@ namespace
 
         return RunWait(engine, 100);
     }
+    bool SeriesProgramTest(decl_audio::Engine &engine)
+    {
+        constexpr const char *kEntityId = "sandbox.series";
 
+        PrintSection("Series program Test", "You should hear multiple oneshots triggered by the same program");
+
+        engine.SetListenerPosition(0.0f, 0.0f, 0.0f);
+        engine.SetPosition(kEntityId, 0.0f, 0.0f, 0.0f);
+        engine.SetTransientTag(kEntityId, "test.series");
+        engine.Update();
+        if (!RunWait(engine, 2700))
+        {
+            return false;
+        }
+
+        return ClearEntity(engine, kEntityId);
+    }
     bool ProcessCommand(decl_audio::Engine &engine, const std::string &line)
     {
         std::istringstream input(line);
@@ -463,8 +478,9 @@ int main(int argc, char **argv)
         if (!RunTransientTagTest(engine))
             return 1;
         if (!RunMassEventsTest(engine, 100))
-            return 1; 
-       
+            return 1;
+        if (!SeriesProgramTest(engine))
+            return 1;
     }
 
     if (!RunInteractiveTest(engine))
