@@ -1,6 +1,6 @@
 # Decl_Audio
 
-A declarative audio engine for games. Game code declares world facts - entity tags, float values, transient events. The engine decides what plays.
+Decl is a tag-driven audio engine intended to keep sound behavior out of gameplay code. Game code publishes tags, values, and events; the audio engine reacts to that state declaratively.
 
 ```
 SetTag(engine, "player",  "movement.grounded");
@@ -14,7 +14,7 @@ Update(engine);
 
 ## How it works
 
-Behaviors live in JSON. Each behavior says: *when these tags are present and these conditions hold, run this program.* The engine matches world state against those behaviors and manages instance lifetimes automatically.
+Behaviors live in JSON. They  define behavior reactively; each behavior says: *when these tags are present and these conditions hold, run this program.* The engine matches world state against those behaviors and manages instance lifetimes automatically. 
 
 ```json
 {
@@ -148,19 +148,20 @@ Output: `x64/Debug/Decl_Audio/Decl_Audio.dll`
 g++ -std=c++20 -Iinclude -Isrc/platform/win32 src/**/*.cpp tests/*.cpp -o decl_audio_tests
 ```
 
----
+## CLI
 
-<!-- ## Architecture
+Decl_Audio.SandboxCLI is a small interactive test app:
 
+Supported commands in the prompt:
+```bash
+help
+tag <entity> <tag>
+clear <entity> <tag>
+transient <entity> <tag>
+float <entity> <key> <value>
+pos <entity> <x> <y> <z>
+listener <x> <y> <z>
+destroy <entity>
+dump
+exit
 ```
-JSON -> Compiler -> CompiledBank + AssetBank   (loaded once, immutable)
-                        ↓
-[Host Thread]   SetTag / SetValue / Update()
-        ↓  lock-free queue
-[Control Thread]  WorldState -> BehaviorResolver -> mints/kills instances
-        ↓  lock-free queue (timestamped commands)
-[Audio Thread]  ProgramInstance[] -> container execution -> mix -> output
-```
-
-Three threads, two queues, no shared mutable state. The audio thread owns its instances exclusively and only reads from immutable bank data.
- -->
