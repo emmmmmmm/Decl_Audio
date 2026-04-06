@@ -21,6 +21,8 @@ namespace decl_audio
     inline constexpr std::uint32_t kDefaultCallbackFrameCount = 1024;
     inline constexpr std::uint32_t kDefaultMaxInstances = 256;
     inline constexpr std::uint32_t kDefaultMaxBlockFrames = kDefaultCallbackFrameCount * 4;
+    inline constexpr std::uint32_t kDefaultCommandQueueCapacity = 1024;
+    inline constexpr std::uint32_t kDefaultHostQueueCapacity = 1024;
 }
 extern "C"
 {
@@ -32,6 +34,8 @@ extern "C"
         config.callback_frame_count = decl_audio::kDefaultCallbackFrameCount;
         config.max_instances = decl_audio::kDefaultMaxInstances;
         config.max_block_frames = decl_audio::kDefaultMaxBlockFrames;
+        config.command_queue_capacity = decl_audio::kDefaultCommandQueueCapacity;
+        config.host_queue_capacity = decl_audio::kDefaultHostQueueCapacity;
         config.backend = DECL_AUDIO_BACKEND_PLATFORM_DEFAULT;
         return config;
     }
@@ -49,6 +53,10 @@ extern "C"
         if (config->max_instances == 0)
             return false;
         if (config->max_block_frames < config->callback_frame_count)
+            return false;
+        if (config->command_queue_capacity < 2)
+            return false;
+        if (config->host_queue_capacity < 2)
             return false;
         return true;
     }

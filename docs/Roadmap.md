@@ -79,17 +79,17 @@ we allocate around 3.5 mb memory + assets and metadata. 100 simultaneous instanc
 
 This is where nested containers belong. It is the next real feature milestone, not design-doc bulk.
 
-- [ ] lock semantics for tree nodes before the refactor starts
-- [ ] `select` chooses once on entry and does not switch branches mid-run
-- [ ] `blend` keeps both child subtrees advancing and mixes from the current runtime value
-- [ ] keep `volume` and `position` as dedicated runtime commands
-- [ ] compile programs as node trees instead of flat container lists
-- [ ] replace `cursor + current` with a root execution context per `ProgramInstance`
-- [ ] add program-local runtime parameter slots for nodes that need live values
-- [ ] port existing leaf behavior (`oneshot`, `loop`, `random`) onto the new executor with no behavior change
-- [ ] ship `select`
-- [ ] ship `blend`
-- [ ] extend debug/introspection so nested state is inspectable
+- [x] lock semantics for tree nodes before the refactor starts
+- [x] `select` chooses once on entry and does not switch branches mid-run
+- [x] `blend` keeps both child subtrees advancing and mixes from the current runtime value
+- [x] keep `volume` and `position` as dedicated runtime commands
+- [x] compile programs as node trees instead of flat container lists
+- [x] replace `cursor + current` with a root execution context per `ProgramInstance`
+- [x] add program-local runtime parameter slots for nodes that need live values
+- [x] port existing leaf behavior (`oneshot`, `loop`, `random`) onto the new executor with no behavior change
+- [x] ship `select`
+- [x] ship `blend`
+- [x] extend debug/introspection so nested state is inspectable
 
 **Testable:** all existing flat-program tests still pass on the tree executor; nested `select` chooses on entry only; nested `blend` stays in sync and reacts to runtime parameter updates block-accurately.
 

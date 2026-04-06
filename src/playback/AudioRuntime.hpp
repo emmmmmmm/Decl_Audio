@@ -102,13 +102,11 @@ namespace decl_audio::playback
     class AudioRuntime final
     {
     public:
-        // TODO: move to config
-        static constexpr std::size_t CommandQueueCapacity = 1024;
-
         explicit AudioRuntime(std::uint64_t root_seed = 0xC0FFEEULL,
                               std::size_t max_instances = 256,
                               std::uint32_t max_block_frames = 4096,
-                              const std::uint32_t out_channel_count = 2);
+                              std::uint32_t out_channel_count = 2,
+                              std::size_t command_queue_capacity = 1024);
 
         void SetBanks(const compiler::CompiledBank *compiled_bank, const assets::AssetBank *asset_bank) noexcept;
         void Clear() noexcept;
@@ -155,7 +153,7 @@ namespace decl_audio::playback
         [[nodiscard]] std::uint64_t DeriveNodeSeed(InstanceId instance_id, compiler::ProgramId program_id, compiler::NodeId node_id) const noexcept;
         void ResizeStorageForBank() noexcept;
 
-        RingBuffer<AudioCommand, CommandQueueCapacity> commands_;
+        RingBuffer<AudioCommand> commands_;
         std::vector<ProgramInstance> instances_;
         std::vector<float> scratch_;
         std::vector<NodeRuntimeState> node_state_storage_;

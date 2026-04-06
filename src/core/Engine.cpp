@@ -12,9 +12,12 @@ namespace decl_audio
 {
 
     Engine::Engine(const EngineConfig &config) noexcept
-        : audio_runtime_(0xC0FFEEULL,
+        : control_runtime_(static_cast<std::size_t>(config.host_queue_capacity)),
+          audio_runtime_(0xC0FFEEULL,
                          static_cast<std::size_t>(config.max_instances),
-                         config.max_block_frames),
+                         config.max_block_frames,
+                         config.output_channel_count,
+                         static_cast<std::size_t>(config.command_queue_capacity)),
           api_version_(DECL_AUDIO_API_VERSION),
           user_data_(nullptr),
           config(config)

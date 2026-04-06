@@ -7,6 +7,11 @@
 
 namespace decl_audio::runtime
 {
+    ControlRuntime::ControlRuntime(const std::size_t host_queue_capacity)
+        : host_to_control_(host_queue_capacity)
+    {
+    }
+
     void ControlRuntime::Submit(HostCommand command)
     {
         if (!host_to_control_.push(command))

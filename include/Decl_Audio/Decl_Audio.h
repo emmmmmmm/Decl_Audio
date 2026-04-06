@@ -40,6 +40,8 @@ extern "C"
         // runtime capacity settings
         uint32_t max_instances;
         uint32_t max_block_frames;
+        uint32_t command_queue_capacity;
+        uint32_t host_queue_capacity;
 
         DeclAudioBackend backend;
     } EngineConfig;

@@ -76,8 +76,10 @@ namespace decl_audio::playback
     AudioRuntime::AudioRuntime(const std::uint64_t root_seed,
                                const std::size_t max_instances,
                                const std::uint32_t max_block_frames,
-                               const std::uint32_t out_channel_count)
-        : root_seed_(root_seed),
+                               const std::uint32_t out_channel_count,
+                               const std::size_t command_queue_capacity)
+        : commands_(command_queue_capacity),
+          root_seed_(root_seed),
           max_instances_(max_instances),
           max_block_frames_(max_block_frames),
           out_channel_count_(out_channel_count)

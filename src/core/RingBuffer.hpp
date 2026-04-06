@@ -1,28 +1,33 @@
 #pragma once
 
 #include <atomic>
+#include <cassert>
 #include <cstddef>
+#include <vector>
 
-/// @brief SPSC Ring Buffer
+/// @brief SPSC Ring Buffer (capacity set at construction, never resized)
 /// @tparam T : Type
-/// @tparam N : BufferSize
-template <typename T, size_t N>
+template <typename T>
 class RingBuffer
 {
-    static_assert(N > 1, "RingBuffer capacity must be greater than one.");
-
+    std::vector<T> buffer_;
     std::atomic<size_t> head{0}, tail{0};
-    T buffer[N];
+    size_t capacity_;
 
 public:
+    explicit RingBuffer(size_t capacity) : buffer_(capacity), capacity_(capacity)
+    {
+        assert(capacity > 1 && "RingBuffer capacity must be greater than one.");
+    }
+
     bool push(const T &item)
     {
         auto t = tail.load(std::memory_order_relaxed);
         auto h = head.load(std::memory_order_acquire);
-        if ((t + 1) % N == h)
+        if ((t + 1) % capacity_ == h)
             return false; // full
-        buffer[t] = item;
-        tail.store((t + 1) % N, std::memory_order_release);
+        buffer_[t] = item;
+        tail.store((t + 1) % capacity_, std::memory_order_release);
         return true;
     }
     bool pop(T &out)
@@ -31,13 +36,12 @@ public:
         auto t = tail.load(std::memory_order_acquire);
         if (h == t)
             return false; // empty
-        out = buffer[h];
-        head.store((h + 1) % N, std::memory_order_release);
+        out = buffer_[h];
+        head.store((h + 1) % capacity_, std::memory_order_release);
         return true;
     }
     size_t Length() const noexcept
     {
-        // grab both atomically
         size_t h = head.load(std::memory_order_acquire);
         size_t t = tail.load(std::memory_order_acquire);
 
@@ -48,7 +52,7 @@ public:
         else
         {
             // wrapped around
-            return (N - h) + t;
+            return (capacity_ - h) + t;
         }
     }
 };

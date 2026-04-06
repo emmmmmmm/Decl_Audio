@@ -13,7 +13,7 @@ namespace decl_audio::runtime
     class ControlRuntime final
     {
     public:
-        static constexpr std::size_t HostQueueCapacity = 1024;
+        explicit ControlRuntime(std::size_t host_queue_capacity = 1024);
 
         void Submit(HostCommand command);
         void Tick() noexcept;
@@ -47,7 +47,7 @@ namespace decl_audio::runtime
         void Apply(const SetListenerPositionCommand &command) noexcept;
         void Apply(const DestroyEntityCommand &command) noexcept;
 
-        RingBuffer<HostCommand, HostQueueCapacity> host_to_control_;
+        RingBuffer<HostCommand> host_to_control_;
         WorldState world_state_;
         Vec3 listener_position_{};
         bool listener_position_dirty_ = false;
