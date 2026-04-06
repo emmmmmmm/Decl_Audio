@@ -20,7 +20,7 @@ namespace
 
     bool TestSingleThreadedSequence()
     {
-        RingBuffer<int, 8> queue;
+        RingBuffer<int> queue(8);
         int value = -1;
 
         for (int i = 0; i < 7; ++i)
@@ -64,7 +64,7 @@ namespace
 
     bool TestWrapAround()
     {
-        RingBuffer<int, 4> queue;
+        RingBuffer<int> queue(4);
         int value = -1;
 
         if (!Expect(queue.push(10), "initial push should succeed"))
@@ -119,7 +119,7 @@ namespace
     {
         constexpr int kItemCount = 200000;
 
-        RingBuffer<int, 1024> queue;
+        RingBuffer<int> queue(1024);
         std::atomic<bool> producer_done{false};
         std::atomic<bool> failed{false};
 
