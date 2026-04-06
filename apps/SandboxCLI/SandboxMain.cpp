@@ -314,13 +314,55 @@ namespace
         engine.SetPosition(kEntityId, 0.0f, 0.0f, 0.0f);
         engine.SetTransientTag(kEntityId, "test.series");
         engine.Update();
-        if (!RunWait(engine, 2700))
+        if (!RunWait(engine, 700))
         {
             return false;
         }
 
         return ClearEntity(engine, kEntityId);
     }
+
+    bool RunBlendTest(decl_audio::Engine &engine)
+    {
+        constexpr const char *kEntityId = "sandbox.blend";
+        constexpr const char *kTag = "nested.direct_blend";
+        constexpr const char *kParam = "mix";
+
+        PrintSection("blend Test", "blend from one sound to another");
+        engine.SetListenerPosition(0.0f, 0.0f, 0.0f);
+        engine.SetPosition(kEntityId, 0.0f, 0.0f, 0.0f);
+        engine.SetTag(kEntityId, kTag);
+        engine.SetValue(kEntityId, kParam, 0);
+        engine.Update();
+
+        using namespace std::chrono_literals;
+
+        std::this_thread::sleep_for(500ms);
+
+        const auto start = std::chrono::steady_clock::now();
+        const auto duration = std::chrono::milliseconds(2000);
+        const auto deadline = start + duration;
+        while (std::chrono::steady_clock::now() < deadline)
+        {
+            const float t = std::chrono::duration<float>(std::chrono::steady_clock::now() - start) / duration;
+            engine.SetValue(kEntityId, kParam, t);
+            engine.Update();
+            std::this_thread::sleep_for(16ms);
+        }
+
+        std::this_thread::sleep_for(500ms);
+
+        engine.RemoveTag(kEntityId, kTag);
+        engine.SetListenerPosition(0.0f, 0.0f, 0.0f);
+        engine.Update();
+        if (!RunWait(engine, 700))
+        {
+            return false;
+        }
+
+        return ClearEntity(engine, kEntityId);
+    }
+
     bool ProcessCommand(decl_audio::Engine &engine, const std::string &line)
     {
         std::istringstream input(line);
@@ -480,6 +522,8 @@ int main(int argc, char **argv)
         if (!RunMassEventsTest(engine, 100))
             return 1;
         if (!SeriesProgramTest(engine))
+            return 1;
+        if (!RunBlendTest(engine))
             return 1;
     }
 
