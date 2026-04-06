@@ -10,7 +10,7 @@ namespace decl_audio::backends
     class StubBackend final
     {
     public:
-        explicit StubBackend(std::uint32_t max_block_frames = playback::AudioRuntime::DefaultMaxBlockFrames);
+        explicit StubBackend(std::uint32_t max_block_frames = 4096);
 
         void Pump(playback::AudioRuntime &runtime, std::uint32_t frames) noexcept;
 

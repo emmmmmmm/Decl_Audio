@@ -2,7 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <variant>
+#include <limits>
+#include <span>
 #include <vector>
 
 #include "../core/RingBuffer.hpp"
@@ -12,60 +13,75 @@
 
 namespace decl_audio::playback
 {
-    struct OneShotState final
+    struct NodeRuntimeState final
     {
-        std::uint64_t sample_position = 0;
+        bool entered = false;
+        bool finished = false;
+        std::int32_t chosen_child = -1;
+        std::uint16_t active_voice_count = 0;
     };
 
-    struct LoopState final
+    struct VoiceState final
     {
+        compiler::NodeId leaf_node = std::numeric_limits<compiler::NodeId>::max();
         std::uint64_t sample_position = 0;
         std::int32_t remaining_loops = 0;
-    };
-
-    struct RandomState final
-    {
         std::uint32_t picked_asset_slot = 0;
-        std::uint64_t sample_position = 0;
+        bool active = false;
     };
-
-    using ActiveContainerState = std::variant<OneShotState, LoopState, RandomState>;
 
     struct ProgramInstance final
     {
         InstanceId instance_id = 0;
         const compiler::CompiledProgram *compiled = nullptr;
-        std::uint32_t cursor = 0;
         float volume = 1.0f;
         Vec3 position{};
         bool stop_requested = false;
-        ActiveContainerState current{};
-        // TODO: list of generic parameters 
+        std::uint32_t active_voice_count = 0;
+        std::span<float> parameter_slots;
+        std::span<NodeRuntimeState> node_state;
+        std::span<VoiceState> voices;
     };
 
     struct InstanceSnapshot final
     {
         InstanceId instance_id = 0;
         compiler::ProgramId program_id = 0;
-        std::uint32_t cursor = 0;
-        compiler::ContainerType container_type = compiler::ContainerType::OneShot;
         float volume = 1.0f;
         Vec3 position{};
         bool stop_requested = false;
+        std::uint32_t active_voice_count = 0;
+    };
+
+    struct NodeDebugSnapshot final
+    {
+        compiler::NodeId node_id = 0;
+        compiler::NodeType type = compiler::NodeType::Sequence;
+        bool entered = false;
+        bool finished = false;
+        std::int32_t chosen_child = -1;
+        std::uint16_t active_voice_count = 0;
+    };
+
+    struct VoiceDebugSnapshot final
+    {
+        compiler::NodeId leaf_node_id = 0;
+        compiler::NodeType leaf_type = compiler::NodeType::OneShot;
+        std::uint64_t sample_position = 0;
+        std::int32_t remaining_loops = 0;
+        std::uint32_t picked_asset_slot = 0;
     };
 
     struct InstanceDebugSnapshot final
     {
         InstanceId instance_id = 0;
         compiler::ProgramId program_id = 0;
-        std::uint32_t cursor = 0;
-        compiler::ContainerType container_type = compiler::ContainerType::OneShot;
         float volume = 1.0f;
         Vec3 position{};
         bool stop_requested = false;
-        std::uint64_t sample_position = 0;
-        std::int32_t remaining_loops = 0;
-        std::uint32_t picked_asset_slot = 0;
+        std::uint32_t active_voice_count = 0;
+        std::vector<NodeDebugSnapshot> nodes;
+        std::vector<VoiceDebugSnapshot> voices;
     };
 
     struct DebugSnapshot final
@@ -86,15 +102,13 @@ namespace decl_audio::playback
     class AudioRuntime final
     {
     public:
-        // TODO: move these to engineconfig, and pass to runtime via ctor or init method.
+        // TODO: move to config
         static constexpr std::size_t CommandQueueCapacity = 1024;
-        static constexpr std::size_t DefaultMaxInstances = 256; 
-        static constexpr std::uint32_t DefaultMaxBlockFrames = 262144;
-        static constexpr std::uint32_t OutputChannelCount = 2;
 
         explicit AudioRuntime(std::uint64_t root_seed = 0xC0FFEEULL,
-                              std::size_t max_instances = DefaultMaxInstances,
-                              std::uint32_t max_block_frames = DefaultMaxBlockFrames);
+                              std::size_t max_instances = 256,
+                              std::uint32_t max_block_frames = 4096,
+                              const std::uint32_t out_channel_count = 2);
 
         void SetBanks(const compiler::CompiledBank *compiled_bank, const assets::AssetBank *asset_bank) noexcept;
         void Clear() noexcept;
@@ -114,29 +128,45 @@ namespace decl_audio::playback
         }
 
     private:
+        static constexpr compiler::NodeId kInvalidNodeId = std::numeric_limits<compiler::NodeId>::max();
+
         void ApplyPendingCommands() noexcept;
         void Apply(const CreateInstanceCommand &command) noexcept;
         void Apply(const SetVolumeCommand &command) noexcept;
         void Apply(const SetPositionCommand &command) noexcept;
+        void Apply(const SetParameterCommand &command) noexcept;
         void Apply(const RequestStopCommand &command) noexcept;
         void Apply(const SetListenerPositionCommand &command) noexcept;
 
-        [[nodiscard]] std::uint32_t RenderProgramInstance(ProgramInstance &instance, float *output, std::uint32_t frames) noexcept;
-        [[nodiscard]] std::uint32_t RenderCurrentContainer(ProgramInstance &instance, float *output, std::uint32_t frames) noexcept;
-        [[nodiscard]] ActiveContainerState MakeContainerState(const ProgramInstance &instance, std::uint32_t cursor) const noexcept;
-        [[nodiscard]] const compiler::CompiledContainer &GetCompiledContainer(const ProgramInstance &instance) const noexcept;
-        [[nodiscard]] const compiler::CompiledContainer &GetCompiledContainer(const ProgramInstance &instance, std::uint32_t cursor) const noexcept;
+        [[nodiscard]] bool RenderProgramInstance(ProgramInstance &instance, float *output, std::uint32_t frames) noexcept;
+        [[nodiscard]] std::uint32_t ComputeSegmentFrames(const ProgramInstance &instance, std::uint32_t frames_remaining) const noexcept;
+        void RenderVoice(ProgramInstance &instance, VoiceState &voice, float *output, std::uint32_t frames) noexcept;
+        void ActivateVoice(ProgramInstance &instance, compiler::NodeId leaf_node) noexcept;
+        void RetireVoice(ProgramInstance &instance, std::uint32_t voice_index) noexcept;
+        void EnterNode(ProgramInstance &instance, compiler::NodeId node_id) noexcept;
+        void TryFinishNode(ProgramInstance &instance, compiler::NodeId node_id) noexcept;
+        [[nodiscard]] std::uint64_t ComputeVoiceTerminalFrames(const ProgramInstance &instance, const VoiceState &voice) const noexcept;
+        [[nodiscard]] float ComputeVoiceGain(const ProgramInstance &instance, compiler::NodeId leaf_node) const noexcept;
+        [[nodiscard]] const compiler::CompiledNode &GetCompiledNode(compiler::NodeId node_id) const noexcept;
+        [[nodiscard]] std::span<const compiler::NodeId> GetNodeChildren(compiler::NodeId node_id) const noexcept;
+        [[nodiscard]] std::span<const compiler::AssetId> GetNodeAssets(compiler::NodeId node_id) const noexcept;
+        [[nodiscard]] std::uint16_t FindProgramParameterSlot(const ProgramInstance &instance, compiler::ParameterId parameter_id) const noexcept;
         [[nodiscard]] std::size_t FindInstanceIndex(InstanceId instance_id) const noexcept;
-        [[nodiscard]] std::uint64_t DeriveContainerSeed(InstanceId instance_id, compiler::ProgramId program_id, std::uint32_t cursor) const noexcept;
+        [[nodiscard]] std::uint64_t DeriveNodeSeed(InstanceId instance_id, compiler::ProgramId program_id, compiler::NodeId node_id) const noexcept;
+        void ResizeStorageForBank() noexcept;
 
         RingBuffer<AudioCommand, CommandQueueCapacity> commands_;
         std::vector<ProgramInstance> instances_;
         std::vector<float> scratch_;
+        std::vector<NodeRuntimeState> node_state_storage_;
+        std::vector<VoiceState> voice_storage_;
+        std::vector<float> parameter_storage_;
         const compiler::CompiledBank *compiled_bank_ = nullptr;
         const assets::AssetBank *asset_bank_ = nullptr;
         ListenerState listener_{};
         std::uint64_t root_seed_ = 0;
         std::size_t max_instances_ = 0;
         std::uint32_t max_block_frames_ = 0;
+        std::uint32_t out_channel_count_ = 2;
     };
 } // namespace decl_audio::playback

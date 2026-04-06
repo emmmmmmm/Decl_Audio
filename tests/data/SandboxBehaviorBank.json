@@ -37,7 +37,7 @@
           "type": "random",
           "assets": [
             "audio/test_48_24_1ch.wav",
-            "audio/test_48_24_2ch.wav"
+            "audio/test_48_24_1ch_2.wav"
           ],
           "volume": 0.8
         }
@@ -112,13 +112,42 @@
         },
         {
           "type": "oneshot",
-          "asset": "audio/test_48_24_1ch.wav",
+          "asset": "audio/test_48_24_1ch_2.wav",
           "volume": 1.0
         },
         {
           "type": "oneshot",
           "asset": "audio/test_48_24_1ch.wav",
           "volume": 1.0
+        }
+      ]
+    },
+    {
+      "id": "nested.blend_loops",
+      "matchTags": [
+        "nested.direct_blend"
+      ],
+      "parameters": [
+        "mix"
+      ],
+      "program": [
+        {
+          "type": "blend",
+          "parameter": "mix",
+          "children": [
+            {
+              "type": "loop",
+              "asset": "audio/test_48_24_1ch.wav",
+              "loopCount": -1,
+              "volume": 1.0
+            },
+            {
+              "type": "loop",
+              "asset": "audio/test_48_24_1ch_2.wav",
+              "loopCount": -1,
+              "volume": 0.25
+            }
+          ]
         }
       ]
     }

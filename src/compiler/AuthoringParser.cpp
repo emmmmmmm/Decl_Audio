@@ -61,21 +61,25 @@ namespace decl_audio::compiler
             return ComparisonOp::Equal;
         }
 
-        [[nodiscard]] AuthoringContainerType ParseAuthoringContainerType(std::string_view type_name, bool &is_valid)
+        [[nodiscard]] AuthoringNodeType ParseAuthoringNodeType(std::string_view type_name, bool &is_valid)
         {
             is_valid = true;
 
-            if (type_name == "oneshot")
-                return AuthoringContainerType::OneShot;
-            if (type_name == "loop")
-                return AuthoringContainerType::Loop;
-            if (type_name == "random")
-                return AuthoringContainerType::Random;
             if (type_name == "sequence")
-                return AuthoringContainerType::Sequence;
+                return AuthoringNodeType::Sequence;
+            if (type_name == "select")
+                return AuthoringNodeType::Select;
+            if (type_name == "blend")
+                return AuthoringNodeType::Blend;
+            if (type_name == "oneshot")
+                return AuthoringNodeType::OneShot;
+            if (type_name == "loop")
+                return AuthoringNodeType::Loop;
+            if (type_name == "random")
+                return AuthoringNodeType::Random;
 
             is_valid = false;
-            return AuthoringContainerType::OneShot;
+            return AuthoringNodeType::OneShot;
         }
 
         [[nodiscard]] AttenuationMode ParseAttenuationMode(std::string_view attenuation_name, bool &is_valid)
@@ -149,38 +153,38 @@ namespace decl_audio::compiler
             return condition;
         }
 
-        AuthoringContainer ParseContainer(const Json &container_json,
-                                          std::string_view source_path,
-                                          std::string_view field_path,
-                                          std::vector<Diagnostic> &diagnostics)
+        AuthoringNode ParseNode(const Json &container_json,
+                                std::string_view source_path,
+                                std::string_view field_path,
+                                std::vector<Diagnostic> &diagnostics)
         {
-            AuthoringContainer container;
-            container.location = MakeLocation(source_path, field_path);
+            AuthoringNode node;
+            node.location = MakeLocation(source_path, field_path);
 
             if (!container_json.is_object())
             {
                 diagnostics.push_back(MakeError(source_path, field_path, "must be an object"));
-                return container;
+                return node;
             }
 
             if (!container_json.contains("type"))
             {
                 diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".type", "is required"));
-                return container;
+                return node;
             }
 
             if (!container_json["type"].is_string())
             {
                 diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".type", "must be a string"));
-                return container;
+                return node;
             }
 
             bool is_valid = false;
-            container.type = ParseAuthoringContainerType(container_json["type"].get<std::string>(), is_valid);
+            node.type = ParseAuthoringNodeType(container_json["type"].get<std::string>(), is_valid);
             if (!is_valid)
             {
                 diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".type", "has unsupported container type"));
-                return container;
+                return node;
             }
 
             if (container_json.contains("volume"))
@@ -188,7 +192,7 @@ namespace decl_audio::compiler
                 if (!IsNumber(container_json["volume"]))
                     diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".volume", "must be numeric"));
                 else
-                    container.volume = container_json["volume"].get<float>();
+                    node.volume = container_json["volume"].get<float>();
             }
 
             if (container_json.contains("loopCount"))
@@ -196,11 +200,19 @@ namespace decl_audio::compiler
                 if (!container_json["loopCount"].is_number_integer())
                     diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".loopCount", "must be an integer"));
                 else
-                    container.loop_count = container_json["loopCount"].get<std::int32_t>();
+                    node.loop_count = container_json["loopCount"].get<std::int32_t>();
             }
-            else if (container.type == AuthoringContainerType::Loop)
+            else if (node.type == AuthoringNodeType::Loop)
             {
-                container.loop_count = -1;
+                node.loop_count = -1;
+            }
+
+            if (container_json.contains("parameter"))
+            {
+                if (!container_json["parameter"].is_string())
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".parameter", "must be a string"));
+                else
+                    node.parameter = container_json["parameter"].get<std::string>();
             }
 
             if (container_json.contains("asset"))
@@ -208,12 +220,12 @@ namespace decl_audio::compiler
                 if (!container_json["asset"].is_string())
                     diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".asset", "must be a string"));
                 else
-                    container.assets.push_back(container_json["asset"].get<std::string>());
+                    node.assets.push_back(container_json["asset"].get<std::string>());
             }
 
             if (container_json.contains("assets"))
             {
-                AppendStringArray(container_json["assets"], container.location, std::string(field_path) + ".assets", container.assets, diagnostics);
+                AppendStringArray(container_json["assets"], node.location, std::string(field_path) + ".assets", node.assets, diagnostics);
             }
 
             if (container_json.contains("children"))
@@ -226,7 +238,7 @@ namespace decl_audio::compiler
                 else
                 {
                     for (std::size_t i = 0; i < children_json.size(); ++i)
-                        container.children.push_back(ParseContainer(children_json[i], source_path, std::string(field_path) + ".children[" + std::to_string(i) + "]", diagnostics));
+                        node.children.push_back(ParseNode(children_json[i], source_path, std::string(field_path) + ".children[" + std::to_string(i) + "]", diagnostics));
                 }
             }
 
@@ -240,11 +252,11 @@ namespace decl_audio::compiler
                 else
                 {
                     for (std::size_t i = 0; i < children_json.size(); ++i)
-                        container.children.push_back(ParseContainer(children_json[i], source_path, std::string(field_path) + ".containers[" + std::to_string(i) + "]", diagnostics));
+                        node.children.push_back(ParseNode(children_json[i], source_path, std::string(field_path) + ".containers[" + std::to_string(i) + "]", diagnostics));
                 }
             }
 
-            return container;
+            return node;
         }
 
         AuthoringSpatializationSettings ParseSpatialization(const Json &spatialization_json,
@@ -379,7 +391,7 @@ namespace decl_audio::compiler
             }
 
             for (std::size_t i = 0; i < program_json.size(); ++i)
-                behavior.program.push_back(ParseContainer(program_json[i], source_path, std::string(field_path) + ".program[" + std::to_string(i) + "]", diagnostics));
+                behavior.program.push_back(ParseNode(program_json[i], source_path, std::string(field_path) + ".program[" + std::to_string(i) + "]", diagnostics));
 
             return behavior;
         }

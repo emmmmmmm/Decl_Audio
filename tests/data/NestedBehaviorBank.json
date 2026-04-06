@@ -1,0 +1,102 @@
+{
+  "behaviors": [
+    {
+      "id": "nested.blend_loops",
+      "matchTags": [
+        "nested.direct_blend"
+      ],
+      "parameters": [
+        "mix"
+      ],
+      "program": [
+        {
+          "type": "blend",
+          "parameter": "mix",
+          "children": [
+            {
+              "type": "loop",
+              "asset": "audio/test_48_24_1ch.wav",
+              "loopCount": -1,
+              "volume": 1.0
+            },
+            {
+              "type": "loop",
+              "asset": "audio/test_48_24_1ch.wav",
+              "loopCount": -1,
+              "volume": 0.25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nested.select_blend_or_loop",
+      "matchTags": [
+        "nested.direct_select"
+      ],
+      "parameters": [
+        "mix"
+      ],
+      "program": [
+        {
+          "type": "select",
+          "children": [
+            {
+              "type": "blend",
+              "parameter": "mix",
+              "children": [
+                {
+                  "type": "loop",
+                  "asset": "audio/test_48_24_1ch.wav",
+                  "loopCount": -1,
+                  "volume": 1.0
+                },
+                {
+                  "type": "loop",
+                  "asset": "audio/test_48_24_1ch.wav",
+                  "loopCount": -1,
+                  "volume": 0.25
+                }
+              ]
+            },
+            {
+              "type": "loop",
+              "asset": "audio/test_48_24_1ch.wav",
+              "loopCount": -1,
+              "volume": 0.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nested.resolver_blend",
+      "matchTags": [
+        "nested.active"
+      ],
+      "parameters": [
+        "mix"
+      ],
+      "program": [
+        {
+          "type": "blend",
+          "parameter": "mix",
+          "children": [
+            {
+              "type": "loop",
+              "asset": "audio/test_48_24_1ch.wav",
+              "loopCount": -1,
+              "volume": 1.0
+            },
+            {
+              "type": "loop",
+              "asset": "audio/test_48_24_1ch.wav",
+              "loopCount": -1,
+              "volume": 0.25
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

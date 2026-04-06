@@ -7,6 +7,7 @@ namespace decl_audio::compiler
 {
     using BehaviorId = std::uint32_t;
     using ProgramId = std::uint32_t;
+    using NodeId = std::uint32_t;
     using TagId = std::uint32_t;
     using ParameterId = std::uint32_t;
     using AssetId = std::uint32_t;
@@ -31,20 +32,28 @@ namespace decl_audio::compiler
         Linear
     };
 
-    enum class ContainerType : std::uint8_t
+    enum class NodeType : std::uint8_t
     {
+        Sequence,
+        Select,
+        Blend,
         OneShot,
         Loop,
         Random
     };
 
-    enum class AuthoringContainerType : std::uint8_t
+    enum class AuthoringNodeType : std::uint8_t
     {
+        Sequence,
+        Select,
+        Blend,
         OneShot,
         Loop,
-        Random,
-        Sequence
+        Random
     };
+
+    using ContainerType = NodeType;
+    using AuthoringContainerType = AuthoringNodeType;
 
     struct SourceLocation final
     {

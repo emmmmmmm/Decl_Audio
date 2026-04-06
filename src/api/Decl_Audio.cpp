@@ -19,7 +19,7 @@ namespace decl_audio
     inline constexpr std::uint32_t kDefaultSampleRate = 48000;
     inline constexpr std::uint32_t kDefaultOutputChannelCount = 2;
     inline constexpr std::uint32_t kDefaultCallbackFrameCount = 1024;
-    inline constexpr std::uint32_t kDefaultMaxInstances = static_cast<std::uint32_t>(playback::AudioRuntime::DefaultMaxInstances);
+    inline constexpr std::uint32_t kDefaultMaxInstances = 256;
     inline constexpr std::uint32_t kDefaultMaxBlockFrames = kDefaultCallbackFrameCount * 4;
 }
 extern "C"

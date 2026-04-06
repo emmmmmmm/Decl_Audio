@@ -18,6 +18,8 @@ namespace decl_audio::runtime
         playback::InstanceId instance_id = 0;
         float volume = 1.0f;
         Vec3 position{};
+        std::vector<float> parameter_values;
+        std::vector<bool> has_parameter_values;
     };
 
     class BehaviorResolver final
@@ -39,8 +41,9 @@ namespace decl_audio::runtime
             {
                 ActiveBehaviorBinding &binding = active_bindings_[binding_index];
                 const auto entity_it = world_state.entities.find(binding.entity_id);
+                const compiler::CompiledBehavior &compiled_behavior = compiled_bank.GetBehavior(binding.behavior_id);
                 if (entity_it == world_state.entities.end() ||
-                    !MatchesBehavior(entity_it->second, compiled_bank.GetBehavior(binding.behavior_id), compiled_bank))
+                    !MatchesBehavior(entity_it->second, compiled_behavior, compiled_bank))
                 {
                     emit_command(playback::RequestStopCommand{binding.instance_id});
                     active_bindings_[binding_index] = active_bindings_.back();
@@ -64,6 +67,30 @@ namespace decl_audio::runtime
                     binding.position = entity_it->second.GetPosition();
                 }
 
+                const compiler::CompiledProgram &compiled_program = compiled_bank.GetProgram(compiled_behavior.program_id);
+                const std::span<const compiler::ParameterId> program_parameters = compiled_bank.GetProgramParameters(compiled_program.id);
+                for (std::size_t parameter_index = 0; parameter_index < program_parameters.size(); ++parameter_index)
+                {
+                    const compiler::ParameterId parameter_id = program_parameters[parameter_index];
+                    if (!entity_it->second.HasFloatValue(parameter_id))
+                    {
+                        continue;
+                    }
+
+                    const float value = entity_it->second.GetFloatValue(parameter_id);
+                    if (binding.has_parameter_values[parameter_index] && binding.parameter_values[parameter_index] == value)
+                    {
+                        continue;
+                    }
+
+                    emit_command(playback::SetParameterCommand{
+                        binding.instance_id,
+                        parameter_id,
+                        value});
+                    binding.parameter_values[parameter_index] = value;
+                    binding.has_parameter_values[parameter_index] = true;
+                }
+
                 ++binding_index;
             }
 
@@ -82,6 +109,8 @@ namespace decl_audio::runtime
                     }
 
                     const playback::InstanceId instance_id = MintInstanceId();
+                    const compiler::CompiledProgram &compiled_program = compiled_bank.GetProgram(behavior.program_id);
+                    const std::span<const compiler::ParameterId> program_parameters = compiled_bank.GetProgramParameters(compiled_program.id);
                     const float initial_volume = entity_state.HasVolume() ? entity_state.GetVolume() : 1.0f;
                     const Vec3 initial_position = entity_state.HasPosition() ? entity_state.GetPosition() : Vec3{};
                     emit_command(playback::CreateInstanceCommand{
@@ -89,12 +118,33 @@ namespace decl_audio::runtime
                         behavior.program_id,
                         initial_position,
                         initial_volume});
-                    active_bindings_.push_back(ActiveBehaviorBinding{
+
+                    ActiveBehaviorBinding binding{
                         entity_id,
                         behavior.id,
                         instance_id,
                         initial_volume,
-                        initial_position});
+                        initial_position};
+                    binding.parameter_values.resize(program_parameters.size(), 0.0f);
+                    binding.has_parameter_values.resize(program_parameters.size(), false);
+                    for (std::size_t parameter_index = 0; parameter_index < program_parameters.size(); ++parameter_index)
+                    {
+                        const compiler::ParameterId parameter_id = program_parameters[parameter_index];
+                        if (!entity_state.HasFloatValue(parameter_id))
+                        {
+                            continue;
+                        }
+
+                        const float value = entity_state.GetFloatValue(parameter_id);
+                        emit_command(playback::SetParameterCommand{
+                            instance_id,
+                            parameter_id,
+                            value});
+                        binding.parameter_values[parameter_index] = value;
+                        binding.has_parameter_values[parameter_index] = true;
+                    }
+
+                    active_bindings_.push_back(std::move(binding));
                 }
             }
         }

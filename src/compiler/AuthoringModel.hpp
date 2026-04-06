@@ -15,12 +15,13 @@ namespace decl_audio::compiler
         float literal = 0.0f;
     };
 
-    struct AuthoringContainer final
+    struct AuthoringNode final
     {
         SourceLocation location;
-        AuthoringContainerType type = AuthoringContainerType::OneShot;
+        AuthoringNodeType type = AuthoringNodeType::OneShot;
         std::vector<std::string> assets;
-        std::vector<AuthoringContainer> children;
+        std::vector<AuthoringNode> children;
+        std::string parameter;
         float volume = 1.0f;
         std::int32_t loop_count = 0;
     };
@@ -40,7 +41,7 @@ namespace decl_audio::compiler
         std::string id;
         std::vector<std::string> match_tags;
         std::vector<AuthoringCondition> match_conditions;
-        std::vector<AuthoringContainer> program;
+        std::vector<AuthoringNode> program;
         std::vector<std::string> parameters;
         AuthoringSpatializationSettings spatialization;
     };

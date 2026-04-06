@@ -4,10 +4,8 @@
 
 #include <algorithm>
 #include <cmath>
-#include <exception>
 #include <limits>
 #include <type_traits>
-#include <variant>
 
 namespace decl_audio::playback
 {
@@ -15,39 +13,14 @@ namespace decl_audio::playback
     {
         constexpr std::size_t kNotFound = std::numeric_limits<std::size_t>::max();
         constexpr float kQuarterTurn = 0.78539816339744830962f;
+        constexpr std::uint16_t kInvalidParameterSlot = std::numeric_limits<std::uint16_t>::max();
 
-        // MixSeed64 finalizer used as a deterministic 64-bit seed mixer.
-        // We use this to decorrelate stable ids before modulo-picking random assets.
         [[nodiscard]] std::uint64_t MixSeed64(std::uint64_t value) noexcept
         {
             value += 0x9E3779B97F4A7C15ULL;
             value = (value ^ (value >> 30U)) * 0xBF58476D1CE4E5B9ULL;
             value = (value ^ (value >> 27U)) * 0x94D049BB133111EBULL;
             return value ^ (value >> 31U);
-        }
-
-        template <typename TState>
-        [[nodiscard]] TState &RequireState(ActiveContainerState &state) noexcept
-        {
-            TState *typed_state = std::get_if<TState>(&state);
-            if (typed_state == nullptr)
-            {
-                std::terminate();
-            }
-
-            return *typed_state;
-        }
-
-        template <typename TState>
-        [[nodiscard]] const TState &RequireState(const ActiveContainerState &state) noexcept
-        {
-            const TState *typed_state = std::get_if<TState>(&state);
-            if (typed_state == nullptr)
-            {
-                std::terminate();
-            }
-
-            return *typed_state;
         }
 
         struct StereoMixGains final
@@ -102,13 +75,15 @@ namespace decl_audio::playback
 
     AudioRuntime::AudioRuntime(const std::uint64_t root_seed,
                                const std::size_t max_instances,
-                               const std::uint32_t max_block_frames)
+                               const std::uint32_t max_block_frames,
+                               const std::uint32_t out_channel_count)
         : root_seed_(root_seed),
           max_instances_(max_instances),
-          max_block_frames_(max_block_frames)
+          max_block_frames_(max_block_frames),
+          out_channel_count_(out_channel_count)
     {
         instances_.reserve(max_instances_);
-        scratch_.resize(static_cast<std::size_t>(max_block_frames_) * OutputChannelCount);
+        scratch_.resize(static_cast<std::size_t>(max_block_frames_) * out_channel_count);
     }
 
     void AudioRuntime::SetBanks(const compiler::CompiledBank *compiled_bank, const assets::AssetBank *asset_bank) noexcept
@@ -116,6 +91,23 @@ namespace decl_audio::playback
         Clear();
         compiled_bank_ = compiled_bank;
         asset_bank_ = asset_bank;
+        ResizeStorageForBank();
+    }
+
+    void AudioRuntime::ResizeStorageForBank() noexcept
+    {
+        node_state_storage_.clear();
+        voice_storage_.clear();
+        parameter_storage_.clear();
+
+        if (compiled_bank_ == nullptr)
+        {
+            return;
+        }
+
+        node_state_storage_.resize(max_instances_ * static_cast<std::size_t>(compiled_bank_->max_program_node_count));
+        voice_storage_.resize(max_instances_ * static_cast<std::size_t>(compiled_bank_->max_program_concurrent_voices));
+        parameter_storage_.resize(max_instances_ * static_cast<std::size_t>(compiled_bank_->max_program_parameter_slot_count));
     }
 
     void AudioRuntime::Clear() noexcept
@@ -143,33 +135,26 @@ namespace decl_audio::playback
             std::terminate();
         }
 
-        std::fill_n(output, static_cast<std::size_t>(frames) * OutputChannelCount, 0.0f);
+        std::fill_n(output, static_cast<std::size_t>(frames) * out_channel_count_, 0.0f);
 
         ApplyPendingCommands();
-
-        if (instances_.empty())
-        {
-            return;
-        }
 
         std::size_t instance_index = 0;
         while (instance_index < instances_.size())
         {
             ProgramInstance &instance = instances_[instance_index];
-            std::fill_n(scratch_.data(), static_cast<std::size_t>(frames) * OutputChannelCount, 0.0f);
+            std::fill_n(scratch_.data(), static_cast<std::size_t>(frames) * out_channel_count_, 0.0f);
 
-            const std::uint32_t written = RenderProgramInstance(instance, scratch_.data(), frames);
+            const bool keep_instance = RenderProgramInstance(instance, scratch_.data(), frames);
             const StereoMixGains mix_gains = ComputeSpatialMixGains(instance.compiled->spatialization, instance.position, listener_.position);
-            const float left_gain = mix_gains.left * instance.volume;
-            const float right_gain = mix_gains.right * instance.volume;
-            for (std::uint32_t frame_index = 0; frame_index < written; ++frame_index)
+            for (std::uint32_t frame_index = 0; frame_index < frames; ++frame_index)
             {
-                const std::size_t sample_index = static_cast<std::size_t>(frame_index) * OutputChannelCount;
-                output[sample_index + 0] += scratch_[sample_index + 0] * left_gain;
-                output[sample_index + 1] += scratch_[sample_index + 1] * right_gain;
+                const std::size_t sample_index = static_cast<std::size_t>(frame_index) * out_channel_count_;
+                output[sample_index + 0] += scratch_[sample_index + 0] * mix_gains.left;
+                output[sample_index + 1] += scratch_[sample_index + 1] * mix_gains.right;
             }
 
-            if (written < frames)
+            if (!keep_instance)
             {
                 instances_[instance_index] = instances_.back();
                 instances_.pop_back();
@@ -189,14 +174,12 @@ namespace decl_audio::playback
         }
 
         const ProgramInstance &instance = instances_[instance_index];
-        const compiler::CompiledContainer &container = GetCompiledContainer(instance);
         snapshot.instance_id = instance.instance_id;
         snapshot.program_id = instance.compiled->id;
-        snapshot.cursor = instance.cursor;
-        snapshot.container_type = container.type;
         snapshot.volume = instance.volume;
         snapshot.position = instance.position;
         snapshot.stop_requested = instance.stop_requested;
+        snapshot.active_voice_count = instance.active_voice_count;
         return true;
     }
 
@@ -213,33 +196,44 @@ namespace decl_audio::playback
         for (const ProgramInstance &instance : instances_)
         {
             InstanceDebugSnapshot instance_snapshot;
-            const compiler::CompiledContainer &container = GetCompiledContainer(instance);
             instance_snapshot.instance_id = instance.instance_id;
             instance_snapshot.program_id = instance.compiled->id;
-            instance_snapshot.cursor = instance.cursor;
-            instance_snapshot.container_type = container.type;
             instance_snapshot.volume = instance.volume;
             instance_snapshot.position = instance.position;
             instance_snapshot.stop_requested = instance.stop_requested;
+            instance_snapshot.active_voice_count = instance.active_voice_count;
+            instance_snapshot.nodes.reserve(instance.compiled->node_count);
 
-            std::visit(
-                [&](const auto &typed_state)
+            for (std::uint32_t node_offset = 0; node_offset < instance.compiled->node_count; ++node_offset)
+            {
+                const compiler::NodeId node_id = instance.compiled->first_node + node_offset;
+                const compiler::CompiledNode &node = GetCompiledNode(node_id);
+                const NodeRuntimeState &state = instance.node_state[node_offset];
+                instance_snapshot.nodes.push_back(NodeDebugSnapshot{
+                    node_id,
+                    node.type,
+                    state.entered,
+                    state.finished,
+                    state.chosen_child,
+                    state.active_voice_count});
+            }
+
+            for (const VoiceState &voice : instance.voices)
+            {
+                if (!voice.active)
                 {
-                    using TState = std::decay_t<decltype(typed_state)>;
-                    instance_snapshot.sample_position = typed_state.sample_position;
+                    continue;
+                }
 
-                    if constexpr (std::is_same_v<TState, LoopState>)
-                    {
-                        instance_snapshot.remaining_loops = typed_state.remaining_loops;
-                    }
-                    else if constexpr (std::is_same_v<TState, RandomState>)
-                    {
-                        instance_snapshot.picked_asset_slot = typed_state.picked_asset_slot;
-                    }
-                },
-                instance.current);
+                instance_snapshot.voices.push_back(VoiceDebugSnapshot{
+                    voice.leaf_node,
+                    GetCompiledNode(voice.leaf_node).type,
+                    voice.sample_position,
+                    voice.remaining_loops,
+                    voice.picked_asset_slot});
+            }
 
-            snapshot.instances.push_back(instance_snapshot);
+            snapshot.instances.push_back(std::move(instance_snapshot));
         }
 
         return snapshot;
@@ -277,17 +271,61 @@ namespace decl_audio::playback
         }
 
         const compiler::CompiledProgram &compiled_program = compiled_bank_->GetProgram(command.program_id);
+        const std::size_t slice_index = instances_.size();
+
+        auto make_node_span = [&](const std::uint32_t count) noexcept -> std::span<NodeRuntimeState>
+        {
+            if (count == 0)
+            {
+                return {};
+            }
+
+            return std::span<NodeRuntimeState>(
+                node_state_storage_.data() + (slice_index * static_cast<std::size_t>(compiled_bank_->max_program_node_count)),
+                count);
+        };
+
+        auto make_voice_span = [&](const std::uint32_t count) noexcept -> std::span<VoiceState>
+        {
+            if (count == 0)
+            {
+                return {};
+            }
+
+            return std::span<VoiceState>(
+                voice_storage_.data() + (slice_index * static_cast<std::size_t>(compiled_bank_->max_program_concurrent_voices)),
+                count);
+        };
+
+        auto make_parameter_span = [&](const std::uint32_t count) noexcept -> std::span<float>
+        {
+            if (count == 0)
+            {
+                return {};
+            }
+
+            return std::span<float>(
+                parameter_storage_.data() + (slice_index * static_cast<std::size_t>(compiled_bank_->max_program_parameter_slot_count)),
+                count);
+        };
 
         ProgramInstance instance;
         instance.instance_id = command.instance_id;
         instance.compiled = &compiled_program;
-        instance.cursor = 0;
         instance.volume = command.volume;
         instance.position = command.position;
         instance.stop_requested = false;
-        instance.current = MakeContainerState(instance, 0);
+        instance.active_voice_count = 0;
+        instance.node_state = make_node_span(compiled_program.node_count);
+        instance.voices = make_voice_span(compiled_program.max_concurrent_voices);
+        instance.parameter_slots = make_parameter_span(compiled_program.parameter_slot_count);
+
+        std::fill(instance.node_state.begin(), instance.node_state.end(), NodeRuntimeState{});
+        std::fill(instance.voices.begin(), instance.voices.end(), VoiceState{});
+        std::fill(instance.parameter_slots.begin(), instance.parameter_slots.end(), 0.0f);
 
         instances_.push_back(instance);
+        EnterNode(instances_.back(), compiled_program.root_node);
     }
 
     void AudioRuntime::Apply(const SetVolumeCommand &command) noexcept
@@ -312,6 +350,24 @@ namespace decl_audio::playback
         instances_[instance_index].position = command.position;
     }
 
+    void AudioRuntime::Apply(const SetParameterCommand &command) noexcept
+    {
+        const std::size_t instance_index = FindInstanceIndex(command.instance_id);
+        if (instance_index == kNotFound)
+        {
+            return;
+        }
+
+        ProgramInstance &instance = instances_[instance_index];
+        const std::uint16_t parameter_slot = FindProgramParameterSlot(instance, command.parameter_id);
+        if (parameter_slot == kInvalidParameterSlot)
+        {
+            std::terminate();
+        }
+
+        instance.parameter_slots[parameter_slot] = command.value;
+    }
+
     void AudioRuntime::Apply(const RequestStopCommand &command) noexcept
     {
         const std::size_t instance_index = FindInstanceIndex(command.instance_id);
@@ -322,10 +378,17 @@ namespace decl_audio::playback
 
         ProgramInstance &instance = instances_[instance_index];
         instance.stop_requested = true;
-
-        if (GetCompiledContainer(instance).type == compiler::ContainerType::Loop)
+        for (VoiceState &voice : instance.voices)
         {
-            RequireState<LoopState>(instance.current).remaining_loops = 0;
+            if (!voice.active)
+            {
+                continue;
+            }
+
+            if (GetCompiledNode(voice.leaf_node).type == compiler::NodeType::Loop)
+            {
+                voice.remaining_loops = 0;
+            }
         }
     }
 
@@ -334,38 +397,92 @@ namespace decl_audio::playback
         listener_.position = command.position;
     }
 
-    std::uint32_t AudioRuntime::RenderProgramInstance(ProgramInstance &instance, float *output, const std::uint32_t frames) noexcept
+    bool AudioRuntime::RenderProgramInstance(ProgramInstance &instance, float *output, const std::uint32_t frames) noexcept
     {
+        const std::uint32_t root_offset = instance.compiled->root_node - instance.compiled->first_node;
         std::uint32_t written = 0;
+
         while (written < frames)
         {
-            const std::uint32_t container_written = RenderCurrentContainer(instance, output + static_cast<std::size_t>(written) * OutputChannelCount, frames - written);
-            written += container_written;
-
-            if (written < frames)
+            if (instance.active_voice_count == 0)
             {
-                ++instance.cursor;
-                if (instance.cursor >= instance.compiled->container_count)
+                if (instance.node_state[root_offset].finished)
                 {
                     break;
                 }
 
-                instance.current = MakeContainerState(instance, instance.cursor);
+                std::terminate();
+            }
+
+            const std::uint32_t segment_frames = ComputeSegmentFrames(instance, frames - written);
+            if (segment_frames == 0)
+            {
+                std::terminate();
+            }
+
+            for (VoiceState &voice : instance.voices)
+            {
+                if (!voice.active)
+                {
+                    continue;
+                }
+
+                RenderVoice(instance,
+                            voice,
+                            output + static_cast<std::size_t>(written) * out_channel_count_,
+                            segment_frames);
+            }
+
+            written += segment_frames;
+
+            std::size_t voice_index = 0;
+            while (voice_index < instance.voices.size())
+            {
+                if (!instance.voices[voice_index].active)
+                {
+                    ++voice_index;
+                    continue;
+                }
+
+                if (ComputeVoiceTerminalFrames(instance, instance.voices[voice_index]) == 0)
+                {
+                    RetireVoice(instance, static_cast<std::uint32_t>(voice_index));
+                    continue;
+                }
+
+                ++voice_index;
             }
         }
 
-        return written;
+        return !(instance.node_state[root_offset].finished && instance.active_voice_count == 0);
     }
 
-    std::uint32_t AudioRuntime::RenderCurrentContainer(ProgramInstance &instance, float *output, const std::uint32_t frames) noexcept
+    std::uint32_t AudioRuntime::ComputeSegmentFrames(const ProgramInstance &instance, const std::uint32_t frames_remaining) const noexcept
     {
-        const compiler::CompiledContainer &container = GetCompiledContainer(instance);
-        const std::span<const compiler::AssetId> asset_ids = compiled_bank_->GetContainerAssets(container);
+        std::uint64_t segment_frames = frames_remaining;
+        for (const VoiceState &voice : instance.voices)
+        {
+            if (!voice.active)
+            {
+                continue;
+            }
 
-        auto write_frames = [&](const assets::DecodedBuffer &buffer,
-                                std::uint64_t &sample_position,
-                                float *target_output,
-                                const std::uint32_t frames_requested) noexcept -> std::uint32_t
+            segment_frames = std::min(segment_frames, ComputeVoiceTerminalFrames(instance, voice));
+        }
+
+        return static_cast<std::uint32_t>(segment_frames);
+    }
+
+    void AudioRuntime::RenderVoice(ProgramInstance &instance, VoiceState &voice, float *output, const std::uint32_t frames) noexcept
+    {
+        const compiler::CompiledNode &node = GetCompiledNode(voice.leaf_node);
+        const std::span<const compiler::AssetId> asset_ids = GetNodeAssets(voice.leaf_node);
+        const float gain = ComputeVoiceGain(instance, voice.leaf_node);
+
+        auto add_frames = [&](const assets::DecodedBuffer &buffer,
+                              std::uint64_t &sample_position,
+                              float *target_output,
+                              const std::uint32_t frames_requested) noexcept -> std::uint32_t
         {
             const std::uint64_t remaining_frames = buffer.frame_count - sample_position;
             const std::uint32_t frames_to_write = static_cast<std::uint32_t>(std::min<std::uint64_t>(remaining_frames, frames_requested));
@@ -373,19 +490,19 @@ namespace decl_audio::playback
             for (std::uint32_t frame_index = 0; frame_index < frames_to_write; ++frame_index)
             {
                 const std::size_t source_frame = static_cast<std::size_t>(sample_position + frame_index);
-                const std::size_t target_frame = static_cast<std::size_t>(frame_index) * OutputChannelCount;
+                const std::size_t target_frame = static_cast<std::size_t>(frame_index) * out_channel_count_;
 
                 if (buffer.channel_count == 1)
                 {
-                    const float sample = buffer.samples[source_frame] * container.volume;
-                    target_output[target_frame + 0] = sample;
-                    target_output[target_frame + 1] = sample;
+                    const float sample = buffer.samples[source_frame] * gain;
+                    target_output[target_frame + 0] += sample;
+                    target_output[target_frame + 1] += sample;
                 }
                 else
                 {
                     const std::size_t source_index = source_frame * buffer.channel_count;
-                    target_output[target_frame + 0] = buffer.samples[source_index + 0] * container.volume;
-                    target_output[target_frame + 1] = buffer.samples[source_index + 1] * container.volume;
+                    target_output[target_frame + 0] += buffer.samples[source_index + 0] * gain;
+                    target_output[target_frame + 1] += buffer.samples[source_index + 1] * gain;
                 }
             }
 
@@ -393,23 +510,18 @@ namespace decl_audio::playback
             return frames_to_write;
         };
 
-        switch (container.type)
+        switch (node.type)
         {
-        case compiler::ContainerType::OneShot:
-        {
-            OneShotState &state = RequireState<OneShotState>(instance.current);
-            return write_frames(asset_bank_->GetBuffer(asset_ids[0]), state.sample_position, output, frames);
-        }
+        case compiler::NodeType::OneShot:
+            (void)add_frames(asset_bank_->GetBuffer(asset_ids[0]), voice.sample_position, output, frames);
+            return;
 
-        case compiler::ContainerType::Random:
-        {
-            RandomState &state = RequireState<RandomState>(instance.current);
-            return write_frames(asset_bank_->GetBuffer(asset_ids[state.picked_asset_slot]), state.sample_position, output, frames);
-        }
+        case compiler::NodeType::Random:
+            (void)add_frames(asset_bank_->GetBuffer(asset_ids[voice.picked_asset_slot]), voice.sample_position, output, frames);
+            return;
 
-        case compiler::ContainerType::Loop:
+        case compiler::NodeType::Loop:
         {
-            LoopState &state = RequireState<LoopState>(instance.current);
             const assets::DecodedBuffer &buffer = asset_bank_->GetBuffer(asset_ids[0]);
             if (buffer.frame_count == 0)
             {
@@ -419,96 +531,384 @@ namespace decl_audio::playback
             std::uint32_t written = 0;
             while (written < frames)
             {
-                const std::uint32_t pass_written = write_frames(buffer,
-                                                                state.sample_position,
-                                                                output + static_cast<std::size_t>(written) * OutputChannelCount,
-                                                                frames - written);
-                written += pass_written;
+                written += add_frames(buffer,
+                                      voice.sample_position,
+                                      output + static_cast<std::size_t>(written) * out_channel_count_,
+                                      frames - written);
 
                 if (written == frames)
                 {
-                    break;
+                    return;
                 }
 
-                if (state.sample_position != buffer.frame_count)
-                {
-                    break;
-                }
-
-                if (state.remaining_loops == 0)
-                {
-                    break;
-                }
-
-                state.sample_position = 0;
-                if (state.remaining_loops > 0)
-                {
-                    --state.remaining_loops;
-                }
-            }
-
-            return written;
-        }
-        }
-
-        std::terminate();
-    }
-
-    ActiveContainerState AudioRuntime::MakeContainerState(const ProgramInstance &instance, const std::uint32_t cursor) const noexcept
-    {
-        const compiler::CompiledContainer &container = GetCompiledContainer(instance, cursor);
-
-        switch (container.type)
-        {
-        case compiler::ContainerType::OneShot:
-            return OneShotState{};
-
-        case compiler::ContainerType::Loop:
-        {
-            LoopState state;
-            state.sample_position = 0;
-            if (instance.stop_requested)
-            {
-                state.remaining_loops = 0;
-            }
-            else if (container.loop_count < 0)
-            {
-                state.remaining_loops = -1;
-            }
-            else
-            {
-                if (container.loop_count == 0)
+                if (voice.sample_position != buffer.frame_count)
                 {
                     std::terminate();
                 }
 
-                state.remaining_loops = container.loop_count - 1;
+                if (voice.remaining_loops == 0)
+                {
+                    std::terminate();
+                }
+
+                voice.sample_position = 0;
+                if (voice.remaining_loops > 0)
+                {
+                    --voice.remaining_loops;
+                }
             }
 
-            return state;
+            return;
         }
 
-        case compiler::ContainerType::Random:
-        {
-            RandomState state;
-            const std::uint64_t seed = DeriveContainerSeed(instance.instance_id, instance.compiled->id, cursor);
-            state.picked_asset_slot = static_cast<std::uint32_t>(seed % container.asset_count);
-            state.sample_position = 0;
-            return state;
-        }
+        case compiler::NodeType::Sequence:
+        case compiler::NodeType::Select:
+        case compiler::NodeType::Blend:
+            break;
         }
 
         std::terminate();
     }
 
-    const compiler::CompiledContainer &AudioRuntime::GetCompiledContainer(const ProgramInstance &instance) const noexcept
+    void AudioRuntime::ActivateVoice(ProgramInstance &instance, const compiler::NodeId leaf_node) noexcept
     {
-        return GetCompiledContainer(instance, instance.cursor);
+        const compiler::CompiledNode &node = GetCompiledNode(leaf_node);
+        const std::span<const compiler::AssetId> asset_ids = GetNodeAssets(leaf_node);
+
+        for (VoiceState &voice : instance.voices)
+        {
+            if (voice.active)
+            {
+                continue;
+            }
+
+            voice.leaf_node = leaf_node;
+            voice.sample_position = 0;
+            voice.picked_asset_slot = 0;
+            voice.remaining_loops = 0;
+            voice.active = true;
+
+            switch (node.type)
+            {
+            case compiler::NodeType::OneShot:
+                break;
+
+            case compiler::NodeType::Random:
+            {
+                const std::uint64_t seed = DeriveNodeSeed(instance.instance_id, instance.compiled->id, leaf_node);
+                voice.picked_asset_slot = static_cast<std::uint32_t>(seed % asset_ids.size());
+                break;
+            }
+
+            case compiler::NodeType::Loop:
+                if (instance.stop_requested)
+                {
+                    voice.remaining_loops = 0;
+                }
+                else if (node.loop_count < 0)
+                {
+                    voice.remaining_loops = -1;
+                }
+                else
+                {
+                    if (node.loop_count == 0)
+                    {
+                        std::terminate();
+                    }
+
+                    voice.remaining_loops = node.loop_count - 1;
+                }
+                break;
+
+            case compiler::NodeType::Sequence:
+            case compiler::NodeType::Select:
+            case compiler::NodeType::Blend:
+                std::terminate();
+            }
+
+            ++instance.active_voice_count;
+            for (compiler::NodeId current_node = leaf_node; current_node != kInvalidNodeId; current_node = GetCompiledNode(current_node).parent)
+            {
+                ++instance.node_state[current_node - instance.compiled->first_node].active_voice_count;
+            }
+
+            return;
+        }
+
+        std::terminate();
     }
 
-    const compiler::CompiledContainer &AudioRuntime::GetCompiledContainer(const ProgramInstance &instance, const std::uint32_t cursor) const noexcept
+    void AudioRuntime::RetireVoice(ProgramInstance &instance, const std::uint32_t voice_index) noexcept
     {
-        return compiled_bank_->containers[instance.compiled->first_container + cursor];
+        VoiceState &voice = instance.voices[voice_index];
+        if (!voice.active)
+        {
+            std::terminate();
+        }
+
+        const compiler::NodeId leaf_node = voice.leaf_node;
+        voice = VoiceState{};
+
+        --instance.active_voice_count;
+        for (compiler::NodeId current_node = leaf_node; current_node != kInvalidNodeId; current_node = GetCompiledNode(current_node).parent)
+        {
+            --instance.node_state[current_node - instance.compiled->first_node].active_voice_count;
+        }
+
+        TryFinishNode(instance, leaf_node);
+    }
+
+    void AudioRuntime::EnterNode(ProgramInstance &instance, const compiler::NodeId node_id) noexcept
+    {
+        NodeRuntimeState &state = instance.node_state[node_id - instance.compiled->first_node];
+        if (state.entered)
+        {
+            std::terminate();
+        }
+
+        state.entered = true;
+        state.finished = false;
+        state.chosen_child = -1;
+
+        const compiler::CompiledNode &node = GetCompiledNode(node_id);
+        const std::span<const compiler::NodeId> children = GetNodeChildren(node_id);
+        switch (node.type)
+        {
+        case compiler::NodeType::Sequence:
+            if (children.empty())
+            {
+                std::terminate();
+            }
+
+            EnterNode(instance, children[0]);
+            return;
+
+        case compiler::NodeType::Select:
+        {
+            if (children.empty())
+            {
+                std::terminate();
+            }
+
+            const std::uint64_t seed = DeriveNodeSeed(instance.instance_id, instance.compiled->id, node_id);
+            const std::int32_t chosen_child = static_cast<std::int32_t>(seed % children.size());
+            state.chosen_child = chosen_child;
+            EnterNode(instance, children[chosen_child]);
+            return;
+        }
+
+        case compiler::NodeType::Blend:
+            if (children.size() != 2)
+            {
+                std::terminate();
+            }
+
+            EnterNode(instance, children[0]);
+            EnterNode(instance, children[1]);
+            return;
+
+        case compiler::NodeType::OneShot:
+        case compiler::NodeType::Loop:
+        case compiler::NodeType::Random:
+            ActivateVoice(instance, node_id);
+            return;
+        }
+
+        std::terminate();
+    }
+
+    void AudioRuntime::TryFinishNode(ProgramInstance &instance, const compiler::NodeId node_id) noexcept
+    {
+        NodeRuntimeState &state = instance.node_state[node_id - instance.compiled->first_node];
+        if (!state.entered || state.finished)
+        {
+            return;
+        }
+
+        const compiler::CompiledNode &node = GetCompiledNode(node_id);
+        const std::span<const compiler::NodeId> children = GetNodeChildren(node_id);
+        switch (node.type)
+        {
+        case compiler::NodeType::OneShot:
+        case compiler::NodeType::Loop:
+        case compiler::NodeType::Random:
+            if (state.active_voice_count != 0)
+            {
+                return;
+            }
+            state.finished = true;
+            break;
+
+        case compiler::NodeType::Sequence:
+        {
+            for (const compiler::NodeId child_id : children)
+            {
+                NodeRuntimeState &child_state = instance.node_state[child_id - instance.compiled->first_node];
+                if (!child_state.entered)
+                {
+                    EnterNode(instance, child_id);
+                    return;
+                }
+
+                if (!child_state.finished)
+                {
+                    return;
+                }
+            }
+
+            state.finished = true;
+            break;
+        }
+
+        case compiler::NodeType::Select:
+        {
+            if (state.chosen_child < 0 || state.chosen_child >= static_cast<std::int32_t>(children.size()))
+            {
+                std::terminate();
+            }
+
+            const compiler::NodeId child_id = children[state.chosen_child];
+            if (!instance.node_state[child_id - instance.compiled->first_node].finished)
+            {
+                return;
+            }
+
+            state.finished = true;
+            break;
+        }
+
+        case compiler::NodeType::Blend:
+            for (const compiler::NodeId child_id : children)
+            {
+                if (!instance.node_state[child_id - instance.compiled->first_node].finished)
+                {
+                    return;
+                }
+            }
+
+            state.finished = true;
+            break;
+        }
+
+        const compiler::NodeId parent_id = node.parent;
+        if (parent_id != kInvalidNodeId)
+        {
+            TryFinishNode(instance, parent_id);
+        }
+    }
+
+    std::uint64_t AudioRuntime::ComputeVoiceTerminalFrames(const ProgramInstance &instance, const VoiceState &voice) const noexcept
+    {
+        const compiler::CompiledNode &node = GetCompiledNode(voice.leaf_node);
+        const std::span<const compiler::AssetId> asset_ids = GetNodeAssets(voice.leaf_node);
+
+        switch (node.type)
+        {
+        case compiler::NodeType::OneShot:
+            return asset_bank_->GetBuffer(asset_ids[0]).frame_count - voice.sample_position;
+
+        case compiler::NodeType::Random:
+            return asset_bank_->GetBuffer(asset_ids[voice.picked_asset_slot]).frame_count - voice.sample_position;
+
+        case compiler::NodeType::Loop:
+        {
+            const assets::DecodedBuffer &buffer = asset_bank_->GetBuffer(asset_ids[0]);
+            const std::uint64_t current_pass_remaining = buffer.frame_count - voice.sample_position;
+            if (voice.remaining_loops < 0)
+            {
+                return std::numeric_limits<std::uint64_t>::max();
+            }
+
+            return current_pass_remaining + (static_cast<std::uint64_t>(voice.remaining_loops) * buffer.frame_count);
+        }
+
+        case compiler::NodeType::Sequence:
+        case compiler::NodeType::Select:
+        case compiler::NodeType::Blend:
+            break;
+        }
+
+        std::terminate();
+    }
+
+    float AudioRuntime::ComputeVoiceGain(const ProgramInstance &instance, const compiler::NodeId leaf_node) const noexcept
+    {
+        float gain = instance.volume;
+
+        compiler::NodeId current_node = leaf_node;
+        while (current_node != kInvalidNodeId)
+        {
+            const compiler::CompiledNode &node = GetCompiledNode(current_node);
+            gain *= node.authored_gain;
+
+            const compiler::NodeId parent_id = node.parent;
+            if (parent_id == kInvalidNodeId)
+            {
+                break;
+            }
+
+            const compiler::CompiledNode &parent = GetCompiledNode(parent_id);
+            if (parent.type == compiler::NodeType::Blend)
+            {
+                if (parent.parameter_slot == kInvalidParameterSlot)
+                {
+                    std::terminate();
+                }
+
+                const std::span<const compiler::NodeId> children = GetNodeChildren(parent_id);
+                if (children.size() != 2)
+                {
+                    std::terminate();
+                }
+
+                const float t = std::clamp(instance.parameter_slots[parent.parameter_slot], 0.0f, 1.0f);
+                if (current_node == children[0])
+                {
+                    gain *= (1.0f - t);
+                }
+                else if (current_node == children[1])
+                {
+                    gain *= t;
+                }
+                else
+                {
+                    std::terminate();
+                }
+            }
+
+            current_node = parent_id;
+        }
+
+        return gain;
+    }
+
+    const compiler::CompiledNode &AudioRuntime::GetCompiledNode(const compiler::NodeId node_id) const noexcept
+    {
+        return compiled_bank_->nodes[node_id];
+    }
+
+    std::span<const compiler::NodeId> AudioRuntime::GetNodeChildren(const compiler::NodeId node_id) const noexcept
+    {
+        return compiled_bank_->GetNodeChildren(GetCompiledNode(node_id));
+    }
+
+    std::span<const compiler::AssetId> AudioRuntime::GetNodeAssets(const compiler::NodeId node_id) const noexcept
+    {
+        return compiled_bank_->GetNodeAssets(GetCompiledNode(node_id));
+    }
+
+    std::uint16_t AudioRuntime::FindProgramParameterSlot(const ProgramInstance &instance, const compiler::ParameterId parameter_id) const noexcept
+    {
+        const std::span<const compiler::ParameterId> parameters = compiled_bank_->GetProgramParameters(instance.compiled->id);
+        for (std::uint16_t parameter_index = 0; parameter_index < parameters.size(); ++parameter_index)
+        {
+            if (parameters[parameter_index] == parameter_id)
+            {
+                return parameter_index;
+            }
+        }
+
+        return kInvalidParameterSlot;
     }
 
     std::size_t AudioRuntime::FindInstanceIndex(const InstanceId instance_id) const noexcept
@@ -524,12 +924,14 @@ namespace decl_audio::playback
         return kNotFound;
     }
 
-    std::uint64_t AudioRuntime::DeriveContainerSeed(const InstanceId instance_id, const compiler::ProgramId program_id, const std::uint32_t cursor) const noexcept
+    std::uint64_t AudioRuntime::DeriveNodeSeed(const InstanceId instance_id,
+                                               const compiler::ProgramId program_id,
+                                               const compiler::NodeId node_id) const noexcept
     {
-        std::uint64_t seed = MixSeed64(root_seed_);
-        seed ^= MixSeed64(instance_id);
-        seed ^= MixSeed64(static_cast<std::uint64_t>(program_id));
-        seed ^= MixSeed64(static_cast<std::uint64_t>(cursor));
-        return MixSeed64(seed);
+        std::uint64_t seed = root_seed_;
+        seed = MixSeed64(seed ^ instance_id);
+        seed = MixSeed64(seed ^ program_id);
+        seed = MixSeed64(seed ^ node_id);
+        return seed;
     }
 } // namespace decl_audio::playback

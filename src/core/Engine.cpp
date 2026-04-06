@@ -52,6 +52,7 @@ namespace decl_audio
 
         if (compile_result.HasErrors())
         {
+            // TODO: Dump diagnostics?
             return false;
         }
 
@@ -60,6 +61,7 @@ namespace decl_audio
 
         if (asset_result.HasErrors())
         {
+            // TODO: Dump diagnostics?
             return false;
         }
 

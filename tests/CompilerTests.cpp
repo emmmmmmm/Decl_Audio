@@ -48,7 +48,7 @@ namespace
             return false;
         if (!Expect(compile_result.bank.programs.size() == 2, "valid fixture should compile two programs"))
             return false;
-        if (!Expect(compile_result.bank.containers.size() == 4, "valid fixture should flatten into four compiled containers"))
+        if (!Expect(compile_result.bank.nodes.size() == 7, "valid fixture should compile seven nodes including root sequences"))
             return false;
         if (!Expect(compile_result.bank.asset_paths.size() == 2, "valid fixture should discover two unique referenced assets"))
             return false;
@@ -61,18 +61,22 @@ namespace
         if (!Expect(compile_result.bank.GetBehaviorConditions(1).size() == 1, "resolver fixture should compile one condition"))
             return false;
 
-        const std::span<const decl_audio::compiler::CompiledContainer> containers = compile_result.bank.GetProgramContainers(0);
-        if (!Expect(containers[0].type == decl_audio::compiler::ContainerType::OneShot, "first compiled container should be oneshot"))
+        const std::span<const decl_audio::compiler::CompiledNode> nodes = compile_result.bank.GetProgramNodes(0);
+        if (!Expect(nodes[0].type == decl_audio::compiler::NodeType::Sequence, "first compiled node should be the implicit root sequence"))
             return false;
-        if (!Expect(containers[1].type == decl_audio::compiler::ContainerType::Random, "second compiled container should be random"))
+        if (!Expect(nodes[1].type == decl_audio::compiler::NodeType::OneShot, "second compiled node should be oneshot"))
             return false;
-        if (!Expect(containers[2].type == decl_audio::compiler::ContainerType::Loop, "third compiled container should be loop"))
+        if (!Expect(nodes[2].type == decl_audio::compiler::NodeType::Sequence, "third compiled node should be the authored sequence"))
+            return false;
+        if (!Expect(nodes[3].type == decl_audio::compiler::NodeType::Random, "fourth compiled node should be random"))
+            return false;
+        if (!Expect(nodes[4].type == decl_audio::compiler::NodeType::Loop, "fifth compiled node should be loop"))
             return false;
 
-        const std::span<const decl_audio::compiler::CompiledContainer> resolver_containers = compile_result.bank.GetProgramContainers(1);
-        if (!Expect(resolver_containers.size() == 1, "resolver program should compile one loop container"))
+        const std::span<const decl_audio::compiler::CompiledNode> resolver_nodes = compile_result.bank.GetProgramNodes(1);
+        if (!Expect(resolver_nodes.size() == 2, "resolver program should compile root sequence plus loop"))
             return false;
-        if (!Expect(resolver_containers[0].type == decl_audio::compiler::ContainerType::Loop, "resolver program should compile to a loop"))
+        if (!Expect(resolver_nodes[1].type == decl_audio::compiler::NodeType::Loop, "resolver program should compile to a loop leaf"))
             return false;
 
         auto config = GetTestConfig();
@@ -111,9 +115,9 @@ namespace
         const std::string diagnostics = decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
         if (!Expect(diagnostics.find("duplicate behavior id 'movement.invalid'") != std::string::npos, "diagnostics should report duplicate ids"))
             return false;
-        if (!Expect(diagnostics.find("oneshot containers require exactly one asset") != std::string::npos, "diagnostics should report invalid oneshot asset counts"))
+        if (!Expect(diagnostics.find("oneshot nodes require exactly one asset") != std::string::npos, "diagnostics should report invalid oneshot asset counts"))
             return false;
-        if (!Expect(diagnostics.find("random containers require at least one asset") != std::string::npos, "diagnostics should report empty random asset lists"))
+        if (!Expect(diagnostics.find("random nodes require at least one asset") != std::string::npos, "diagnostics should report empty random asset lists"))
             return false;
 
         auto config = GetTestConfig();
@@ -253,6 +257,85 @@ namespace
         return true;
     }
 
+    bool TestNestedNodeValidationAndLowering()
+    {
+        const std::filesystem::path fixture_path = GetFixturePath("NestedBehaviorBank.json");
+        const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+
+        if (!Expect(!compile_result.HasErrors(), "nested fixture should compile without errors"))
+        {
+            std::cerr << decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
+            return false;
+        }
+
+        const decl_audio::compiler::CompiledProgram &blend_program = compile_result.bank.GetProgram(compile_result.bank.GetProgramId("nested.blend_loops"));
+        if (!Expect(blend_program.parameter_slot_count == 1, "blend program should compile one runtime parameter slot"))
+            return false;
+        if (!Expect(blend_program.max_concurrent_voices == 2, "blend program should reserve two concurrent voices"))
+            return false;
+
+        const std::span<const decl_audio::compiler::CompiledNode> blend_nodes = compile_result.bank.GetProgramNodes(blend_program.id);
+        if (!Expect(blend_nodes.size() == 4, "blend program should compile root, blend, and two loop leaves"))
+            return false;
+        if (!Expect(blend_nodes[1].type == decl_audio::compiler::NodeType::Blend, "blend fixture should lower a blend node"))
+            return false;
+        if (!Expect(blend_nodes[1].parameter_slot == 0, "blend node should bind the first compact program slot"))
+            return false;
+
+        const decl_audio::compiler::CompiledProgram &select_program = compile_result.bank.GetProgram(compile_result.bank.GetProgramId("nested.select_blend_or_loop"));
+        const std::span<const decl_audio::compiler::CompiledNode> select_nodes = compile_result.bank.GetProgramNodes(select_program.id);
+        if (!Expect(select_nodes.size() == 6, "select fixture should compile root, select, blend subtree, and alternate loop"))
+            return false;
+        if (!Expect(select_nodes[1].type == decl_audio::compiler::NodeType::Select, "select fixture should lower a select node"))
+            return false;
+        if (!Expect(select_program.max_concurrent_voices == 2, "select fixture should budget to the loudest chosen subtree"))
+            return false;
+
+        constexpr std::string_view kInvalidNestedSource = R"json(
+{
+  "behaviors": [
+    {
+      "id": "nested.invalid",
+      "program": [
+        {
+          "type": "blend",
+          "children": [
+            {
+              "type": "loop",
+              "asset": "audio/test_48_24_1ch.wav",
+              "loopCount": -1
+            }
+          ]
+        },
+        {
+          "type": "select",
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+)json";
+
+        const decl_audio::compiler::ParseResult parse_result = decl_audio::compiler::ParseAuthoringJson(kInvalidNestedSource, "NestedValidation.invalid.json");
+        if (!Expect(!parse_result.HasErrors(), "invalid nested validation fixture should parse before compile validation"))
+            return false;
+
+        const decl_audio::compiler::CompileResult invalid_compile_result = decl_audio::compiler::CompileAuthoringDocument(parse_result.document);
+        if (!Expect(invalid_compile_result.HasErrors(), "invalid nested validation fixture should fail compilation"))
+            return false;
+
+        const std::string diagnostics = decl_audio::compiler::DumpDiagnostics(invalid_compile_result.diagnostics);
+        if (!Expect(diagnostics.find("blend nodes require a parameter") != std::string::npos, "invalid blend should require a parameter binding"))
+            return false;
+        if (!Expect(diagnostics.find("blend nodes require exactly two children") != std::string::npos, "invalid blend should enforce child count"))
+            return false;
+        if (!Expect(diagnostics.find("select nodes require at least one child") != std::string::npos, "invalid select should require children"))
+            return false;
+
+        return true;
+    }
+
     bool TestAudioConfigDefaultsAndValidation()
     {
         auto audio_config = GetDefaultConfig();
@@ -303,9 +386,6 @@ bool RunCompilerTests()
     if (!TestInvalidFixtureFailsLoudly())
         return false;
 
-    if (!TestAudioConfigDefaultsAndValidation())
-        return false;
-
     if (!TestReservedRuntimeParamsNeedNoDeclarations())
         return false;
 
@@ -313,6 +393,12 @@ bool RunCompilerTests()
         return false;
 
     if (!TestSpatializationValidationFailsLoudly())
+        return false;
+
+    if (!TestNestedNodeValidationAndLowering())
+        return false;
+
+    if (!TestAudioConfigDefaultsAndValidation())
         return false;
 
     std::cout << "Compiler tests passed\n";

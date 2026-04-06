@@ -9,6 +9,9 @@
 
 namespace
 {
+
+    static constexpr std::uint32_t OutputChannelCount = 2;
+
     bool Expect(bool condition, const char *message)
     {
         if (!condition)
@@ -34,7 +37,7 @@ namespace
 
     void RenderAudioForTesting(decl_audio::Engine &engine, const std::uint32_t frames)
     {
-        std::vector<float> output(static_cast<std::size_t>(frames) * decl_audio::playback::AudioRuntime::OutputChannelCount);
+        std::vector<float> output(static_cast<std::size_t>(frames) * OutputChannelCount);
         engine.RenderAudioForTesting(output.data(), frames);
     }
 

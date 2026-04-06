@@ -30,6 +30,13 @@ namespace decl_audio::playback
         Vec3 position{};
     };
 
+    struct SetParameterCommand final
+    {
+        InstanceId instance_id = 0;
+        compiler::ParameterId parameter_id = 0;
+        float value = 0.0f;
+    };
+
     struct RequestStopCommand final
     {
         InstanceId instance_id = 0;
@@ -44,6 +51,7 @@ namespace decl_audio::playback
         CreateInstanceCommand,
         SetVolumeCommand,
         SetPositionCommand,
+        SetParameterCommand,
         RequestStopCommand,
         SetListenerPositionCommand>;
 } // namespace decl_audio::playback

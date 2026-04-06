@@ -30,17 +30,26 @@ namespace decl_audio::DebugUtils
             std::terminate();
         }
 
-        [[nodiscard]] inline const char *ToString(const compiler::ContainerType container_type) noexcept
+        [[nodiscard]] inline const char *ToString(const compiler::NodeType node_type) noexcept
         {
-            switch (container_type)
+            switch (node_type)
             {
-            case compiler::ContainerType::OneShot:
+            case compiler::NodeType::Sequence:
+                return "sequence";
+
+            case compiler::NodeType::Select:
+                return "select";
+
+            case compiler::NodeType::Blend:
+                return "blend";
+
+            case compiler::NodeType::OneShot:
                 return "oneshot";
 
-            case compiler::ContainerType::Loop:
+            case compiler::NodeType::Loop:
                 return "loop";
 
-            case compiler::ContainerType::Random:
+            case compiler::NodeType::Random:
                 return "random";
             }
 
@@ -207,19 +216,30 @@ namespace decl_audio::DebugUtils
         {
             std::cout << "  instance: " << instance.instance_id << '\n';
             std::cout << "    program: " << detail::FormatNamedId(programs_by_id, instance.program_id, "program_id") << '\n';
-            std::cout << "    cursor: " << instance.cursor << '\n';
-            std::cout << "    container_type: " << detail::ToString(instance.container_type) << '\n';
             std::cout << "    volume: " << instance.volume << '\n';
             std::cout << "    position: " << detail::FormatVec3(instance.position) << '\n';
             std::cout << "    stop_requested: " << detail::ToString(instance.stop_requested) << '\n';
-            std::cout << "    sample_position: " << instance.sample_position << '\n';
-            if (instance.container_type == compiler::ContainerType::Loop)
+            std::cout << "    active_voice_count: " << instance.active_voice_count << '\n';
+            std::cout << "    nodes: " << instance.nodes.size() << '\n';
+            for (const playback::NodeDebugSnapshot &node : instance.nodes)
             {
-                std::cout << "    remaining_loops: " << instance.remaining_loops << '\n';
+                std::cout << "      node " << node.node_id
+                          << " type=" << detail::ToString(node.type)
+                          << " entered=" << detail::ToString(node.entered)
+                          << " finished=" << detail::ToString(node.finished)
+                          << " chosen_child=" << node.chosen_child
+                          << " active_voice_count=" << node.active_voice_count
+                          << '\n';
             }
-            if (instance.container_type == compiler::ContainerType::Random)
+            std::cout << "    voices: " << instance.voices.size() << '\n';
+            for (const playback::VoiceDebugSnapshot &voice : instance.voices)
             {
-                std::cout << "    picked_asset_slot: " << instance.picked_asset_slot << '\n';
+                std::cout << "      leaf_node=" << voice.leaf_node_id
+                          << " type=" << detail::ToString(voice.leaf_type)
+                          << " sample_position=" << voice.sample_position
+                          << " remaining_loops=" << voice.remaining_loops
+                          << " picked_asset_slot=" << voice.picked_asset_slot
+                          << '\n';
             }
         }
 

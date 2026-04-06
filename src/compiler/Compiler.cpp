@@ -5,11 +5,16 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace decl_audio::compiler
 {
     namespace
     {
+        constexpr NodeId kInvalidNodeId = std::numeric_limits<NodeId>::max();
+        constexpr std::uint16_t kInvalidParameterSlot = std::numeric_limits<std::uint16_t>::max();
+
         template <typename IdType>
         [[nodiscard]] IdType InternName(std::unordered_map<std::string, IdType> &name_to_id, const std::string &name)
         {
@@ -22,70 +27,14 @@ namespace decl_audio::compiler
         {
             auto it = bank.asset_name_to_id.find(asset_name);
             if (it != bank.asset_name_to_id.end())
+            {
                 return it->second;
+            }
 
             const AssetId id = static_cast<AssetId>(bank.asset_paths.size());
             bank.asset_name_to_id.emplace(asset_name, id);
             bank.asset_paths.push_back(asset_name);
             return id;
-        }
-
-        void LowerContainerList(CompiledBank &bank,
-                                const std::vector<AuthoringContainer> &authoring_containers,
-                                std::string_view behavior_id,
-                                std::vector<Diagnostic> &diagnostics)
-        {
-            for (const AuthoringContainer &authoring_container : authoring_containers)
-            {
-                if (authoring_container.type == AuthoringContainerType::Sequence)
-                {
-                    if (authoring_container.children.empty())
-                    {
-                        diagnostics.push_back(MakeError(authoring_container.location, "behavior '" + std::string(behavior_id) + "' has an empty sequence container"));
-                        continue;
-                    }
-
-                    LowerContainerList(bank, authoring_container.children, behavior_id, diagnostics);
-                    continue;
-                }
-
-                CompiledContainer compiled_container;
-                compiled_container.volume = authoring_container.volume;
-                compiled_container.first_asset = static_cast<std::uint32_t>(bank.container_assets.size());
-                compiled_container.loop_count = authoring_container.loop_count;
-
-                switch (authoring_container.type)
-                {
-                case AuthoringContainerType::OneShot:
-                    compiled_container.type = ContainerType::OneShot;
-                    if (authoring_container.assets.size() != 1)
-                        diagnostics.push_back(MakeError(authoring_container.location, "behavior '" + std::string(behavior_id) + "' oneshot containers require exactly one asset"));
-                    break;
-
-                case AuthoringContainerType::Loop:
-                    compiled_container.type = ContainerType::Loop;
-                    if (authoring_container.assets.size() != 1)
-                        diagnostics.push_back(MakeError(authoring_container.location, "behavior '" + std::string(behavior_id) + "' loop containers require exactly one asset"));
-                    if (authoring_container.loop_count == 0)
-                        diagnostics.push_back(MakeError(authoring_container.location, "behavior '" + std::string(behavior_id) + "' loop containers do not allow loopCount = 0"));
-                    break;
-
-                case AuthoringContainerType::Random:
-                    compiled_container.type = ContainerType::Random;
-                    if (authoring_container.assets.empty())
-                        diagnostics.push_back(MakeError(authoring_container.location, "behavior '" + std::string(behavior_id) + "' random containers require at least one asset"));
-                    break;
-
-                case AuthoringContainerType::Sequence:
-                    break;
-                }
-
-                for (const std::string &asset_name : authoring_container.assets)
-                    bank.container_assets.push_back(InternAsset(bank, asset_name));
-
-                compiled_container.asset_count = static_cast<std::uint32_t>(bank.container_assets.size() - compiled_container.first_asset);
-                bank.containers.push_back(compiled_container);
-            }
         }
 
         [[nodiscard]] const char *ToString(ComparisonOp op)
@@ -107,15 +56,21 @@ namespace decl_audio::compiler
             return "<invalid>";
         }
 
-        [[nodiscard]] const char *ToString(ContainerType type)
+        [[nodiscard]] const char *ToString(NodeType type)
         {
             switch (type)
             {
-            case ContainerType::OneShot:
+            case NodeType::Sequence:
+                return "sequence";
+            case NodeType::Select:
+                return "select";
+            case NodeType::Blend:
+                return "blend";
+            case NodeType::OneShot:
                 return "oneshot";
-            case ContainerType::Loop:
+            case NodeType::Loop:
                 return "loop";
-            case ContainerType::Random:
+            case NodeType::Random:
                 return "random";
             }
 
@@ -145,6 +100,233 @@ namespace decl_audio::compiler
 
             return "<invalid>";
         }
+
+        struct ProgramLoweringContext final
+        {
+            CompiledBank &bank;
+            std::string_view behavior_id;
+            std::vector<Diagnostic> &diagnostics;
+            const std::unordered_set<ParameterId> &declared_parameter_ids;
+            std::unordered_map<ParameterId, std::uint16_t> parameter_slots;
+            std::vector<ParameterId> program_parameters;
+        };
+
+        [[nodiscard]] std::uint16_t RequireProgramParameterSlot(ProgramLoweringContext &context,
+                                                                const AuthoringNode &authoring_node) noexcept
+        {
+            if (authoring_node.parameter.empty())
+            {
+                context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' blend nodes require a parameter"));
+                return kInvalidParameterSlot;
+            }
+
+            const auto parameter_it = context.bank.parameter_name_to_id.find(authoring_node.parameter);
+            if (parameter_it == context.bank.parameter_name_to_id.end() ||
+                !context.declared_parameter_ids.contains(parameter_it->second))
+            {
+                context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' blend node parameter '" + authoring_node.parameter + "' must be declared in behavior.parameters"));
+                return kInvalidParameterSlot;
+            }
+
+            const ParameterId parameter_id = parameter_it->second;
+            const auto slot_it = context.parameter_slots.find(parameter_id);
+            if (slot_it != context.parameter_slots.end())
+            {
+                return slot_it->second;
+            }
+
+            const std::uint16_t slot = static_cast<std::uint16_t>(context.program_parameters.size());
+            context.parameter_slots.emplace(parameter_id, slot);
+            context.program_parameters.push_back(parameter_id);
+            return slot;
+        }
+
+        void ValidateLeafShape(const AuthoringNode &authoring_node,
+                               ProgramLoweringContext &context,
+                               std::string_view leaf_name)
+        {
+            if (!authoring_node.children.empty())
+            {
+                context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' " + std::string(leaf_name) + " nodes do not allow children"));
+            }
+
+            if (!authoring_node.parameter.empty())
+            {
+                context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' " + std::string(leaf_name) + " nodes do not allow parameters"));
+            }
+        }
+
+        void ValidateStructuralShape(const AuthoringNode &authoring_node,
+                                     ProgramLoweringContext &context,
+                                     std::string_view node_name,
+                                     const bool parameter_allowed)
+        {
+            if (!authoring_node.assets.empty())
+            {
+                context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' " + std::string(node_name) + " nodes do not allow assets"));
+            }
+
+            if (!parameter_allowed && !authoring_node.parameter.empty())
+            {
+                context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' " + std::string(node_name) + " nodes do not allow parameters"));
+            }
+        }
+
+        [[nodiscard]] std::uint32_t LowerNode(ProgramLoweringContext &context,
+                                              const AuthoringNode &authoring_node,
+                                              const NodeId parent_id)
+        {
+            const NodeId node_id = static_cast<NodeId>(context.bank.nodes.size());
+            context.bank.nodes.push_back(CompiledNode{});
+
+            context.bank.nodes[node_id].parent = parent_id;
+            context.bank.nodes[node_id].authored_gain = authoring_node.volume;
+            context.bank.nodes[node_id].first_child = 0;
+            context.bank.nodes[node_id].first_asset = 0;
+            context.bank.nodes[node_id].loop_count = authoring_node.loop_count;
+            context.bank.nodes[node_id].parameter_slot = kInvalidParameterSlot;
+
+            std::uint32_t max_concurrent_voices = 0;
+            std::vector<NodeId> child_ids;
+
+            switch (authoring_node.type)
+            {
+            case AuthoringNodeType::Sequence:
+            {
+                context.bank.nodes[node_id].type = NodeType::Sequence;
+                ValidateStructuralShape(authoring_node, context, "sequence", false);
+                if (authoring_node.children.empty())
+                {
+                    context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' has an empty sequence node"));
+                }
+
+                for (const AuthoringNode &child : authoring_node.children)
+                {
+                    const NodeId child_id = static_cast<NodeId>(context.bank.nodes.size());
+                    const std::uint32_t child_concurrency = LowerNode(context, child, node_id);
+                    child_ids.push_back(child_id);
+                    max_concurrent_voices = std::max(max_concurrent_voices, child_concurrency);
+                }
+                break;
+            }
+
+            case AuthoringNodeType::Select:
+            {
+                context.bank.nodes[node_id].type = NodeType::Select;
+                ValidateStructuralShape(authoring_node, context, "select", false);
+                if (authoring_node.children.empty())
+                {
+                    context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' select nodes require at least one child"));
+                }
+
+                for (const AuthoringNode &child : authoring_node.children)
+                {
+                    const NodeId child_id = static_cast<NodeId>(context.bank.nodes.size());
+                    const std::uint32_t child_concurrency = LowerNode(context, child, node_id);
+                    child_ids.push_back(child_id);
+                    max_concurrent_voices = std::max(max_concurrent_voices, child_concurrency);
+                }
+                break;
+            }
+
+            case AuthoringNodeType::Blend:
+            {
+                context.bank.nodes[node_id].type = NodeType::Blend;
+                ValidateStructuralShape(authoring_node, context, "blend", true);
+                context.bank.nodes[node_id].parameter_slot = RequireProgramParameterSlot(context, authoring_node);
+                if (authoring_node.children.size() != 2)
+                {
+                    context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' blend nodes require exactly two children"));
+                }
+
+                for (const AuthoringNode &child : authoring_node.children)
+                {
+                    const NodeId child_id = static_cast<NodeId>(context.bank.nodes.size());
+                    const std::uint32_t child_concurrency = LowerNode(context, child, node_id);
+                    child_ids.push_back(child_id);
+                    max_concurrent_voices += child_concurrency;
+                }
+                break;
+            }
+
+            case AuthoringNodeType::OneShot:
+            {
+                context.bank.nodes[node_id].type = NodeType::OneShot;
+                ValidateLeafShape(authoring_node, context, "oneshot");
+                if (authoring_node.assets.size() != 1)
+                {
+                    context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' oneshot nodes require exactly one asset"));
+                }
+
+                context.bank.nodes[node_id].first_asset = static_cast<std::uint32_t>(context.bank.node_assets.size());
+                for (const std::string &asset_name : authoring_node.assets)
+                {
+                    context.bank.node_assets.push_back(InternAsset(context.bank, asset_name));
+                }
+                max_concurrent_voices = 1;
+                break;
+            }
+
+            case AuthoringNodeType::Loop:
+            {
+                context.bank.nodes[node_id].type = NodeType::Loop;
+                ValidateLeafShape(authoring_node, context, "loop");
+                if (authoring_node.assets.size() != 1)
+                {
+                    context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' loop nodes require exactly one asset"));
+                }
+                if (authoring_node.loop_count == 0)
+                {
+                    context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' loop nodes do not allow loopCount = 0"));
+                }
+
+                context.bank.nodes[node_id].first_asset = static_cast<std::uint32_t>(context.bank.node_assets.size());
+                for (const std::string &asset_name : authoring_node.assets)
+                {
+                    context.bank.node_assets.push_back(InternAsset(context.bank, asset_name));
+                }
+                max_concurrent_voices = 1;
+                break;
+            }
+
+            case AuthoringNodeType::Random:
+            {
+                context.bank.nodes[node_id].type = NodeType::Random;
+                ValidateLeafShape(authoring_node, context, "random");
+                if (authoring_node.assets.empty())
+                {
+                    context.diagnostics.push_back(MakeError(authoring_node.location, "behavior '" + std::string(context.behavior_id) + "' random nodes require at least one asset"));
+                }
+
+                context.bank.nodes[node_id].first_asset = static_cast<std::uint32_t>(context.bank.node_assets.size());
+                for (const std::string &asset_name : authoring_node.assets)
+                {
+                    context.bank.node_assets.push_back(InternAsset(context.bank, asset_name));
+                }
+                max_concurrent_voices = 1;
+                break;
+            }
+            }
+
+            if (!child_ids.empty())
+            {
+                context.bank.nodes[node_id].first_child = static_cast<std::uint32_t>(context.bank.node_children.size());
+                context.bank.node_children.insert(context.bank.node_children.end(), child_ids.begin(), child_ids.end());
+            }
+            context.bank.nodes[node_id].child_count = static_cast<std::uint32_t>(child_ids.size());
+            if (context.bank.nodes[node_id].type == NodeType::OneShot ||
+                context.bank.nodes[node_id].type == NodeType::Loop ||
+                context.bank.nodes[node_id].type == NodeType::Random)
+            {
+                context.bank.nodes[node_id].asset_count = static_cast<std::uint32_t>(context.bank.node_assets.size() - context.bank.nodes[node_id].first_asset);
+            }
+            else
+            {
+                context.bank.nodes[node_id].first_asset = 0;
+                context.bank.nodes[node_id].asset_count = 0;
+            }
+            return max_concurrent_voices;
+        }
     } // namespace
 
     CompileResult CompileAuthoringDocument(const AuthoringDocument &document)
@@ -162,8 +344,11 @@ namespace decl_audio::compiler
             const BehaviorId behavior_id = static_cast<BehaviorId>(result.bank.behaviors.size());
             const auto [behavior_it, behavior_inserted] = result.bank.behavior_name_to_id.emplace(behavior.id, behavior_id);
             if (!behavior_inserted)
+            {
                 result.diagnostics.push_back(MakeError(behavior.location, "duplicate behavior id '" + behavior.id + "'"));
+            }
 
+            std::unordered_set<ParameterId> declared_parameter_ids;
             for (const std::string &parameter_name : behavior.parameters)
             {
                 if (parameter_name.empty())
@@ -178,12 +363,15 @@ namespace decl_audio::compiler
                     continue;
                 }
 
-                (void)InternName(result.bank.parameter_name_to_id, parameter_name);
+                const ParameterId parameter_id = InternName(result.bank.parameter_name_to_id, parameter_name);
+                declared_parameter_ids.insert(parameter_id);
             }
 
             const std::uint32_t first_tag = static_cast<std::uint32_t>(result.bank.behavior_tags.size());
             for (const std::string &tag_name : behavior.match_tags)
+            {
                 result.bank.behavior_tags.push_back(InternName(result.bank.tag_name_to_id, tag_name));
+            }
 
             const std::uint32_t first_condition = static_cast<std::uint32_t>(result.bank.conditions.size());
             for (const AuthoringCondition &condition : behavior.match_conditions)
@@ -210,17 +398,59 @@ namespace decl_audio::compiler
             const ProgramId program_id = static_cast<ProgramId>(result.bank.programs.size());
             result.bank.program_name_to_id.emplace(behavior.id, program_id);
 
-            const std::uint32_t first_container = static_cast<std::uint32_t>(result.bank.containers.size());
-            LowerContainerList(result.bank, behavior.program, behavior.id, result.diagnostics);
-            const std::uint32_t container_count = static_cast<std::uint32_t>(result.bank.containers.size() - first_container);
+            const std::uint32_t first_node = static_cast<std::uint32_t>(result.bank.nodes.size());
+            const NodeId root_node = static_cast<NodeId>(result.bank.nodes.size());
+            result.bank.nodes.push_back(CompiledNode{});
 
-            if (container_count == 0)
+            ProgramLoweringContext context{
+                result.bank,
+                behavior.id,
+                result.diagnostics,
+                declared_parameter_ids};
+
+            result.bank.nodes[root_node].type = NodeType::Sequence;
+            result.bank.nodes[root_node].parent = kInvalidNodeId;
+            result.bank.nodes[root_node].authored_gain = 1.0f;
+            result.bank.nodes[root_node].first_child = 0;
+            result.bank.nodes[root_node].first_asset = static_cast<std::uint32_t>(result.bank.node_assets.size());
+            result.bank.nodes[root_node].parameter_slot = kInvalidParameterSlot;
+
+            std::uint32_t max_concurrent_voices = 0;
+            std::vector<NodeId> root_child_ids;
+            for (const AuthoringNode &authoring_node : behavior.program)
+            {
+                const NodeId child_id = static_cast<NodeId>(result.bank.nodes.size());
+                const std::uint32_t child_concurrency = LowerNode(context, authoring_node, root_node);
+                root_child_ids.push_back(child_id);
+                max_concurrent_voices = std::max(max_concurrent_voices, child_concurrency);
+            }
+
+            if (!root_child_ids.empty())
+            {
+                result.bank.nodes[root_node].first_child = static_cast<std::uint32_t>(result.bank.node_children.size());
+                result.bank.node_children.insert(result.bank.node_children.end(), root_child_ids.begin(), root_child_ids.end());
+            }
+            result.bank.nodes[root_node].child_count = static_cast<std::uint32_t>(root_child_ids.size());
+            result.bank.nodes[root_node].asset_count = 0;
+            result.bank.nodes[root_node].loop_count = 0;
+
+            if (result.bank.nodes[root_node].child_count == 0)
+            {
                 result.diagnostics.push_back(MakeError(behavior.location, "behavior '" + behavior.id + "' compiled to an empty program"));
+            }
+
+            const std::uint32_t first_parameter = static_cast<std::uint32_t>(result.bank.program_parameters.size());
+            result.bank.program_parameters.insert(result.bank.program_parameters.end(), context.program_parameters.begin(), context.program_parameters.end());
 
             CompiledProgram compiled_program;
             compiled_program.id = program_id;
-            compiled_program.first_container = first_container;
-            compiled_program.container_count = container_count;
+            compiled_program.root_node = root_node;
+            compiled_program.first_node = first_node;
+            compiled_program.node_count = static_cast<std::uint32_t>(result.bank.nodes.size() - first_node);
+            compiled_program.first_parameter = first_parameter;
+            compiled_program.parameter_count = static_cast<std::uint32_t>(context.program_parameters.size());
+            compiled_program.parameter_slot_count = compiled_program.parameter_count;
+            compiled_program.max_concurrent_voices = max_concurrent_voices;
             compiled_program.spatialization.mode = behavior.spatialization.mode;
             compiled_program.spatialization.min_distance = behavior.spatialization.min_distance;
             compiled_program.spatialization.max_distance = behavior.spatialization.max_distance;
@@ -229,12 +459,19 @@ namespace decl_audio::compiler
             if (compiled_program.spatialization.mode == SpatializationMode::Pan)
             {
                 if (compiled_program.spatialization.min_distance < 0.0f)
+                {
                     result.diagnostics.push_back(MakeError(behavior.spatialization.location, "behavior '" + behavior.id + "' spatialization minDistance must be >= 0"));
+                }
 
                 if (compiled_program.spatialization.max_distance <= compiled_program.spatialization.min_distance)
+                {
                     result.diagnostics.push_back(MakeError(behavior.spatialization.location, "behavior '" + behavior.id + "' spatialization maxDistance must be > minDistance"));
+                }
             }
 
+            result.bank.max_program_node_count = std::max(result.bank.max_program_node_count, compiled_program.node_count);
+            result.bank.max_program_parameter_slot_count = std::max(result.bank.max_program_parameter_slot_count, compiled_program.parameter_slot_count);
+            result.bank.max_program_concurrent_voices = std::max(result.bank.max_program_concurrent_voices, compiled_program.max_concurrent_voices);
             result.bank.programs.push_back(compiled_program);
 
             CompiledBehavior compiled_behavior;
@@ -256,7 +493,7 @@ namespace decl_audio::compiler
         stream << "CompiledBank\n";
         stream << "  behaviors: " << bank.behaviors.size() << '\n';
         stream << "  programs: " << bank.programs.size() << '\n';
-        stream << "  containers: " << bank.containers.size() << '\n';
+        stream << "  nodes: " << bank.nodes.size() << '\n';
         stream << "  assets: " << bank.asset_paths.size() << '\n';
         stream << "  tags: " << bank.tag_name_to_id.size() << '\n';
         stream << "  parameters: " << bank.parameter_name_to_id.size() << '\n';
@@ -277,7 +514,9 @@ namespace decl_audio::compiler
             stream << "  tags:";
 
             for (TagId tag_id : bank.GetBehaviorTags(behavior.id))
+            {
                 stream << ' ' << tag_id;
+            }
 
             stream << '\n';
             stream << "  conditions:\n";
@@ -290,17 +529,22 @@ namespace decl_audio::compiler
                        << '\n';
             }
 
-            stream << "  containers:\n";
+            stream << "  nodes:\n";
 
-            for (const CompiledContainer &container : bank.GetProgramContainers(behavior.program_id))
+            for (const CompiledNode &node : bank.GetProgramNodes(behavior.program_id))
             {
-                stream << "    type=" << ToString(container.type)
-                       << " volume=" << container.volume
-                       << " loopCount=" << container.loop_count
+                stream << "    type=" << ToString(node.type)
+                       << " parent=" << node.parent
+                       << " gain=" << node.authored_gain
+                       << " children=" << node.child_count
+                       << " paramSlot=" << node.parameter_slot
+                       << " loopCount=" << node.loop_count
                        << " assets=";
 
-                for (AssetId asset_id : bank.GetContainerAssets(container))
+                for (AssetId asset_id : bank.GetNodeAssets(node))
+                {
                     stream << ' ' << asset_id << '[' << bank.GetAssetPath(asset_id) << ']';
+                }
 
                 stream << '\n';
             }
