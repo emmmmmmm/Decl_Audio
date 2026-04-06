@@ -9,7 +9,7 @@ namespace decl_audio::compiler
 {
     struct AuthoringCondition final
     {
-        SourceLocation location;
+        decl_audio::SourceLocation location;
         std::string parameter;
         ComparisonOp op = ComparisonOp::Equal;
         float literal = 0.0f;
@@ -17,8 +17,8 @@ namespace decl_audio::compiler
 
     struct AuthoringNode final
     {
-        SourceLocation location;
-        AuthoringNodeType type = AuthoringNodeType::OneShot;
+        decl_audio::SourceLocation location;
+        NodeType type = NodeType::OneShot;
         std::vector<std::string> assets;
         std::vector<AuthoringNode> children;
         std::string parameter;
@@ -28,7 +28,7 @@ namespace decl_audio::compiler
 
     struct AuthoringSpatializationSettings final
     {
-        SourceLocation location;
+        decl_audio::SourceLocation location;
         SpatializationMode mode = SpatializationMode::None;
         float min_distance = 0.0f;
         float max_distance = 0.0f;
@@ -37,7 +37,7 @@ namespace decl_audio::compiler
 
     struct AuthoringBehavior final
     {
-        SourceLocation location;
+        decl_audio::SourceLocation location;
         std::string id;
         std::vector<std::string> match_tags;
         std::vector<AuthoringCondition> match_conditions;

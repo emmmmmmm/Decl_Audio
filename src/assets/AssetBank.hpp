@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../compiler/CompiledBank.hpp"
-#include "../compiler/Compiler.hpp"
+#include "../core/Diagnostics.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -45,17 +45,11 @@ namespace decl_audio::assets
     struct LoadResult final
     {
         AssetBank bank;
-        std::vector<compiler::Diagnostic> diagnostics;
+        std::vector<decl_audio::Diagnostic> diagnostics;
 
         [[nodiscard]] bool HasErrors() const noexcept
         {
-            for (const compiler::Diagnostic &diagnostic : diagnostics)
-            {
-                if (diagnostic.severity == compiler::DiagnosticSeverity::Error)
-                    return true;
-            }
-
-            return false;
+            return decl_audio::HasErrors(diagnostics);
         }
     };
 

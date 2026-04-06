@@ -77,7 +77,7 @@ namespace decl_audio
             return audio_backend_ != nullptr;
         };
 
-        [[nodiscard]] std::span<const compiler::Diagnostic> GetLoadDiagnostics() const noexcept
+        [[nodiscard]] std::span<const decl_audio::Diagnostic> GetLoadDiagnostics() const noexcept
         {
             return load_diagnostics_;
         };
@@ -94,7 +94,7 @@ namespace decl_audio
         std::unique_ptr<compiler::CompiledBank> compiled_bank_;
         std::unique_ptr<assets::AssetBank> asset_bank_;
         std::unique_ptr<backends::AudioDeviceBackend> audio_backend_;
-        std::vector<compiler::Diagnostic> load_diagnostics_;
+        std::vector<decl_audio::Diagnostic> load_diagnostics_;
         runtime::ControlRuntime control_runtime_;
         runtime::BehaviorResolver behavior_resolver_;
         playback::AudioRuntime audio_runtime_;

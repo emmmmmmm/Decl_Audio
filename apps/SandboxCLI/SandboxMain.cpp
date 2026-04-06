@@ -459,7 +459,7 @@ int main(int argc, char **argv)
     std::cout << "Loading bank: " << options.bankPath << '\n';
     if (!engine.LoadBehaviors(options.bankPath.string().c_str()))
     {
-        std::cerr << decl_audio::compiler::DumpDiagnostics(engine.GetLoadDiagnostics());
+        std::cerr << decl_audio::DumpDiagnostics(engine.GetLoadDiagnostics());
         return 1;
     }
 

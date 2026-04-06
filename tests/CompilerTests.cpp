@@ -40,7 +40,7 @@ namespace
 
         if (!Expect(!compile_result.HasErrors(), "valid fixture should compile without errors"))
         {
-            std::cerr << decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
+            std::cerr << decl_audio::DumpDiagnostics(compile_result.diagnostics);
             return false;
         }
 
@@ -112,7 +112,7 @@ namespace
         if (!Expect(!compile_result.diagnostics.empty(), "invalid fixture should emit diagnostics"))
             return false;
 
-        const std::string diagnostics = decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
+        const std::string diagnostics = decl_audio::DumpDiagnostics(compile_result.diagnostics);
         if (!Expect(diagnostics.find("duplicate behavior id 'movement.invalid'") != std::string::npos, "diagnostics should report duplicate ids"))
             return false;
         if (!Expect(diagnostics.find("oneshot nodes require exactly one asset") != std::string::npos, "diagnostics should report invalid oneshot asset counts"))
@@ -148,7 +148,7 @@ namespace
 
         if (!Expect(!compile_result.HasErrors(), "phase 7 fixture should compile without errors"))
         {
-            std::cerr << decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
+            std::cerr << decl_audio::DumpDiagnostics(compile_result.diagnostics);
             return false;
         }
 
@@ -165,7 +165,7 @@ namespace
 
         if (!Expect(!compile_result.HasErrors(), "phase 7.5 spatialization fixture should compile without errors"))
         {
-            std::cerr << decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
+            std::cerr << decl_audio::DumpDiagnostics(compile_result.diagnostics);
             return false;
         }
 
@@ -213,7 +213,7 @@ namespace
         if (!Expect(parse_result.HasErrors(), "invalid spatialization parse fixture should emit parse errors"))
             return false;
 
-        const std::string parse_diagnostics = decl_audio::compiler::DumpDiagnostics(parse_result.diagnostics);
+        const std::string parse_diagnostics = decl_audio::DumpDiagnostics(parse_result.diagnostics);
         if (!Expect(parse_diagnostics.find(".mode: is not a supported spatialization field") != std::string::npos, "spatialization diagnostics should report unsupported fields"))
             return false;
         if (!Expect(parse_diagnostics.find(".maxDistance: is required") != std::string::npos, "spatialization diagnostics should report missing maxDistance"))
@@ -250,7 +250,7 @@ namespace
         if (!Expect(compile_result.HasErrors(), "invalid spatialization range fixture should emit compile errors"))
             return false;
 
-        const std::string compile_diagnostics = decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
+        const std::string compile_diagnostics = decl_audio::DumpDiagnostics(compile_result.diagnostics);
         if (!Expect(compile_diagnostics.find("spatialization maxDistance must be > minDistance") != std::string::npos, "spatialization diagnostics should report invalid ranges"))
             return false;
 
@@ -264,7 +264,7 @@ namespace
 
         if (!Expect(!compile_result.HasErrors(), "nested fixture should compile without errors"))
         {
-            std::cerr << decl_audio::compiler::DumpDiagnostics(compile_result.diagnostics);
+            std::cerr << decl_audio::DumpDiagnostics(compile_result.diagnostics);
             return false;
         }
 
@@ -325,7 +325,7 @@ namespace
         if (!Expect(invalid_compile_result.HasErrors(), "invalid nested validation fixture should fail compilation"))
             return false;
 
-        const std::string diagnostics = decl_audio::compiler::DumpDiagnostics(invalid_compile_result.diagnostics);
+        const std::string diagnostics = decl_audio::DumpDiagnostics(invalid_compile_result.diagnostics);
         if (!Expect(diagnostics.find("blend nodes require a parameter") != std::string::npos, "invalid blend should require a parameter binding"))
             return false;
         if (!Expect(diagnostics.find("blend nodes require exactly two children") != std::string::npos, "invalid blend should enforce child count"))

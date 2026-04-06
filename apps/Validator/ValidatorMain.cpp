@@ -15,14 +15,14 @@ int main(int argc, char **argv)
 
     if (result.HasErrors())
     {
-        std::cerr << decl_audio::compiler::DumpDiagnostics(result.diagnostics);
+        std::cerr << decl_audio::DumpDiagnostics(result.diagnostics);
         return 1;
     }
 
     const decl_audio::assets::LoadResult asset_result = decl_audio::assets::LoadAssetBank(result.bank, argv[1]);
     if (asset_result.HasErrors())
     {
-        std::cerr << decl_audio::compiler::DumpDiagnostics(asset_result.diagnostics);
+        std::cerr << decl_audio::DumpDiagnostics(asset_result.diagnostics);
         return 1;
     }
 

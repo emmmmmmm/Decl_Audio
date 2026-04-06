@@ -89,7 +89,7 @@ namespace
         if (!Expect(!engine.LoadBehaviors(fixture_path.string().c_str()), "44.1 kHz asset should fail load"))
             return false;
 
-        const std::string diagnostics = decl_audio::compiler::DumpDiagnostics(engine.GetLoadDiagnostics());
+        const std::string diagnostics = decl_audio::DumpDiagnostics(engine.GetLoadDiagnostics());
         if (!Expect(diagnostics.find("unsupported sample rate 44100 Hz; expected 48000 Hz") != std::string::npos, "load diagnostics should report the sample-rate mismatch"))
             return false;
 

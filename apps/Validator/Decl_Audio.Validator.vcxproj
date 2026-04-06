@@ -148,7 +148,6 @@
     <ClCompile Include="..\..\src\compiler\AuthoringParser.cpp" />
     <ClCompile Include="..\..\src\compiler\Compiler.cpp" />
     <ClCompile Include="..\..\src\compiler\CompilerIO.cpp" />
-    <ClCompile Include="..\..\src\compiler\Diagnostics.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

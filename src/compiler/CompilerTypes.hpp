@@ -1,7 +1,9 @@
 #pragma once
 
+#include "../core/Diagnostics.hpp"
+
 #include <cstdint>
-#include <string>
+#include <limits>
 
 namespace decl_audio::compiler
 {
@@ -11,6 +13,9 @@ namespace decl_audio::compiler
     using TagId = std::uint32_t;
     using ParameterId = std::uint32_t;
     using AssetId = std::uint32_t;
+
+    constexpr NodeId kInvalidNodeId = std::numeric_limits<NodeId>::max();
+    constexpr std::uint16_t kInvalidParameterSlot = std::numeric_limits<std::uint16_t>::max();
 
     enum class ComparisonOp : std::uint8_t
     {
@@ -42,22 +47,5 @@ namespace decl_audio::compiler
         Random
     };
 
-    enum class AuthoringNodeType : std::uint8_t
-    {
-        Sequence,
-        Select,
-        Blend,
-        OneShot,
-        Loop,
-        Random
-    };
-
     using ContainerType = NodeType;
-    using AuthoringContainerType = AuthoringNodeType;
-
-    struct SourceLocation final
-    {
-        std::string file_path;
-        std::string object_path;
-    };
 } // namespace decl_audio::compiler

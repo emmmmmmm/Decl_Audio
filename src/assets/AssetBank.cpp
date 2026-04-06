@@ -9,18 +9,6 @@ namespace decl_audio::assets
 {
     namespace
     {
-        [[nodiscard]] compiler::Diagnostic MakeError(const std::filesystem::path &source_path,
-                                                     std::string_view object_path,
-                                                     std::string message)
-        {
-            compiler::Diagnostic diagnostic;
-            diagnostic.severity = compiler::DiagnosticSeverity::Error;
-            diagnostic.location.file_path = source_path.string();
-            diagnostic.location.object_path = std::string(object_path);
-            diagnostic.message = std::move(message);
-            return diagnostic;
-        }
-
         [[nodiscard]] std::filesystem::path ResolveAssetPath(const std::filesystem::path &source_path, std::string_view asset_path)
         {
             return (source_path.parent_path() / std::filesystem::path(asset_path)).lexically_normal();
@@ -58,10 +46,11 @@ namespace decl_audio::assets
             const std::string &asset_name = compiled_bank.asset_paths[asset_index];
             const std::filesystem::path resolved_path = ResolveAssetPath(source_path, asset_name);
             const std::string object_path = "asset[" + std::to_string(asset_index) + "] " + asset_name;
+            const std::string source_str = source_path.string();
 
             if (!std::filesystem::exists(resolved_path))
             {
-                result.diagnostics.push_back(MakeError(source_path, object_path, "referenced asset does not exist: " + resolved_path.string()));
+                result.diagnostics.push_back(MakeError(source_str, object_path, "referenced asset does not exist: " + resolved_path.string()));
                 continue;
             }
 
@@ -69,7 +58,7 @@ namespace decl_audio::assets
             const ma_result init_result = InitDecoderForFile(resolved_path, decoder);
             if (init_result != MA_SUCCESS)
             {
-                result.diagnostics.push_back(MakeError(source_path, object_path, "failed to initialize decoder for " + resolved_path.string() + "; " + FormatDecoderError(init_result)));
+                result.diagnostics.push_back(MakeError(source_str, object_path, "failed to initialize decoder for " + resolved_path.string() + "; " + FormatDecoderError(init_result)));
                 continue;
             }
 
@@ -80,28 +69,28 @@ namespace decl_audio::assets
             if (format_result != MA_SUCCESS)
             {
                 ma_decoder_uninit(&decoder);
-                result.diagnostics.push_back(MakeError(source_path, object_path, "failed to query decoder format for " + resolved_path.string() + "; " + FormatDecoderError(format_result)));
+                result.diagnostics.push_back(MakeError(source_str, object_path, "failed to query decoder format for " + resolved_path.string() + "; " + FormatDecoderError(format_result)));
                 continue;
             }
 
             if (format != ma_format_f32)
             {
                 ma_decoder_uninit(&decoder);
-                result.diagnostics.push_back(MakeError(source_path, object_path, "decoder did not produce float samples"));
+                result.diagnostics.push_back(MakeError(source_str, object_path, "decoder did not produce float samples"));
                 continue;
             }
 
             if (channels == 0 || channels > 2)
             {
                 ma_decoder_uninit(&decoder);
-                result.diagnostics.push_back(MakeError(source_path, object_path, "unsupported channel count " + std::to_string(channels) + "; MVP supports mono or stereo assets only"));
+                result.diagnostics.push_back(MakeError(source_str, object_path, "unsupported channel count " + std::to_string(channels) + "; MVP supports mono or stereo assets only"));
                 continue;
             }
 
             if (sample_rate != kRequiredSampleRate)
             {
                 ma_decoder_uninit(&decoder);
-                result.diagnostics.push_back(MakeError(source_path, object_path, "unsupported sample rate " + std::to_string(sample_rate) + " Hz; expected " + std::to_string(kRequiredSampleRate) + " Hz"));
+                result.diagnostics.push_back(MakeError(source_str, object_path, "unsupported sample rate " + std::to_string(sample_rate) + " Hz; expected " + std::to_string(kRequiredSampleRate) + " Hz"));
                 continue;
             }
 
@@ -110,7 +99,7 @@ namespace decl_audio::assets
             if (length_result != MA_SUCCESS)
             {
                 ma_decoder_uninit(&decoder);
-                result.diagnostics.push_back(MakeError(source_path, object_path, "failed to query decoded frame count for " + resolved_path.string() + "; " + FormatDecoderError(length_result)));
+                result.diagnostics.push_back(MakeError(source_str, object_path, "failed to query decoded frame count for " + resolved_path.string() + "; " + FormatDecoderError(length_result)));
                 continue;
             }
 
@@ -133,7 +122,7 @@ namespace decl_audio::assets
                 if (read_result != MA_SUCCESS)
                 {
                     ma_decoder_uninit(&decoder);
-                    result.diagnostics.push_back(MakeError(source_path, object_path, "failed while decoding " + resolved_path.string() + "; " + FormatDecoderError(read_result)));
+                    result.diagnostics.push_back(MakeError(source_str, object_path, "failed while decoding " + resolved_path.string() + "; " + FormatDecoderError(read_result)));
                     decoded_buffer.samples.clear();
                     total_frames_read = 0;
                     break;
@@ -152,7 +141,7 @@ namespace decl_audio::assets
 
             if (total_frames_read != frame_count)
             {
-                result.diagnostics.push_back(MakeError(source_path, object_path, "decoder stopped early for " + resolved_path.string() + "; expected " + std::to_string(frame_count) + " frames, got " + std::to_string(total_frames_read)));
+                result.diagnostics.push_back(MakeError(source_str, object_path, "decoder stopped early for " + resolved_path.string() + "; expected " + std::to_string(frame_count) + " frames, got " + std::to_string(total_frames_read)));
                 continue;
             }
 

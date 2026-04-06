@@ -2,10 +2,9 @@
 
 #include "AuthoringModel.hpp"
 #include "CompiledBank.hpp"
-#include "Diagnostics.hpp"
+#include "../core/Diagnostics.hpp"
 
 #include <filesystem>
-#include <string>
 #include <string_view>
 #include <vector>
 
@@ -14,34 +13,22 @@ namespace decl_audio::compiler
     struct ParseResult final
     {
         AuthoringDocument document;
-        std::vector<Diagnostic> diagnostics;
+        std::vector<decl_audio::Diagnostic> diagnostics;
 
         [[nodiscard]] bool HasErrors() const noexcept
         {
-            for (const Diagnostic &diagnostic : diagnostics)
-            {
-                if (diagnostic.severity == DiagnosticSeverity::Error)
-                    return true;
-            }
-
-            return false;
+            return decl_audio::HasErrors(diagnostics);
         }
     };
 
     struct CompileResult final
     {
         CompiledBank bank;
-        std::vector<Diagnostic> diagnostics;
+        std::vector<decl_audio::Diagnostic> diagnostics;
 
         [[nodiscard]] bool HasErrors() const noexcept
         {
-            for (const Diagnostic &diagnostic : diagnostics)
-            {
-                if (diagnostic.severity == DiagnosticSeverity::Error)
-                    return true;
-            }
-
-            return false;
+            return decl_audio::HasErrors(diagnostics);
         }
     };
 

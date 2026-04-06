@@ -10,18 +10,6 @@
 
 namespace decl_audio
 {
-    namespace
-    {
-        [[nodiscard]] compiler::Diagnostic MakeAudioBackendError(const std::filesystem::path &source_path, std::string message)
-        {
-            compiler::Diagnostic diagnostic;
-            diagnostic.severity = compiler::DiagnosticSeverity::Error;
-            diagnostic.location.file_path = source_path.string();
-            diagnostic.location.object_path = "audio.backend";
-            diagnostic.message = std::move(message);
-            return diagnostic;
-        }
-    } // namespace
 
     Engine::Engine(const EngineConfig &config) noexcept
         : audio_runtime_(0xC0FFEEULL,
@@ -173,7 +161,7 @@ namespace decl_audio
         std::string error_message;
         if (!audio_backend_->Start(audio_runtime_, config, error_message))
         {
-            load_diagnostics_.push_back(MakeAudioBackendError(source_path, std::move(error_message)));
+            load_diagnostics_.push_back(MakeError(source_path, "audio.backend", std::move(error_message)));
             audio_backend_.reset();
             return false;
         }

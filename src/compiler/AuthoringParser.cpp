@@ -18,10 +18,10 @@ namespace decl_audio::compiler
         }
 
         void AppendStringArray(const Json &value,
-                               const SourceLocation &location,
+                               const decl_audio::SourceLocation &location,
                                std::string_view field_path,
                                std::vector<std::string> &out_values,
-                               std::vector<Diagnostic> &diagnostics)
+                               std::vector<decl_audio::Diagnostic> &diagnostics)
         {
             if (!value.is_array())
             {
@@ -61,25 +61,25 @@ namespace decl_audio::compiler
             return ComparisonOp::Equal;
         }
 
-        [[nodiscard]] AuthoringNodeType ParseAuthoringNodeType(std::string_view type_name, bool &is_valid)
+        [[nodiscard]] NodeType ParseNodeType(std::string_view type_name, bool &is_valid)
         {
             is_valid = true;
 
             if (type_name == "sequence")
-                return AuthoringNodeType::Sequence;
+                return NodeType::Sequence;
             if (type_name == "select")
-                return AuthoringNodeType::Select;
+                return NodeType::Select;
             if (type_name == "blend")
-                return AuthoringNodeType::Blend;
+                return NodeType::Blend;
             if (type_name == "oneshot")
-                return AuthoringNodeType::OneShot;
+                return NodeType::OneShot;
             if (type_name == "loop")
-                return AuthoringNodeType::Loop;
+                return NodeType::Loop;
             if (type_name == "random")
-                return AuthoringNodeType::Random;
+                return NodeType::Random;
 
             is_valid = false;
-            return AuthoringNodeType::OneShot;
+            return NodeType::OneShot;
         }
 
         [[nodiscard]] AttenuationMode ParseAttenuationMode(std::string_view attenuation_name, bool &is_valid)
@@ -96,7 +96,7 @@ namespace decl_audio::compiler
         AuthoringCondition ParseCondition(const Json &condition_json,
                                           std::string_view source_path,
                                           std::string_view field_path,
-                                          std::vector<Diagnostic> &diagnostics)
+                                          std::vector<decl_audio::Diagnostic> &diagnostics)
         {
             AuthoringCondition condition;
             condition.location = MakeLocation(source_path, field_path);
@@ -156,7 +156,7 @@ namespace decl_audio::compiler
         AuthoringNode ParseNode(const Json &container_json,
                                 std::string_view source_path,
                                 std::string_view field_path,
-                                std::vector<Diagnostic> &diagnostics)
+                                std::vector<decl_audio::Diagnostic> &diagnostics)
         {
             AuthoringNode node;
             node.location = MakeLocation(source_path, field_path);
@@ -180,7 +180,7 @@ namespace decl_audio::compiler
             }
 
             bool is_valid = false;
-            node.type = ParseAuthoringNodeType(container_json["type"].get<std::string>(), is_valid);
+            node.type = ParseNodeType(container_json["type"].get<std::string>(), is_valid);
             if (!is_valid)
             {
                 diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".type", "has unsupported container type"));
@@ -202,7 +202,7 @@ namespace decl_audio::compiler
                 else
                     node.loop_count = container_json["loopCount"].get<std::int32_t>();
             }
-            else if (node.type == AuthoringNodeType::Loop)
+            else if (node.type == NodeType::Loop)
             {
                 node.loop_count = -1;
             }
@@ -228,6 +228,7 @@ namespace decl_audio::compiler
                 AppendStringArray(container_json["assets"], node.location, std::string(field_path) + ".assets", node.assets, diagnostics);
             }
 
+            // "children" and "containers" are aliases for the same thing.
             if (container_json.contains("children"))
             {
                 const Json &children_json = container_json["children"];
@@ -262,7 +263,7 @@ namespace decl_audio::compiler
         AuthoringSpatializationSettings ParseSpatialization(const Json &spatialization_json,
                                                             std::string_view source_path,
                                                             std::string_view field_path,
-                                                            std::vector<Diagnostic> &diagnostics)
+                                                            std::vector<decl_audio::Diagnostic> &diagnostics)
         {
             AuthoringSpatializationSettings spatialization;
             spatialization.location = MakeLocation(source_path, field_path);
@@ -331,7 +332,7 @@ namespace decl_audio::compiler
         AuthoringBehavior ParseBehavior(const Json &behavior_json,
                                         std::string_view source_path,
                                         std::string_view field_path,
-                                        std::vector<Diagnostic> &diagnostics)
+                                        std::vector<decl_audio::Diagnostic> &diagnostics)
         {
             AuthoringBehavior behavior;
             behavior.location = MakeLocation(source_path, field_path);
