@@ -36,6 +36,7 @@ namespace decl_audio::runtime
                      const compiler::CompiledBank &compiled_bank,
                      TEmitCommand &&emit_command) noexcept
         {
+
             std::size_t binding_index = 0;
             while (binding_index < active_bindings_.size())
             {
@@ -43,7 +44,7 @@ namespace decl_audio::runtime
                 const auto entity_it = world_state.entities.find(binding.entity_id);
                 const compiler::CompiledBehavior &compiled_behavior = compiled_bank.GetBehavior(binding.behavior_id);
                 if (entity_it == world_state.entities.end() ||
-                    !MatchesBehavior(entity_it->second, compiled_behavior, compiled_bank))
+                    !MatchesBehavior(entity_it->second, world_state, compiled_behavior, compiled_bank))
                 {
                     emit_command(playback::RequestStopCommand{binding.instance_id});
                     active_bindings_[binding_index] = active_bindings_.back();
@@ -72,12 +73,12 @@ namespace decl_audio::runtime
                 for (std::size_t parameter_index = 0; parameter_index < program_parameters.size(); ++parameter_index)
                 {
                     const compiler::ParameterId parameter_id = program_parameters[parameter_index];
-                    if (!entity_it->second.HasFloatValue(parameter_id))
+                    if (!HasFloatValue(entity_it->second, world_state, parameter_id))
                     {
                         continue;
                     }
 
-                    const float value = entity_it->second.GetFloatValue(parameter_id);
+                    const float value = ResolveFloatValue(entity_it->second, world_state, parameter_id);
                     if (binding.has_parameter_values[parameter_index] && binding.parameter_values[parameter_index] == value)
                     {
                         continue;
@@ -98,7 +99,7 @@ namespace decl_audio::runtime
             {
                 for (const compiler::CompiledBehavior &behavior : compiled_bank.behaviors)
                 {
-                    if (!MatchesBehavior(entity_state, behavior, compiled_bank))
+                    if (!MatchesBehavior(entity_state, world_state, behavior, compiled_bank))
                     {
                         continue;
                     }
@@ -130,12 +131,12 @@ namespace decl_audio::runtime
                     for (std::size_t parameter_index = 0; parameter_index < program_parameters.size(); ++parameter_index)
                     {
                         const compiler::ParameterId parameter_id = program_parameters[parameter_index];
-                        if (!entity_state.HasFloatValue(parameter_id))
+                        if (!HasFloatValue(entity_state, world_state, parameter_id))
                         {
                             continue;
                         }
 
-                        const float value = entity_state.GetFloatValue(parameter_id);
+                        const float value = ResolveFloatValue(entity_state, world_state, parameter_id);
                         emit_command(playback::SetParameterCommand{
                             instance_id,
                             parameter_id,
@@ -152,13 +153,31 @@ namespace decl_audio::runtime
     private:
         static constexpr std::size_t kNotFound = std::numeric_limits<std::size_t>::max();
 
+        [[nodiscard]] float ResolveFloatValue(const EntityState &entity_state,
+                                              const WorldState &world_state,
+                                              const compiler::ParameterId parameter_id) const noexcept
+        {
+            if (entity_state.HasFloatValue(parameter_id))
+                return entity_state.GetFloatValue(parameter_id);
+            const auto it = world_state.global_float_values.find(parameter_id);
+            return it != world_state.global_float_values.end() ? it->second : 0.0f;
+        }
+
+        [[nodiscard]] bool HasFloatValue(const EntityState &entity_state,
+                                         const WorldState &world_state,
+                                         const compiler::ParameterId parameter_id) const noexcept
+        {
+            return entity_state.HasFloatValue(parameter_id) || world_state.global_float_values.contains(parameter_id);
+        }
+
         [[nodiscard]] bool MatchesBehavior(const EntityState &entity_state,
+                                           const WorldState &world_state,
                                            const compiler::CompiledBehavior &behavior,
                                            const compiler::CompiledBank &compiled_bank) const noexcept
         {
             for (const compiler::TagId tag_id : compiled_bank.GetBehaviorTags(behavior.id))
             {
-                if (!entity_state.HasTag(tag_id))
+                if (!entity_state.HasTag(tag_id) && !world_state.global_tags.contains(tag_id))
                 {
                     return false;
                 }
@@ -166,7 +185,7 @@ namespace decl_audio::runtime
 
             for (const compiler::CompiledCondition &condition : compiled_bank.GetBehaviorConditions(behavior.id))
             {
-                if (!EvaluateCondition(entity_state, condition))
+                if (!EvaluateCondition(entity_state, world_state, condition))
                 {
                     return false;
                 }
@@ -176,9 +195,10 @@ namespace decl_audio::runtime
         }
 
         [[nodiscard]] bool EvaluateCondition(const EntityState &entity_state,
+                                             const WorldState &world_state,
                                              const compiler::CompiledCondition &condition) const noexcept
         {
-            const float value = entity_state.GetFloatValue(condition.parameter_id);
+            const float value = ResolveFloatValue(entity_state, world_state, condition.parameter_id);
             switch (condition.op)
             {
             case compiler::ComparisonOp::Less:

@@ -59,6 +59,9 @@ namespace decl_audio::runtime
     {
         std::unordered_map<std::string, EntityState> entities;
 
+        std::unordered_set<compiler::TagId> global_tags;
+        std::unordered_map<compiler::ParameterId, float> global_float_values;
+
         [[nodiscard]] bool HasEntity(const std::string &entity_id) const noexcept
         {
             return entities.contains(entity_id);

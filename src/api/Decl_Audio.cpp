@@ -130,4 +130,17 @@ extern "C"
     {
         engine->engine.DestroyEntity(entity_id);
     }
+
+    void SetGlobalTag(DeclAudioEngine *engine, const char *tag)
+    {
+        engine->engine.SetGlobalTag(tag);
+    }
+    void RemoveGlobalTag(DeclAudioEngine *engine, const char *tag)
+    {
+        engine->engine.RemoveGlobalTag(tag);
+    }
+    void SetGlobalValue(DeclAudioEngine *engine, const char *parameter, float value)
+    {
+        engine->engine.SetGlobalValue(parameter, value);
+    }
 }

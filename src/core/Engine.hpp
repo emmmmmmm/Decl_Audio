@@ -34,6 +34,9 @@ namespace decl_audio
         void SetTransientTag(const char *entity_id, const char *tag) noexcept;
         void RemoveTag(const char *entity_id, const char *tag) noexcept;
         void SetValue(const char *entity_id, const char *parameter, float value) noexcept;
+        void SetGlobalTag(const char *tag) noexcept;
+        void RemoveGlobalTag(const char *tag) noexcept;
+        void SetGlobalValue(const char *param, float value) noexcept;
         void SetPosition(const char *entity_id, float x, float y, float z) noexcept;
         void SetListenerPosition(float x, float y, float z) noexcept;
         void DestroyEntity(const char *entity_id) noexcept;

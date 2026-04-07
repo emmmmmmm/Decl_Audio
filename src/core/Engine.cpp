@@ -133,6 +133,23 @@ namespace decl_audio
             value});
     }
 
+    void Engine::SetGlobalTag(const char *tag) noexcept
+    {
+        control_runtime_.Submit(runtime::SetGlobalTagCommand{
+            compiled_bank_->GetTagId(tag)});
+    }
+    void Engine::RemoveGlobalTag(const char *tag) noexcept
+    {
+        control_runtime_.Submit(runtime::RemoveGlobalTagCommand{
+            compiled_bank_->GetTagId(tag)});
+    }
+    void Engine::SetGlobalValue(const char *param, float value) noexcept
+    {
+        control_runtime_.Submit(runtime::SetGlobalFloatValueCommand{
+            compiled_bank_->GetParameterId(param),
+            value});
+    }
+
     void Engine::SetPosition(const char *entity_id, const float x, const float y, const float z) noexcept
     {
         control_runtime_.Submit(runtime::SetEntityPositionCommand{

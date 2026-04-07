@@ -73,6 +73,19 @@ namespace decl_audio::runtime
         world_state_.GetOrCreateEntity(command.entity_id).float_values[command.parameter_id] = command.value;
     }
 
+    void ControlRuntime::Apply(const SetGlobalTagCommand &command) noexcept
+    {
+        world_state_.global_tags.insert(command.tag_id);
+    }
+    void ControlRuntime::Apply(const RemoveGlobalTagCommand &command) noexcept
+    {
+        world_state_.global_tags.erase(command.tag_id);
+    }
+    void ControlRuntime::Apply(const SetGlobalFloatValueCommand &command) noexcept
+    {
+        world_state_.global_float_values[command.parameter_id] = command.value; // uuuuuh do we need to ... init those?
+    }
+
     void ControlRuntime::Apply(const SetEntityVolumeCommand &command) noexcept
     {
         EntityState &entity = world_state_.GetOrCreateEntity(command.entity_id);

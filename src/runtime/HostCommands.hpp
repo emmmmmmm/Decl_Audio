@@ -54,6 +54,20 @@ namespace decl_audio::runtime
         std::string entity_id;
     };
 
+    struct SetGlobalTagCommand final
+    {
+        compiler::TagId tag_id = 0;
+    };
+    struct RemoveGlobalTagCommand final
+    {
+        compiler::TagId tag_id = 0;
+    };
+    struct SetGlobalFloatValueCommand final
+    {
+        compiler::ParameterId parameter_id = 0;
+        float value = 0.0f;
+    };
+
     using HostCommand = std::variant<
         SetTagCommand,
         SetTransientTagCommand,
@@ -62,5 +76,8 @@ namespace decl_audio::runtime
         SetEntityVolumeCommand,
         SetEntityPositionCommand,
         SetListenerPositionCommand,
-        DestroyEntityCommand>;
+        DestroyEntityCommand,
+        SetGlobalTagCommand,
+        RemoveGlobalTagCommand,
+        SetGlobalFloatValueCommand>;
 } // namespace decl_audio::runtime

@@ -42,6 +42,9 @@ namespace decl_audio::runtime
         void Apply(const SetTransientTagCommand &command) noexcept;
         void Apply(const RemoveTagCommand &command) noexcept;
         void Apply(const SetFloatValueCommand &command) noexcept;
+        void Apply(const SetGlobalTagCommand &command) noexcept;
+        void Apply(const RemoveGlobalTagCommand &command) noexcept;
+        void Apply(const SetGlobalFloatValueCommand &command) noexcept;
         void Apply(const SetEntityVolumeCommand &command) noexcept;
         void Apply(const SetEntityPositionCommand &command) noexcept;
         void Apply(const SetListenerPositionCommand &command) noexcept;

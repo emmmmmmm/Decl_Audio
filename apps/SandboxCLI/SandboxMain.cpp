@@ -397,6 +397,15 @@ namespace
                 return true;
             }
         }
+        else if (command == "global")
+        {
+            std::string tag;
+            if (input >> tag)
+            {
+                engine.SetGlobalTag(tag.c_str());
+                return true;
+            }
+        }
         else if (command == "clear")
         {
             std::string entity;
@@ -505,7 +514,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (options.autoTests || true)
+    if (options.autoTests)
     {
         if (!RunOneShotTest(engine))
             return 1;
