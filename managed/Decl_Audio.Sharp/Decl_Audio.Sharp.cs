@@ -71,6 +71,15 @@ public sealed class AudioEngine : IDisposable
     public void SetTransform(string entityId, float x, float y, float z, float a, float b, float c, float d)
         => NativeMethods.SetTransform(_handle, entityId, x, y, z, a, b, c, d);
 
+    public void SetGlobalTag(string tag)
+        => NativeMethods.SetGlobalTag(_handle, tag);
+
+    public void RemoveGlobalTag(string tag)
+        => NativeMethods.RemoveGlobalTag(_handle, tag);
+
+    public void SetGlobalValue(string parameter, float value)
+        => NativeMethods.SetGlobalValue(_handle, parameter, value);
+
     public void DestroyEntity(string entityId)
         => NativeMethods.DestroyEntity(_handle, entityId);
 
@@ -133,6 +142,15 @@ internal static partial class NativeMethods
 
     [LibraryImport(Dll, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial void SetTransform(IntPtr engine, string entityId, float x, float y, float z, float a, float b, float c, float d);
+
+    [LibraryImport(Dll, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial void SetGlobalTag(IntPtr engine, string tag);
+
+    [LibraryImport(Dll, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial void RemoveGlobalTag(IntPtr engine, string tag);
+
+    [LibraryImport(Dll, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial void SetGlobalValue(IntPtr engine, string parameter, float value);
 
     [LibraryImport(Dll, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial void DestroyEntity(IntPtr engine, string entityId);
