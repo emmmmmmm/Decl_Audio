@@ -168,6 +168,32 @@
           ]
         }
       ]
+    },
+    {
+      "id": "sandbox.tag.depth",
+      "matchTags": [
+        "sb"
+      ],
+      "program": [
+        {
+          "type": "oneshot",
+          "asset": "audio/test_48_24_1ch.wav",
+          "volume": 0.5
+        }
+      ]
+    },
+    {
+      "id": "sandbox.tag.depth2",
+      "matchTags": [
+        "sb.depth"
+      ],
+      "program": [
+        {
+          "type": "oneshot",
+          "asset": "audio/test_48_24_1ch_2.wav",
+          "volume": 0.5
+        }
+      ]
     }
   ]
 }

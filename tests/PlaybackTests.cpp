@@ -122,6 +122,7 @@ namespace
             compiled_bank = compile_result.bank;
             asset_bank = asset_result.bank;
             behavior_resolver.Reset();
+            control_runtime.SetBank(&compiled_bank);
             audio_runtime.SetBanks(&compiled_bank, &asset_bank);
             return true;
         }

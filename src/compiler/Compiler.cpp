@@ -254,8 +254,12 @@ namespace decl_audio::compiler
             }
 
             const std::uint32_t first_tag = static_cast<std::uint32_t>(result.bank.behavior_tags.size());
+            std::uint32_t depth_sum = 0;
             for (const std::string &tag_name : behavior.match_tags)
+            {
                 result.bank.behavior_tags.push_back(InternName(result.bank.tag_name_to_id, tag_name));
+                depth_sum += static_cast<std::uint32_t>(std::count(tag_name.begin(), tag_name.end(), '.'));
+            }
 
             const std::uint32_t first_condition = static_cast<std::uint32_t>(result.bank.conditions.size());
             for (const AuthoringCondition &condition : behavior.match_conditions)
@@ -362,7 +366,31 @@ namespace decl_audio::compiler
             compiled_behavior.tag_count = static_cast<std::uint32_t>(result.bank.behavior_tags.size() - first_tag);
             compiled_behavior.first_condition = first_condition;
             compiled_behavior.condition_count = static_cast<std::uint32_t>(result.bank.conditions.size() - first_condition);
+            compiled_behavior.score = compiled_behavior.tag_count * 100 + depth_sum;
             result.bank.behaviors.push_back(compiled_behavior);
+        }
+
+        // Build per-tag metadata: depth and exclusive namespace group head.
+        // A tag's group is defined by its first component (everything before the first '.').
+        // Bare tags (no '.') form their own singleton group.
+        {
+            const std::size_t tag_count = result.bank.tag_name_to_id.size();
+            result.bank.tag_depths.resize(tag_count, 0);
+            result.bank.tag_group_head.resize(tag_count, 0);
+
+            std::unordered_map<std::string, TagId> prefix_to_head;
+            prefix_to_head.reserve(tag_count);
+
+            for (const auto &[name, tag_id] : result.bank.tag_name_to_id)
+            {
+                const std::uint8_t depth = static_cast<std::uint8_t>(std::count(name.begin(), name.end(), '.'));
+                result.bank.tag_depths[tag_id] = depth;
+
+                const std::size_t dot_pos = name.find('.');
+                const std::string prefix = (dot_pos != std::string::npos) ? name.substr(0, dot_pos) : name;
+                const auto [it, inserted] = prefix_to_head.emplace(prefix, tag_id);
+                result.bank.tag_group_head[tag_id] = it->second;
+            }
         }
 
         return result;

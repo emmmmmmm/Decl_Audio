@@ -3,7 +3,7 @@
     {
       "id": "movement.footsteps",
       "matchTags": [
-        "movement.grounded",
+        "surface.grounded",
         "movement.walking"
       ],
       "parameters": [
@@ -41,6 +41,20 @@
               "volume": 0.6
             }
           ]
+        }
+      ]
+    },
+    {
+      "id": "movement.idle",
+      "matchTags": [
+        "surface.grounded",
+        "movement.grounded"
+      ],
+      "program": [
+        {
+          "type": "loop",
+          "asset": "audio/test_48_24_1ch.wav",
+          "loopCount": -1
         }
       ]
     },

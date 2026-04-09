@@ -3,7 +3,7 @@
 Decl is a tag-driven audio engine intended to keep sound behavior out of gameplay code. Game code publishes tags, values, and events; the audio engine reacts to that state declaratively.
 
 ```
-SetTag(engine, "player",  "movement.grounded");
+SetTag(engine, "player",  "surface.grounded");
 SetTag(engine, "player",  "movement.walking");
 SetValue(engine, "player", "speed", 4.2f);
 Update(engine);
@@ -21,7 +21,7 @@ Behaviors live in JSON. They  define behavior reactively; each behavior says: *w
   "behaviors": [
     {
       "id": "movement.footsteps",
-      "matchTags": ["movement.grounded", "movement.walking"],
+      "matchTags": ["surface.grounded", "movement.walking"],
       "parameters": ["speed"],
       "matchConditions": [{ "parameter": "speed", "op": ">=", "value": 0.1 }],
       "program": [
@@ -60,6 +60,26 @@ Conditions are ANDed. Supported operators: `<`, `<=`, `==`, `>=`, `>`, `!=`.
 ```
 
 Parameters used in conditions must be declared in `"parameters"`.
+
+### Tag namespaces and specificity
+
+The first component of a tag (everything before the first `.`) is its **namespace**. Each namespace is exclusive: setting a tag automatically evicts any other tag that shares the same first component on that entity.
+
+```
+SetTag(engine, "player", "movement.grounded");
+SetTag(engine, "player", "movement.walking");  // evicts movement.grounded
+// entity now has: movement.walking
+```
+
+This means tags from different namespaces coexist freely, while tags within the same namespace are mutually exclusive states. Bare tags (no `.`) each form their own singleton namespace.
+
+When multiple behaviors match an entity, the engine picks the **most specific** one per competing group. Specificity is scored as `(matchTag count × 100) + sum of tag dot-depths`. A behavior that requires more tags always beats a more general one; non-competing behaviors (neither is a subset of the other) both fire simultaneously.
+
+```json
+{ "id": "footstep_default", "matchTags": ["step"] }
+{ "id": "footstep_walking", "matchTags": ["step", "movement.walking"] }
+// entity has [step, movement.walking] -> footstep_walking wins (score 201 vs 100)
+```
 
 ### Transient tags
 

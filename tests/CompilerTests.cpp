@@ -44,21 +44,25 @@ namespace
             return false;
         }
 
-        if (!Expect(compile_result.bank.behaviors.size() == 2, "valid fixture should compile two behaviors"))
+        if (!Expect(compile_result.bank.behaviors.size() == 3, "valid fixture should compile three behaviors"))
             return false;
-        if (!Expect(compile_result.bank.programs.size() == 2, "valid fixture should compile two programs"))
+        if (!Expect(compile_result.bank.programs.size() == 3, "valid fixture should compile three programs"))
             return false;
-        if (!Expect(compile_result.bank.nodes.size() == 7, "valid fixture should compile seven nodes including root sequences"))
+        if (!Expect(compile_result.bank.nodes.size() == 9, "valid fixture should compile nine nodes including root sequences"))
             return false;
         if (!Expect(compile_result.bank.asset_paths.size() == 2, "valid fixture should discover two unique referenced assets"))
             return false;
-        if (!Expect(compile_result.bank.GetBehaviorTags(0).size() == 2, "valid fixture should intern two match tags"))
+        if (!Expect(compile_result.bank.GetBehaviorTags(0).size() == 2, "footsteps behavior should intern two match tags"))
             return false;
-        if (!Expect(compile_result.bank.GetBehaviorConditions(0).size() == 1, "valid fixture should compile one condition"))
+        if (!Expect(compile_result.bank.GetBehaviorConditions(0).size() == 1, "footsteps behavior should compile one condition"))
             return false;
-        if (!Expect(compile_result.bank.GetBehaviorTags(1).size() == 1, "resolver fixture should intern one match tag"))
+        if (!Expect(compile_result.bank.GetBehaviorTags(1).size() == 2, "idle behavior should intern two match tags"))
             return false;
-        if (!Expect(compile_result.bank.GetBehaviorConditions(1).size() == 1, "resolver fixture should compile one condition"))
+        if (!Expect(compile_result.bank.GetBehaviorConditions(1).size() == 0, "idle behavior should compile zero conditions"))
+            return false;
+        if (!Expect(compile_result.bank.GetBehaviorTags(2).size() == 1, "resolver behavior should intern one match tag"))
+            return false;
+        if (!Expect(compile_result.bank.GetBehaviorConditions(2).size() == 1, "resolver behavior should compile one condition"))
             return false;
 
         const std::span<const decl_audio::compiler::CompiledNode> nodes = compile_result.bank.GetProgramNodes(0);
@@ -73,7 +77,7 @@ namespace
         if (!Expect(nodes[4].type == decl_audio::compiler::NodeType::Loop, "fifth compiled node should be loop"))
             return false;
 
-        const std::span<const decl_audio::compiler::CompiledNode> resolver_nodes = compile_result.bank.GetProgramNodes(1);
+        const std::span<const decl_audio::compiler::CompiledNode> resolver_nodes = compile_result.bank.GetProgramNodes(2);
         if (!Expect(resolver_nodes.size() == 2, "resolver program should compile root sequence plus loop"))
             return false;
         if (!Expect(resolver_nodes[1].type == decl_audio::compiler::NodeType::Loop, "resolver program should compile to a loop leaf"))

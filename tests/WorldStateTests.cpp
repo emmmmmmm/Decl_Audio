@@ -54,7 +54,7 @@ namespace
             return false;
         }
 
-        engine.SetTag("player", "movement.grounded");
+        engine.SetTag("player", "surface.grounded");
         engine.SetTag("player", "movement.walking");
         engine.SetValue("player", "speed", 4.2f);
 
@@ -66,7 +66,7 @@ namespace
         engine.Update();
 
         const decl_audio::runtime::WorldState &world_state = engine.GetWorldState();
-        const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
+        const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("surface.grounded");
         const decl_audio::compiler::TagId walking_tag_id = compile_result.bank.GetTagId("movement.walking");
         const decl_audio::compiler::ParameterId speed_parameter_id = compile_result.bank.GetParameterId("speed");
         if (!Expect(world_state.HasEntity("player"), "Update should materialize the entity"))
@@ -106,7 +106,7 @@ namespace
             return false;
         }
 
-        engine.SetTag("player", "movement.grounded");
+        engine.SetTag("player", "surface.grounded");
         engine.SetValue("player", "speed", 2.0f);
 
         if (!Expect(!engine.GetWorldState().HasEntity("player"), "missed Update should leave queued commands pending"))
@@ -125,7 +125,7 @@ namespace
         engine.Update();
 
         const decl_audio::runtime::EntityState &entity = engine.GetWorldState().GetEntity("player");
-        const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
+        const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("surface.grounded");
         const decl_audio::compiler::TagId walking_tag_id = compile_result.bank.GetTagId("movement.walking");
         const decl_audio::compiler::ParameterId speed_parameter_id = compile_result.bank.GetParameterId("speed");
         if (!Expect(entity.HasTag(grounded_tag_id), "delayed Update should still apply grounded tags"))
@@ -169,7 +169,7 @@ namespace
             return false;
         }
 
-        engine.SetTag("player", "movement.grounded");
+        engine.SetTag("player", "surface.grounded");
         engine.SetTag("player", "movement.walking");
         engine.SetValue("player", "speed", 1.0f);
         engine.Update();
@@ -178,7 +178,7 @@ namespace
         engine.Update();
 
         const decl_audio::runtime::EntityState &entity = engine.GetWorldState().GetEntity("player");
-        const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
+        const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("surface.grounded");
         const decl_audio::compiler::TagId walking_tag_id = compile_result.bank.GetTagId("movement.walking");
         if (!Expect(entity.HasTag(grounded_tag_id), "removing one tag should keep other tags"))
         {
@@ -229,12 +229,12 @@ namespace
     {
         const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
         const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
-        const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
+        const decl_audio::compiler::TagId walking_tag_id = compile_result.bank.GetTagId("movement.walking");
 
         decl_audio::runtime::ControlRuntime control_runtime;
         control_runtime.Submit(decl_audio::runtime::SetTransientTagCommand{
             "player",
-            grounded_tag_id});
+            walking_tag_id});
         control_runtime.Tick();
 
         if (!Expect(control_runtime.GetWorldState().HasEntity("player"), "transient tag should materialize the entity during drain"))
@@ -243,7 +243,7 @@ namespace
         }
 
         const decl_audio::runtime::EntityState &transient_entity = control_runtime.GetWorldState().GetEntity("player");
-        if (!Expect(transient_entity.HasTag(grounded_tag_id), "transient tag should be visible before cleanup"))
+        if (!Expect(transient_entity.HasTag(walking_tag_id), "transient tag should be visible before cleanup"))
         {
             return false;
         }
@@ -251,22 +251,22 @@ namespace
         control_runtime.ClearTransientTags();
 
         const decl_audio::runtime::EntityState &cleared_entity = control_runtime.GetWorldState().GetEntity("player");
-        if (!Expect(!cleared_entity.HasTag(grounded_tag_id), "ClearTransientTags should remove transient tags"))
+        if (!Expect(!cleared_entity.HasTag(walking_tag_id), "ClearTransientTags should remove transient tags"))
         {
             return false;
         }
 
         control_runtime.Submit(decl_audio::runtime::SetTagCommand{
             "player",
-            grounded_tag_id});
+            walking_tag_id});
         control_runtime.Submit(decl_audio::runtime::SetTransientTagCommand{
             "player",
-            grounded_tag_id});
+            walking_tag_id});
         control_runtime.Tick();
         control_runtime.ClearTransientTags();
 
         const decl_audio::runtime::EntityState &persistent_entity = control_runtime.GetWorldState().GetEntity("player");
-        if (!Expect(persistent_entity.HasTag(grounded_tag_id), "clearing transient tags should not erase persistent tags"))
+        if (!Expect(persistent_entity.HasTag(walking_tag_id), "clearing transient tags should not erase persistent tags"))
         {
             return false;
         }
@@ -454,6 +454,49 @@ namespace
         DestroyEngine(engine);
         return true;
     }
+    bool TestExclusiveNamespaceEvictsOldTag()
+    {
+        const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
+        const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
+
+        auto config = GetTestConfig();
+
+        decl_audio::Engine engine(config);
+        if (!Expect(engine.LoadBehaviors(fixture_path.string().c_str()), "exclusive namespace fixture should load"))
+        {
+            return false;
+        }
+
+        // Set the first tag in the movement namespace.
+        engine.SetTag("player", "movement.grounded");
+        engine.Update();
+
+        const decl_audio::compiler::TagId grounded_tag_id = compile_result.bank.GetTagId("movement.grounded");
+        const decl_audio::compiler::TagId walking_tag_id = compile_result.bank.GetTagId("movement.walking");
+
+        if (!Expect(engine.GetWorldState().GetEntity("player").HasTag(grounded_tag_id), "first movement tag should be set"))
+        {
+            return false;
+        }
+
+        // Set a second tag in the same namespace — must evict the first.
+        engine.SetTag("player", "movement.walking");
+        engine.Update();
+
+        const decl_audio::runtime::EntityState &entity = engine.GetWorldState().GetEntity("player");
+        if (!Expect(entity.HasTag(walking_tag_id), "new movement tag should be set after exclusive eviction"))
+        {
+            return false;
+        }
+
+        if (!Expect(!entity.HasTag(grounded_tag_id), "old movement tag should be evicted by the new one in the same namespace"))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
 } // namespace
 
 bool RunWorldStateTests()
@@ -479,6 +522,11 @@ bool RunWorldStateTests()
     }
 
     if (!TestTransientTagsExpireWithoutErasingPersistentTags())
+    {
+        return false;
+    }
+
+    if (!TestExclusiveNamespaceEvictsOldTag())
     {
         return false;
     }

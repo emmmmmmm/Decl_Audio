@@ -27,6 +27,7 @@ namespace decl_audio::compiler
         std::uint32_t tag_count = 0;
         std::uint32_t first_condition = 0;
         std::uint32_t condition_count = 0;
+        std::uint32_t score = 0;
     };
 
     struct CompiledNode final
@@ -79,6 +80,10 @@ namespace decl_audio::compiler
         std::vector<NodeId> node_children;
         std::vector<AssetId> node_assets;
         std::vector<ParameterId> program_parameters;
+
+        // Per-tag metadata (indexed by TagId)
+        std::vector<std::uint8_t> tag_depths;      // number of '.' in the tag name
+        std::vector<TagId> tag_group_head;         // canonical TagId for the exclusive namespace group (same first component)
 
         std::vector<std::string> asset_paths;
         std::uint32_t max_program_node_count = 0;

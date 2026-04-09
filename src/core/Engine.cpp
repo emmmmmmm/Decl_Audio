@@ -63,6 +63,7 @@ namespace decl_audio
         compiled_bank_ = std::move(compiled_bank);
         asset_bank_ = std::move(asset_bank);
         behavior_resolver_.Reset();
+        control_runtime_.SetBank(compiled_bank_.get());
         audio_runtime_.SetBanks(compiled_bank_.get(), asset_bank_.get());
 
         return StartConfiguredAudioBackend(source_path);

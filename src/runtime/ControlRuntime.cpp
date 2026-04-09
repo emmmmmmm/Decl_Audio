@@ -2,6 +2,8 @@
 
 #include "ControlRuntime.hpp"
 
+#include "../compiler/CompiledBank.hpp"
+#include <algorithm>
 #include <exception>
 #include <variant>
 
@@ -48,7 +50,16 @@ namespace decl_audio::runtime
 
     void ControlRuntime::Apply(const SetTagCommand &command) noexcept
     {
-        world_state_.GetOrCreateEntity(command.entity_id).tags.insert(command.tag_id);
+        EntityState &entity = world_state_.GetOrCreateEntity(command.entity_id);
+        if (compiled_bank_ != nullptr)
+        {
+            const compiler::TagId group_head = compiled_bank_->tag_group_head[command.tag_id];
+            std::erase_if(entity.tags, [&](const compiler::TagId t)
+            {
+                return compiled_bank_->tag_group_head[t] == group_head;
+            });
+        }
+        entity.tags.insert(command.tag_id);
     }
 
     void ControlRuntime::Apply(const SetTransientTagCommand &command) noexcept
@@ -75,6 +86,14 @@ namespace decl_audio::runtime
 
     void ControlRuntime::Apply(const SetGlobalTagCommand &command) noexcept
     {
+        if (compiled_bank_ != nullptr)
+        {
+            const compiler::TagId group_head = compiled_bank_->tag_group_head[command.tag_id];
+            std::erase_if(world_state_.global_tags, [&](const compiler::TagId t)
+            {
+                return compiled_bank_->tag_group_head[t] == group_head;
+            });
+        }
         world_state_.global_tags.insert(command.tag_id);
     }
     void ControlRuntime::Apply(const RemoveGlobalTagCommand &command) noexcept

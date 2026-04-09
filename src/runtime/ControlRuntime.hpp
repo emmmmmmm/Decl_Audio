@@ -8,6 +8,8 @@
 #include <vector>
 #include <tuple>
 
+namespace decl_audio::compiler { struct CompiledBank; }
+
 namespace decl_audio::runtime
 {
     class ControlRuntime final
@@ -23,6 +25,11 @@ namespace decl_audio::runtime
         [[nodiscard]] const WorldState &GetWorldState() const noexcept
         {
             return world_state_;
+        }
+
+        void SetBank(const compiler::CompiledBank *bank) noexcept
+        {
+            compiled_bank_ = bank;
         }
 
         [[nodiscard]] bool ListenerPositionChanged(Vec3 &position) noexcept
@@ -50,6 +57,7 @@ namespace decl_audio::runtime
         void Apply(const SetListenerPositionCommand &command) noexcept;
         void Apply(const DestroyEntityCommand &command) noexcept;
 
+        const compiler::CompiledBank *compiled_bank_ = nullptr;
         RingBuffer<HostCommand> host_to_control_;
         WorldState world_state_;
         Vec3 listener_position_{};
