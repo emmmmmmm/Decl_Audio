@@ -82,6 +82,19 @@ namespace decl_audio::compiler
             return NodeType::OneShot;
         }
 
+        [[nodiscard]] StopMode ParseStopMode(std::string_view name, bool &is_valid)
+        {
+            is_valid = true;
+
+            if (name == "immediate")
+                return StopMode::Immediate;
+            if (name == "graceful")
+                return StopMode::Graceful;
+
+            is_valid = false;
+            return StopMode::Immediate;
+        }
+
         [[nodiscard]] AttenuationMode ParseAttenuationMode(std::string_view attenuation_name, bool &is_valid)
         {
             is_valid = true;
@@ -363,6 +376,37 @@ namespace decl_audio::compiler
 
             if (behavior_json.contains("spatialization"))
                 behavior.spatialization = ParseSpatialization(behavior_json["spatialization"], source_path, std::string(field_path) + ".spatialization", diagnostics);
+
+            if (behavior_json.contains("stopMode"))
+            {
+                if (!behavior_json["stopMode"].is_string())
+                {
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".stopMode", "must be a string"));
+                }
+                else
+                {
+                    bool is_valid = false;
+                    behavior.stop_mode = ParseStopMode(behavior_json["stopMode"].get<std::string>(), is_valid);
+                    if (!is_valid)
+                        diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".stopMode", "must be 'immediate' or 'graceful'"));
+                }
+            }
+
+            if (behavior_json.contains("stopFadeMs"))
+            {
+                if (!IsNumber(behavior_json["stopFadeMs"]))
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".stopFadeMs", "must be numeric"));
+                else
+                    behavior.stop_fade_ms = behavior_json["stopFadeMs"].get<float>();
+            }
+
+            if (behavior_json.contains("startFadeMs"))
+            {
+                if (!IsNumber(behavior_json["startFadeMs"]))
+                    diagnostics.push_back(MakeError(source_path, std::string(field_path) + ".startFadeMs", "must be numeric"));
+                else
+                    behavior.start_fade_ms = behavior_json["startFadeMs"].get<float>();
+            }
 
             if (behavior_json.contains("matchConditions"))
             {

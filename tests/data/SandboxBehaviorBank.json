@@ -1,6 +1,38 @@
 {
   "behaviors": [
     {
+      "id": "sandbox.global.loop.A",
+      "matchTags": [
+        "sandbox.playback.loop"
+      ],
+      "stopMode": "immediate",
+      "startFadeMs": 100,
+      "stopFadeMs": 0,
+      "program": [
+        {
+          "type": "loop",
+          "asset": "audio/test_48_24_1ch.wav",
+          "loopCount": -1,
+          "volume": 0.75
+        }
+      ]
+    },
+    {
+      "id": "sandbox.global.loop.B",
+      "matchTags": [
+        "sandbox.playback.loop",
+        "global.B"
+      ],
+      "program": [
+        {
+          "type": "loop",
+          "asset": "audio/test_48_24_1ch_2.wav",
+          "loopCount": -1,
+          "volume": 0.75
+        }
+      ]
+    },
+    {
       "id": "sandbox.playback.oneshot",
       "matchTags": [
         "sandbox.playback.oneshot"
@@ -10,20 +42,6 @@
           "type": "oneshot",
           "asset": "audio/test_48_24_1ch.wav",
           "volume": 0.5
-        }
-      ]
-    },
-    {
-      "id": "sandbox.playback.loop",
-      "matchTags": [
-        "sandbox.playback.loop"
-      ],
-      "program": [
-        {
-          "type": "loop",
-          "asset": "audio/test_48_24_1ch.wav",
-          "loopCount": -1,
-          "volume": 0.75
         }
       ]
     },

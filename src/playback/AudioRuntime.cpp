@@ -110,11 +110,25 @@ namespace decl_audio::playback
         node_state_storage_.resize(max_instances_ * static_cast<std::size_t>(compiled_bank_->max_program_node_count));
         voice_storage_.resize(max_instances_ * static_cast<std::size_t>(compiled_bank_->max_program_concurrent_voices));
         parameter_storage_.resize(max_instances_ * static_cast<std::size_t>(compiled_bank_->max_program_parameter_slot_count));
+
+        free_slices_.clear();
+        free_slices_.reserve(max_instances_);
+        for (std::size_t i = max_instances_; i > 0; --i)
+        {
+            free_slices_.push_back(i - 1);
+        }
     }
 
     void AudioRuntime::Clear() noexcept
     {
         instances_.clear();
+
+        free_slices_.clear();
+        free_slices_.reserve(max_instances_);
+        for (std::size_t i = max_instances_; i > 0; --i)
+        {
+            free_slices_.push_back(i - 1);
+        }
 
         AudioCommand command;
         while (commands_.pop(command))
@@ -147,7 +161,56 @@ namespace decl_audio::playback
             ProgramInstance &instance = instances_[instance_index];
             std::fill_n(scratch_.data(), static_cast<std::size_t>(frames) * out_channel_count_, 0.0f);
 
-            const bool keep_instance = RenderProgramInstance(instance, scratch_.data(), frames);
+            bool keep_instance = RenderProgramInstance(instance, scratch_.data(), frames);
+
+            if (instance.stop_requested && instance.compiled->stop_mode == compiler::StopMode::Immediate)
+            {
+                if (instance.compiled->stop_fade_frames == 0)
+                {
+                    keep_instance = false;
+                }
+                else if (instance.stop_fade_frames_remaining > 0)
+                {
+                    const float total_f = static_cast<float>(instance.compiled->stop_fade_frames);
+                    const std::uint32_t fade_start = instance.stop_fade_frames_remaining;
+                    for (std::uint32_t f = 0; f < frames; ++f)
+                    {
+                        const float gain = f < fade_start
+                            ? static_cast<float>(fade_start - f) / total_f
+                            : 0.0f;
+                        const std::size_t idx = static_cast<std::size_t>(f) * out_channel_count_;
+                        scratch_[idx + 0] *= gain;
+                        scratch_[idx + 1] *= gain;
+                    }
+                    instance.stop_fade_frames_remaining = fade_start > frames ? fade_start - frames : 0;
+                    if (instance.stop_fade_frames_remaining == 0)
+                    {
+                        keep_instance = false;
+                    }
+                }
+                else
+                {
+                    keep_instance = false;
+                }
+            }
+
+            if (instance.start_fade_frames_remaining > 0)
+            {
+                const float total_f = static_cast<float>(instance.compiled->start_fade_frames);
+                const std::uint32_t remaining = instance.start_fade_frames_remaining;
+                const std::uint32_t elapsed_at_block_start = instance.compiled->start_fade_frames - remaining;
+                for (std::uint32_t f = 0; f < frames; ++f)
+                {
+                    const float gain = f < remaining
+                        ? static_cast<float>(elapsed_at_block_start + f) / total_f
+                        : 1.0f;
+                    const std::size_t idx = static_cast<std::size_t>(f) * out_channel_count_;
+                    scratch_[idx + 0] *= gain;
+                    scratch_[idx + 1] *= gain;
+                }
+                instance.start_fade_frames_remaining = remaining > frames ? remaining - frames : 0;
+            }
+
             const StereoMixGains mix_gains = ComputeSpatialMixGains(instance.compiled->spatialization, instance.position, listener_.position);
             for (std::uint32_t frame_index = 0; frame_index < frames; ++frame_index)
             {
@@ -158,6 +221,7 @@ namespace decl_audio::playback
 
             if (!keep_instance)
             {
+                free_slices_.push_back(instances_[instance_index].slice_index);
                 instances_[instance_index] = instances_.back();
                 instances_.pop_back();
                 continue;
@@ -273,7 +337,8 @@ namespace decl_audio::playback
         }
 
         const compiler::CompiledProgram &compiled_program = compiled_bank_->GetProgram(command.program_id);
-        const std::size_t slice_index = instances_.size();
+        const std::size_t slice_index = free_slices_.back();
+        free_slices_.pop_back();
 
         auto make_node_span = [&](const std::uint32_t count) noexcept -> std::span<NodeRuntimeState>
         {
@@ -314,10 +379,13 @@ namespace decl_audio::playback
         ProgramInstance instance;
         instance.instance_id = command.instance_id;
         instance.compiled = &compiled_program;
+        instance.slice_index = slice_index;
         instance.volume = command.volume;
         instance.position = command.position;
         instance.stop_requested = false;
         instance.active_voice_count = 0;
+        instance.stop_fade_frames_remaining = 0;
+        instance.start_fade_frames_remaining = compiled_program.start_fade_frames;
         instance.node_state = make_node_span(compiled_program.node_count);
         instance.voices = make_voice_span(compiled_program.max_concurrent_voices);
         instance.parameter_slots = make_parameter_span(compiled_program.parameter_slot_count);
@@ -380,16 +448,26 @@ namespace decl_audio::playback
 
         ProgramInstance &instance = instances_[instance_index];
         instance.stop_requested = true;
-        for (VoiceState &voice : instance.voices)
-        {
-            if (!voice.active)
-            {
-                continue;
-            }
 
-            if (GetCompiledNode(voice.leaf_node).type == compiler::NodeType::Loop)
+        if (instance.compiled->stop_mode == compiler::StopMode::Immediate)
+        {
+            // Start fade-out; voices keep playing untouched until the fade kills the instance.
+            instance.stop_fade_frames_remaining = instance.compiled->stop_fade_frames;
+        }
+        else
+        {
+            // Graceful: let the current loop pass finish, then advance the sequence normally.
+            for (VoiceState &voice : instance.voices)
             {
-                voice.remaining_loops = 0;
+                if (!voice.active)
+                {
+                    continue;
+                }
+
+                if (GetCompiledNode(voice.leaf_node).type == compiler::NodeType::Loop)
+                {
+                    voice.remaining_loops = 0;
+                }
             }
         }
     }
@@ -748,6 +826,11 @@ namespace decl_audio::playback
                 NodeRuntimeState &child_state = instance.node_state[child_id - instance.compiled->first_node];
                 if (!child_state.entered)
                 {
+                    if (instance.stop_requested && instance.compiled->stop_mode == compiler::StopMode::Immediate)
+                    {
+                        break; // skip remaining children, fall through to finish
+                    }
+
                     EnterNode(instance, child_id);
                     return;
                 }

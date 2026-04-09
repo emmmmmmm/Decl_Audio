@@ -57,6 +57,16 @@ namespace decl_audio::compiler
             }
             return "<invalid>";
         }
+
+        [[nodiscard]] const char *ToString(StopMode mode)
+        {
+            switch (mode)
+            {
+            case StopMode::Immediate: return "immediate";
+            case StopMode::Graceful:  return "graceful";
+            }
+            return "<invalid>";
+        }
     } // namespace
 
     CompileResult LoadCompiledBankFromJsonFile(const std::filesystem::path &source_path)
@@ -99,6 +109,9 @@ namespace decl_audio::compiler
             stream << "Behavior[" << behavior.id << "]\n";
             stream << "  program: " << behavior.program_id << '\n';
             const CompiledProgram &program = bank.GetProgram(behavior.program_id);
+            stream << "  stop: mode=" << ToString(program.stop_mode)
+                   << " fadeFrames=" << program.stop_fade_frames
+                   << " startFadeFrames=" << program.start_fade_frames << '\n';
             stream << "  spatialization: mode=" << ToString(program.spatialization.mode);
             if (program.spatialization.mode != SpatializationMode::None)
             {

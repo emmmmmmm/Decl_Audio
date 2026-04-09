@@ -44,6 +44,9 @@ namespace decl_audio::compiler
         std::vector<AuthoringNode> program;
         std::vector<std::string> parameters;
         AuthoringSpatializationSettings spatialization;
+        StopMode stop_mode = StopMode::Graceful;
+        float stop_fade_ms = 50.0f;
+        float start_fade_ms = 0.0f;
     };
 
     struct AuthoringDocument final

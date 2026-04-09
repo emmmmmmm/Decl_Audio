@@ -47,5 +47,11 @@ namespace decl_audio::compiler
         Random
     };
 
+    enum class StopMode : std::uint8_t
+    {
+        Immediate, // fade out over stop_fade_frames, skip any remaining sequence children
+        Graceful,  // finish current loop pass, advance sequence normally
+    };
+
     using ContainerType = NodeType;
 } // namespace decl_audio::compiler

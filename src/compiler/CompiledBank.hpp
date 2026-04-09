@@ -63,6 +63,9 @@ namespace decl_audio::compiler
         std::uint32_t parameter_slot_count = 0;
         std::uint32_t max_concurrent_voices = 0;
         CompiledSpatializationSettings spatialization;
+        StopMode stop_mode = StopMode::Immediate;
+        std::uint32_t stop_fade_frames = 2400; // 50ms at 48kHz
+        std::uint32_t start_fade_frames = 0;
     };
 
     struct CompiledBank final

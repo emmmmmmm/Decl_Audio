@@ -38,6 +38,9 @@ namespace decl_audio::playback
         Vec3 position{};
         bool stop_requested = false;
         std::uint32_t active_voice_count = 0;
+        std::uint32_t stop_fade_frames_remaining = 0;
+        std::uint32_t start_fade_frames_remaining = 0;
+        std::size_t slice_index = 0;
         std::span<float> parameter_slots;
         std::span<NodeRuntimeState> node_state;
         std::span<VoiceState> voices;
@@ -155,6 +158,7 @@ namespace decl_audio::playback
 
         RingBuffer<AudioCommand> commands_;
         std::vector<ProgramInstance> instances_;
+        std::vector<std::size_t> free_slices_;
         std::vector<float> scratch_;
         std::vector<NodeRuntimeState> node_state_storage_;
         std::vector<VoiceState> voice_storage_;

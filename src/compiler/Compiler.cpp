@@ -337,6 +337,9 @@ namespace decl_audio::compiler
             compiled_program.spatialization.min_distance = behavior.spatialization.min_distance;
             compiled_program.spatialization.max_distance = behavior.spatialization.max_distance;
             compiled_program.spatialization.attenuation = behavior.spatialization.attenuation;
+            compiled_program.stop_mode = behavior.stop_mode;
+            compiled_program.stop_fade_frames = static_cast<std::uint32_t>(behavior.stop_fade_ms * 48000.0f / 1000.0f);
+            compiled_program.start_fade_frames = static_cast<std::uint32_t>(behavior.start_fade_ms * 48000.0f / 1000.0f);
 
             if (compiled_program.spatialization.mode == SpatializationMode::Pan)
             {

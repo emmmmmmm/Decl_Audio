@@ -36,6 +36,8 @@ namespace
             << "  help\n"
             << "  tag <entity> <tag>\n"
             << "  clear <entity> <tag>\n"
+            << "  global <tag>\n"
+            << "  clearglobal <tag>\n"
             << "  transient <entity> <tag>\n"
             << "  float <entity> <key> <value>\n"
             << "  pos <entity> <x> <y> <z>\n"
@@ -403,6 +405,15 @@ namespace
             if (input >> tag)
             {
                 engine.SetGlobalTag(tag.c_str());
+                return true;
+            }
+        }
+        else if (command == "clearglobal")
+        {
+            std::string tag;
+            if (input >> tag)
+            {
+                engine.RemoveGlobalTag(tag.c_str());
                 return true;
             }
         }
