@@ -12,7 +12,8 @@ namespace decl_audio
 {
 
     Engine::Engine(const EngineConfig &config) noexcept
-        : control_runtime_(static_cast<std::size_t>(config.host_queue_capacity)),
+        : host_log_queue_(static_cast<std::size_t>(config.host_queue_capacity)),
+          control_runtime_(static_cast<std::size_t>(config.host_queue_capacity)),
           audio_runtime_(0xC0FFEEULL,
                          static_cast<std::size_t>(config.max_instances),
                          config.max_block_frames,
@@ -40,19 +41,19 @@ namespace decl_audio
 
         compiler::CompileResult compile_result = compiler::LoadCompiledBankFromJsonFile(source_path);
         load_diagnostics_ = compile_result.diagnostics;
+        PushDiagnostics(compile_result.diagnostics);
 
         if (compile_result.HasErrors())
         {
-            // TODO: Dump diagnostics?
             return false;
         }
 
         assets::LoadResult asset_result = assets::LoadAssetBank(compile_result.bank, source_path);
         load_diagnostics_.insert(load_diagnostics_.end(), asset_result.diagnostics.begin(), asset_result.diagnostics.end());
+        PushDiagnostics(asset_result.diagnostics);
 
         if (asset_result.HasErrors())
         {
-            // TODO: Dump diagnostics?
             return false;
         }
 
@@ -66,6 +67,7 @@ namespace decl_audio
         control_runtime_.SetBank(compiled_bank_.get());
         audio_runtime_.SetBanks(compiled_bank_.get(), asset_bank_.get());
 
+        PushLog("Behavior loading: done.");
         return StartConfiguredAudioBackend(source_path);
     }
 
@@ -95,6 +97,11 @@ namespace decl_audio
     void Engine::RenderAudioForTesting(float *output, const std::uint32_t frames) noexcept
     {
         audio_runtime_.Render(output, frames);
+    }
+
+    bool Engine::TryDequeueLog(std::string &message) noexcept
+    {
+        return host_log_queue_.pop(message);
     }
 
     void Engine::SetTag(const char *entity_id, const char *tag) noexcept
@@ -182,7 +189,8 @@ namespace decl_audio
         std::string error_message;
         if (!audio_backend_->Start(audio_runtime_, config, error_message))
         {
-            load_diagnostics_.push_back(MakeError(source_path, "audio.backend", std::move(error_message)));
+            auto &diag = load_diagnostics_.emplace_back(MakeError(source_path, "audio.backend", std::move(error_message)));
+            PushLog("[error] " + FormatSourceLocation(diag.location) + ": " + diag.message);
             audio_backend_.reset();
             return false;
         }
@@ -199,6 +207,21 @@ namespace decl_audio
 
         audio_backend_->Stop();
         audio_backend_.reset();
+    }
+
+    void Engine::PushLog(std::string message)
+    {
+        if (!host_log_queue_.push(std::move(message)))
+            std::terminate();
+    }
+
+    void Engine::PushDiagnostics(std::span<const decl_audio::Diagnostic> diagnostics)
+    {
+        for (const decl_audio::Diagnostic &diagnostic : diagnostics)
+        {
+            const std::string prefix = diagnostic.severity == DiagnosticSeverity::Error ? "[error] " : "[warning] ";
+            PushLog(prefix + FormatSourceLocation(diagnostic.location) + ": " + diagnostic.message);
+        }
     }
 
 } // namespace decl_audio

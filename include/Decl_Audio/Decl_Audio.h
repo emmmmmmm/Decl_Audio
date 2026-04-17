@@ -14,6 +14,7 @@
 #define DECL_AUDIO_VERSION_PATCH 0u
 #define DECL_AUDIO_MAKE_VERSION(major, minor, patch) (((major) << 22u) | ((minor) << 12u) | (patch))
 #define DECL_AUDIO_API_VERSION DECL_AUDIO_MAKE_VERSION(DECL_AUDIO_VERSION_MAJOR, DECL_AUDIO_VERSION_MINOR, DECL_AUDIO_VERSION_PATCH)
+#define DECL_AUDIO_LOG_MESSAGE_MAX_LENGTH 512u
 
 #ifdef __cplusplus
 extern "C"
@@ -27,6 +28,12 @@ extern "C"
         DECL_AUDIO_BACKEND_SILENT = 0,
         DECL_AUDIO_BACKEND_PLATFORM_DEFAULT = 1
     } DeclAudioBackend;
+
+    typedef struct DeclAudioLogMessage
+    {
+        uint32_t length;
+        char message[DECL_AUDIO_LOG_MESSAGE_MAX_LENGTH];
+    } DeclAudioLogMessage;
 
     typedef struct EngineConfig
     {
@@ -52,6 +59,7 @@ extern "C"
     DECL_AUDIO_API void DestroyEngine(DeclAudioEngine *engine);
     DECL_AUDIO_API bool LoadBehaviors(DeclAudioEngine *engine, const char *source_path);
     DECL_AUDIO_API void Update(DeclAudioEngine *engine);
+    DECL_AUDIO_API bool TryDequeueLog(DeclAudioEngine *engine, DeclAudioLogMessage *out_message);
 
     DECL_AUDIO_API void SetTag(DeclAudioEngine *engine, const char *entity_id, const char *tag);
     DECL_AUDIO_API void RemoveTag(DeclAudioEngine *engine, const char *entity_id, const char *tag);

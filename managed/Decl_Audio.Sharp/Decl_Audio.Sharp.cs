@@ -1,10 +1,11 @@
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace DeclAudio;
 
 public enum DeclAudioBackend : uint
 {
-    Silent          = 0,
+    Silent = 0,
     PlatformDefault = 1,
 }
 
@@ -46,6 +47,9 @@ public sealed class AudioEngine : IDisposable
 
     public void Update()
         => NativeMethods.Update(_handle);
+
+    public string? TryDequeueLog()
+        => NativeMethods.TryDequeueLog(_handle);
 
     public void SetTag(string entityId, string tag)
         => NativeMethods.SetTag(_handle, entityId, tag);
@@ -96,6 +100,8 @@ public sealed class AudioEngine : IDisposable
 internal static partial class NativeMethods
 {
     private const string Dll = "Decl_Audio";
+    private const int DeclAudioLogMessageMaxLength = 512;
+    private const int DeclAudioLogMessageStructSize = sizeof(uint) + DeclAudioLogMessageMaxLength;
 
     [LibraryImport(Dll)]
     internal static partial uint GetApiVersion();
@@ -118,6 +124,34 @@ internal static partial class NativeMethods
 
     [LibraryImport(Dll)]
     internal static partial void Update(IntPtr engine);
+
+    [LibraryImport(Dll, EntryPoint = "TryDequeueLog")]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private static partial bool TryDequeueLogNative(IntPtr engine, IntPtr outMessage);
+
+    internal static string? TryDequeueLog(IntPtr engine)
+    {
+        IntPtr nativeMessage = Marshal.AllocHGlobal(DeclAudioLogMessageStructSize);
+        try
+        {
+            if (!TryDequeueLogNative(engine, nativeMessage))
+                return null;
+
+            int utf8Length = Marshal.ReadInt32(nativeMessage, 0);
+            if (utf8Length < 0 || utf8Length >= DeclAudioLogMessageMaxLength)
+                throw new InvalidOperationException($"Native TryDequeueLog returned an invalid message length: {utf8Length}.");
+
+            byte[] utf8Bytes = new byte[utf8Length];
+            if (utf8Length > 0)
+                Marshal.Copy(IntPtr.Add(nativeMessage, sizeof(uint)), utf8Bytes, 0, utf8Length);
+
+            return Encoding.UTF8.GetString(utf8Bytes);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(nativeMessage);
+        }
+    }
 
     [LibraryImport(Dll, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial void SetTag(IntPtr engine, string entityId, string tag);

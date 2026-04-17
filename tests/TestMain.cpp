@@ -6,6 +6,7 @@ bool RunAssetBankTests();
 bool RunPlaybackTests();
 bool RunRingBufferTests();
 bool RunWorldStateTests();
+bool RunHostLogTests();
 int RunAudioCapacityOverflowDeathTestChild(const char *started_flag_path);
 
 namespace
@@ -40,6 +41,9 @@ int main(int argc, char **argv)
         return 1;
 
     if (!RunWorldStateTests())
+        return 1;
+
+    if (!RunHostLogTests())
         return 1;
 
     std::cout << "All tests passed\n";

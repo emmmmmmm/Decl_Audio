@@ -30,6 +30,16 @@ public:
         tail.store((t + 1) % capacity_, std::memory_order_release);
         return true;
     }
+    bool push(T &&item)
+    {
+        auto t = tail.load(std::memory_order_relaxed);
+        auto h = head.load(std::memory_order_acquire);
+        if ((t + 1) % capacity_ == h)
+            return false; // full
+        buffer_[t] = std::move(item);
+        tail.store((t + 1) % capacity_, std::memory_order_release);
+        return true;
+    }
     bool pop(T &out)
     {
         auto h = head.load(std::memory_order_relaxed);

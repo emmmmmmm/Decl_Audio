@@ -9,6 +9,7 @@
 #include "../assets/AssetBank.hpp"
 #include "../backends/AudioDeviceBackend.hpp"
 #include "../compiler/CompiledBank.hpp"
+#include "../core/RingBuffer.hpp"
 #include "../playback/AudioRuntime.hpp"
 #include "../runtime/BehaviorResolver.hpp"
 #include "../runtime/ControlRuntime.hpp"
@@ -30,6 +31,7 @@ namespace decl_audio
         bool LoadBehaviors(const char *source_path) noexcept;
         void Update() noexcept;
         void RenderAudioForTesting(float *output, std::uint32_t frames) noexcept;
+        [[nodiscard]] bool TryDequeueLog(std::string &message) noexcept;
         void SetTag(const char *entity_id, const char *tag) noexcept;
         void SetTransientTag(const char *entity_id, const char *tag) noexcept;
         void RemoveTag(const char *entity_id, const char *tag) noexcept;
@@ -93,11 +95,14 @@ namespace decl_audio
         [[nodiscard]] bool
         StartConfiguredAudioBackend(const char *source_path) noexcept;
         void StopConfiguredAudioBackend() noexcept;
+        void PushLog(std::string message);
+        void PushDiagnostics(std::span<const decl_audio::Diagnostic> diagnostics);
 
         std::unique_ptr<compiler::CompiledBank> compiled_bank_;
         std::unique_ptr<assets::AssetBank> asset_bank_;
         std::unique_ptr<backends::AudioDeviceBackend> audio_backend_;
         std::vector<decl_audio::Diagnostic> load_diagnostics_;
+        RingBuffer<std::string> host_log_queue_;
         runtime::ControlRuntime control_runtime_;
         runtime::BehaviorResolver behavior_resolver_;
         playback::AudioRuntime audio_runtime_;

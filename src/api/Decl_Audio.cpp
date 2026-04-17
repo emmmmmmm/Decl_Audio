@@ -2,7 +2,10 @@
 
 #include "../core/Engine.hpp"
 
+#include <algorithm>
+#include <cstring>
 #include <new>
+#include <string>
 
 struct DeclAudioEngine
 {
@@ -23,6 +26,16 @@ namespace decl_audio
     inline constexpr std::uint32_t kDefaultMaxBlockFrames = kDefaultCallbackFrameCount * 4;
     inline constexpr std::uint32_t kDefaultCommandQueueCapacity = 1024;
     inline constexpr std::uint32_t kDefaultHostQueueCapacity = 1024;
+
+    void CopyLogMessage(const std::string &source, DeclAudioLogMessage &destination) noexcept
+    {
+        const std::size_t max_message_chars = DECL_AUDIO_LOG_MESSAGE_MAX_LENGTH - 1u;
+        const std::size_t copied_length = std::min(source.size(), max_message_chars);
+
+        destination.length = static_cast<std::uint32_t>(copied_length);
+        std::memcpy(destination.message, source.data(), copied_length);
+        destination.message[copied_length] = '\0';
+    }
 }
 extern "C"
 {
@@ -95,6 +108,19 @@ extern "C"
     void Update(DeclAudioEngine *engine)
     {
         engine->engine.Update();
+    }
+
+    bool TryDequeueLog(DeclAudioEngine *engine, DeclAudioLogMessage *out_message)
+    {
+        if (engine == nullptr || out_message == nullptr)
+            return false;
+
+        std::string message;
+        if (!engine->engine.TryDequeueLog(message))
+            return false;
+
+        decl_audio::CopyLogMessage(message, *out_message);
+        return true;
     }
 
     void SetTag(DeclAudioEngine *engine, const char *entity_id, const char *tag)

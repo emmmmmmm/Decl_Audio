@@ -155,6 +155,7 @@
     <ClCompile Include="..\src\playback\AudioRuntime.cpp" />
     <ClCompile Include="..\tests\AssetBankTests.cpp" />
     <ClCompile Include="..\tests\PlaybackTests.cpp" />
+    <ClCompile Include="..\tests\HostLogTests.cpp" />
     <ClCompile Include="..\src\runtime\ControlRuntime.cpp" />
     <ClCompile Include="..\tests\CompilerTests.cpp" />
     <ClCompile Include="..\tests\RingBufferTests.cpp" />
