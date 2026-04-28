@@ -143,7 +143,9 @@ namespace decl_audio::compiler
                        << " loopCount=" << node.loop_count
                        << " assets=";
                 for (AssetId asset_id : bank.GetNodeAssets(node))
-                    stream << ' ' << asset_id << '[' << bank.GetAssetPath(asset_id) << ']';
+                    stream << ' ' << asset_id << '['
+                           << (bank.asset_paths.empty() ? "<packed>" : bank.GetAssetPath(asset_id))
+                           << ']';
                 stream << '\n';
             }
         }

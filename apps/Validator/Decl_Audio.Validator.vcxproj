@@ -145,6 +145,7 @@
     <ClCompile Include="..\..\src\third_party\MiniaudioImplementation.cpp" />
     <ClCompile Include="..\..\src\assets\AssetBank.cpp" />
     <ClCompile Include="..\..\apps\Validator\ValidatorMain.cpp" />
+    <ClCompile Include="..\..\src\core\BankSerializer.cpp" />
     <ClCompile Include="..\..\src\compiler\AuthoringParser.cpp" />
     <ClCompile Include="..\..\src\compiler\Compiler.cpp" />
     <ClCompile Include="..\..\src\compiler\CompilerIO.cpp" />

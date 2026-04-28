@@ -7,6 +7,7 @@ bool RunPlaybackTests();
 bool RunRingBufferTests();
 bool RunWorldStateTests();
 bool RunHostLogTests();
+bool RunBankSerializerTests();
 int RunAudioCapacityOverflowDeathTestChild(const char *started_flag_path);
 
 namespace
@@ -44,6 +45,9 @@ int main(int argc, char **argv)
         return 1;
 
     if (!RunHostLogTests())
+        return 1;
+
+    if (!RunBankSerializerTests())
         return 1;
 
     std::cout << "All tests passed\n";

@@ -29,6 +29,7 @@ namespace decl_audio
         Engine &operator=(Engine &&) = delete;
 
         bool LoadBehaviors(const char *source_path) noexcept;
+        bool LoadBank(const char *bank_path) noexcept;
         void Update() noexcept;
         void RenderAudioForTesting(float *output, std::uint32_t frames) noexcept;
         [[nodiscard]] bool TryDequeueLog(std::string &message) noexcept;
@@ -95,6 +96,10 @@ namespace decl_audio
         [[nodiscard]] bool
         StartConfiguredAudioBackend(const char *source_path) noexcept;
         void StopConfiguredAudioBackend() noexcept;
+        [[nodiscard]] bool
+        WireLoadedBanks(std::unique_ptr<compiler::CompiledBank> compiled_bank,
+                        std::unique_ptr<assets::AssetBank> asset_bank,
+                        const char *source_path) noexcept;
         void PushLog(std::string message);
         void PushDiagnostics(std::span<const decl_audio::Diagnostic> diagnostics);
 

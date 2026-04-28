@@ -105,6 +105,14 @@ extern "C"
         return engine->engine.LoadBehaviors(source_path);
     }
 
+    bool LoadBank(DeclAudioEngine *engine, const char *bank_path)
+    {
+        if (engine == nullptr)
+            return false;
+
+        return engine->engine.LoadBank(bank_path);
+    }
+
     void Update(DeclAudioEngine *engine)
     {
         engine->engine.Update();

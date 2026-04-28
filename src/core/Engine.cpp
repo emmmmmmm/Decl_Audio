@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "Engine.hpp"
+#include "BankSerializer.hpp"
 #include "../assets/AssetBank.hpp"
 #include "../compiler/Compiler.hpp"
 #include "../runtime/HostCommands.hpp"
@@ -57,9 +58,35 @@ namespace decl_audio
             return false;
         }
 
-        std::unique_ptr<compiler::CompiledBank> compiled_bank = std::make_unique<compiler::CompiledBank>(std::move(compile_result.bank));
-        std::unique_ptr<assets::AssetBank> asset_bank = std::make_unique<assets::AssetBank>(std::move(asset_result.bank));
+        auto compiled_bank = std::make_unique<compiler::CompiledBank>(std::move(compile_result.bank));
+        auto asset_bank = std::make_unique<assets::AssetBank>(std::move(asset_result.bank));
+        return WireLoadedBanks(std::move(compiled_bank), std::move(asset_bank), source_path);
+    }
 
+    bool Engine::LoadBank(const char *bank_path) noexcept
+    {
+        load_diagnostics_.clear();
+
+        if (bank_path == nullptr || bank_path[0] == '\0')
+            return false;
+
+        serialization::LoadBankResult result = serialization::LoadBankFromFile(bank_path);
+        load_diagnostics_ = result.diagnostics;
+        PushDiagnostics(result.diagnostics);
+
+        if (result.HasErrors())
+            return false;
+
+        auto compiled_bank = std::make_unique<compiler::CompiledBank>(std::move(result.compiled_bank));
+        auto asset_bank = std::make_unique<assets::AssetBank>(std::move(result.asset_bank));
+        return WireLoadedBanks(std::move(compiled_bank), std::move(asset_bank), bank_path);
+    }
+
+    bool Engine::WireLoadedBanks(
+        std::unique_ptr<compiler::CompiledBank> compiled_bank,
+        std::unique_ptr<assets::AssetBank> asset_bank,
+        const char *source_path) noexcept
+    {
         StopConfiguredAudioBackend();
         compiled_bank_ = std::move(compiled_bank);
         asset_bank_ = std::move(asset_bank);

@@ -58,6 +58,7 @@ extern "C"
     DECL_AUDIO_API bool CreateEngine(const EngineConfig *config, DeclAudioEngine **out_engine);
     DECL_AUDIO_API void DestroyEngine(DeclAudioEngine *engine);
     DECL_AUDIO_API bool LoadBehaviors(DeclAudioEngine *engine, const char *source_path);
+    DECL_AUDIO_API bool LoadBank(DeclAudioEngine *engine, const char *bank_path);
     DECL_AUDIO_API void Update(DeclAudioEngine *engine);
     DECL_AUDIO_API bool TryDequeueLog(DeclAudioEngine *engine, DeclAudioLogMessage *out_message);
 
