@@ -6,7 +6,7 @@
 #include "../../src/compiler/Compiler.hpp"
 #include "../../src/core/BankSerializer.hpp"
 
-static int RunValidate(const char *json_path)
+static int RunValidateJson(const char *json_path)
 {
     const decl_audio::compiler::CompileResult result =
         decl_audio::compiler::LoadCompiledBankFromJsonFile(json_path);
@@ -87,7 +87,7 @@ int main(int argc, char **argv)
             std::cerr << "Usage: Decl_Audio.Validator validate <behavior-bank.json>\n";
             return 1;
         }
-        return RunValidate(argv[2]);
+        return RunValidateJson(argv[2]);
     }
 
     if (subcommand == "build")

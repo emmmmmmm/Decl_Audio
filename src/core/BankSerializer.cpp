@@ -258,15 +258,20 @@ namespace decl_audio::serialization
     {
         LoadBankResult result;
 
-        std::ifstream f(bank_path, std::ios::binary);
+        std::ifstream f(bank_path, std::ios::binary | std::ios::ate);
         if (!f.is_open())
         {
             result.diagnostics.push_back(MakeError(bank_path, "failed to open bank file"));
             return result;
         }
-        std::vector<std::uint8_t> data(
-            (std::istreambuf_iterator<char>(f)),
-            std::istreambuf_iterator<char>());
+        const auto file_size = static_cast<std::size_t>(f.tellg());
+        f.seekg(0, std::ios::beg);
+        std::vector<std::uint8_t> data(file_size);
+        if (file_size > 0 && !f.read(reinterpret_cast<char *>(data.data()), static_cast<std::streamsize>(file_size)))
+        {
+            result.diagnostics.push_back(MakeError(bank_path, "failed to read bank file"));
+            return result;
+        }
         f.close();
 
         BinaryReader r(std::move(data));

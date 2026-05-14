@@ -34,6 +34,7 @@ namespace
         std::cout
             << "Commands:\n"
             << "  help\n"
+            << "  load <path>\n"
             << "  tag <entity> <tag>\n"
             << "  clear <entity> <tag>\n"
             << "  global <tag>\n"
@@ -405,6 +406,19 @@ namespace
             if (input >> tag)
             {
                 engine.SetGlobalTag(tag.c_str());
+                return true;
+            }
+        }
+        else if (command == "load")
+        {
+            std::string path;
+            if (input >> path)
+            {
+                if (!engine.LoadBank(path.c_str()))
+                {
+                    std::cout << "could not load bank" << std::endl;
+                    return false;
+                }
                 return true;
             }
         }
