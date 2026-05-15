@@ -44,6 +44,7 @@ namespace
             << "  pos <entity> <x> <y> <z>\n"
             << "  listener <x> <y> <z>\n"
             << "  destroy <entity>\n"
+            << "  volume <value>\n"
             << "  dump\n"
             << "  exit\n";
     }
@@ -491,6 +492,15 @@ namespace
             if (input >> entity)
             {
                 engine.DestroyEntity(entity.c_str());
+                return true;
+            }
+        }
+        else if (command == "volume")
+        {
+            float value;
+            if (input >> value)
+            {
+                engine.SetMasterGain(value);
                 return true;
             }
         }

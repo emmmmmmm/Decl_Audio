@@ -109,6 +109,12 @@ namespace decl_audio
                 listener_position});
         }
 
+        float master_gain;
+        if (control_runtime_.MasterGainChanged(master_gain))
+        {
+            audio_runtime_.Submit(playback::SetMasterGainCommand{master_gain});
+        }
+
         behavior_resolver_.Resolve(
             control_runtime_.GetWorldState(),
             *compiled_bank_,
@@ -196,6 +202,11 @@ namespace decl_audio
     {
         control_runtime_.Submit(runtime::SetListenerPositionCommand{
             Vec3{x, y, z}});
+    }
+
+    void Engine::SetMasterGain(const float gain) noexcept
+    {
+        control_runtime_.Submit(runtime::SetMasterGainCommand{gain});
     }
 
     void Engine::DestroyEntity(const char *entity_id) noexcept

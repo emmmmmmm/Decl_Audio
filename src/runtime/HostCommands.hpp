@@ -68,6 +68,11 @@ namespace decl_audio::runtime
         float value = 0.0f;
     };
 
+    struct SetMasterGainCommand final
+    {
+        float gain = 1.0f;
+    };
+
     using HostCommand = std::variant<
         SetTagCommand,
         SetTransientTagCommand,
@@ -79,5 +84,6 @@ namespace decl_audio::runtime
         DestroyEntityCommand,
         SetGlobalTagCommand,
         RemoveGlobalTagCommand,
-        SetGlobalFloatValueCommand>;
+        SetGlobalFloatValueCommand,
+        SetMasterGainCommand>;
 } // namespace decl_audio::runtime

@@ -42,6 +42,7 @@ namespace decl_audio
         void SetGlobalValue(const char *param, float value) noexcept;
         void SetPosition(const char *entity_id, float x, float y, float z) noexcept;
         void SetListenerPosition(float x, float y, float z) noexcept;
+        void SetMasterGain(float gain) noexcept;
         void DestroyEntity(const char *entity_id) noexcept;
 
         [[nodiscard]] uint32_t GetApiVersion() const noexcept

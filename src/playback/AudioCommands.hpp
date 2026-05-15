@@ -47,11 +47,17 @@ namespace decl_audio::playback
         Vec3 position{};
     };
 
+    struct SetMasterGainCommand final
+    {
+        float gain = 1.0f;
+    };
+
     using AudioCommand = std::variant<
         CreateInstanceCommand,
         SetVolumeCommand,
         SetPositionCommand,
         SetParameterCommand,
         RequestStopCommand,
-        SetListenerPositionCommand>;
+        SetListenerPositionCommand,
+        SetMasterGainCommand>;
 } // namespace decl_audio::playback

@@ -229,6 +229,15 @@ namespace decl_audio::playback
 
             ++instance_index;
         }
+
+        if (master_gain_ != 1.0f)
+        {
+            const std::size_t sample_count = static_cast<std::size_t>(frames) * out_channel_count_;
+            for (std::size_t i = 0; i < sample_count; ++i)
+            {
+                output[i] *= master_gain_;
+            }
+        }
     }
 
     bool AudioRuntime::TryGetInstanceSnapshot(const InstanceId instance_id, InstanceSnapshot &snapshot) const noexcept
@@ -475,6 +484,11 @@ namespace decl_audio::playback
     void AudioRuntime::Apply(const SetListenerPositionCommand &command) noexcept
     {
         listener_.position = command.position;
+    }
+
+    void AudioRuntime::Apply(const SetMasterGainCommand &command) noexcept
+    {
+        master_gain_ = command.gain;
     }
 
     bool AudioRuntime::RenderProgramInstance(ProgramInstance &instance, float *output, const std::uint32_t frames) noexcept

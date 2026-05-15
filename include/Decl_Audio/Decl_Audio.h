@@ -75,6 +75,8 @@ extern "C"
     DECL_AUDIO_API void RemoveGlobalTag(DeclAudioEngine *engine, const char *tag);
     DECL_AUDIO_API void SetGlobalValue(DeclAudioEngine *engine, const char *parameter, float value);
 
+    DECL_AUDIO_API void SetMasterGain(DeclAudioEngine *engine, float gain);
+
     // Future typed setters.
 
     DECL_AUDIO_API void SetQuatValue(DeclAudioEngine *engine, const char *entityId, const char *key, float a, float b, float c, float d);

@@ -177,4 +177,9 @@ extern "C"
     {
         engine->engine.SetGlobalValue(parameter, value);
     }
+
+    void SetMasterGain(DeclAudioEngine *engine, const float gain)
+    {
+        engine->engine.SetMasterGain(gain);
+    }
 }

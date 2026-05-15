@@ -1,5 +1,8 @@
+using System;
 using System.Runtime.InteropServices;
 using System.Text;
+
+#nullable enable
 
 namespace DeclAudio;
 
@@ -46,9 +49,8 @@ public sealed class AudioEngine : IDisposable
         => NativeMethods.LoadBehaviors(_handle, sourcePath);
 
     public bool LoadBank(string sourcePath)
-    {
-        ->NativeMethods.LoadBank(_handle, sourcePath);
-    }
+        => NativeMethods.LoadBank(_handle, sourcePath);
+
     public void Update()
         => NativeMethods.Update(_handle);
 
@@ -87,6 +89,9 @@ public sealed class AudioEngine : IDisposable
 
     public void SetGlobalValue(string parameter, float value)
         => NativeMethods.SetGlobalValue(_handle, parameter, value);
+
+    public void SetMasterGain(float gain)
+        => NativeMethods.SetMasterGain(_handle, gain);
 
     public void DestroyEntity(string entityId)
         => NativeMethods.DestroyEntity(_handle, entityId);
@@ -196,4 +201,7 @@ internal static partial class NativeMethods
 
     [LibraryImport(Dll, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial void DestroyEntity(IntPtr engine, string entityId);
+
+    [LibraryImport(Dll)]
+    internal static partial void SetMasterGain(IntPtr engine, float gain);
 }

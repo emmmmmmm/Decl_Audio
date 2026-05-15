@@ -44,6 +44,18 @@ namespace decl_audio::runtime
             return true;
         }
 
+        [[nodiscard]] bool MasterGainChanged(float &gain) noexcept
+        {
+            if (!master_gain_dirty_)
+            {
+                return false;
+            }
+
+            gain = master_gain_;
+            master_gain_dirty_ = false;
+            return true;
+        }
+
     private:
         void Apply(const SetTagCommand &command) noexcept;
         void Apply(const SetTransientTagCommand &command) noexcept;
@@ -56,12 +68,15 @@ namespace decl_audio::runtime
         void Apply(const SetEntityPositionCommand &command) noexcept;
         void Apply(const SetListenerPositionCommand &command) noexcept;
         void Apply(const DestroyEntityCommand &command) noexcept;
+        void Apply(const SetMasterGainCommand &command) noexcept;
 
         const compiler::CompiledBank *compiled_bank_ = nullptr;
         RingBuffer<HostCommand> host_to_control_;
         WorldState world_state_;
         Vec3 listener_position_{};
         bool listener_position_dirty_ = false;
+        float master_gain_ = 1.0f;
+        bool master_gain_dirty_ = false;
 
         std::vector<std::tuple<std::string, decl_audio::compiler::TagId>> transientTags_{};
     };

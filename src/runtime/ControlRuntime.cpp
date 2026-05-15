@@ -129,4 +129,10 @@ namespace decl_audio::runtime
     {
         world_state_.entities.erase(command.entity_id);
     }
+
+    void ControlRuntime::Apply(const SetMasterGainCommand &command) noexcept
+    {
+        master_gain_ = command.gain;
+        master_gain_dirty_ = true;
+    }
 } // namespace decl_audio::runtime

@@ -138,6 +138,7 @@ namespace decl_audio::playback
         void Apply(const SetParameterCommand &command) noexcept;
         void Apply(const RequestStopCommand &command) noexcept;
         void Apply(const SetListenerPositionCommand &command) noexcept;
+        void Apply(const SetMasterGainCommand &command) noexcept;
 
         [[nodiscard]] bool RenderProgramInstance(ProgramInstance &instance, float *output, std::uint32_t frames) noexcept;
         [[nodiscard]] std::uint32_t ComputeSegmentFrames(const ProgramInstance &instance, std::uint32_t frames_remaining) const noexcept;
@@ -166,6 +167,7 @@ namespace decl_audio::playback
         const compiler::CompiledBank *compiled_bank_ = nullptr;
         const assets::AssetBank *asset_bank_ = nullptr;
         ListenerState listener_{};
+        float master_gain_ = 1.0f;
         std::uint64_t root_seed_ = 0;
         std::size_t max_instances_ = 0;
         std::uint32_t max_block_frames_ = 0;
