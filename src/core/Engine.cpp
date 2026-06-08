@@ -14,7 +14,7 @@ namespace decl_audio
 
     Engine::Engine(const EngineConfig &config) noexcept
         : host_log_queue_(static_cast<std::size_t>(config.host_queue_capacity)),
-          control_runtime_(static_cast<std::size_t>(config.host_queue_capacity)),
+          control_runtime_(vocabulary_, static_cast<std::size_t>(config.host_queue_capacity)),
           audio_runtime_(0xC0FFEEULL,
                          static_cast<std::size_t>(config.max_instances),
                          config.max_block_frames,
@@ -91,7 +91,7 @@ namespace decl_audio
         compiled_bank_ = std::move(compiled_bank);
         asset_bank_ = std::move(asset_bank);
         behavior_resolver_.Reset();
-        control_runtime_.SetBank(compiled_bank_.get());
+        vocabulary_.AdoptBank(*compiled_bank_);
         audio_runtime_.SetBanks(compiled_bank_.get(), asset_bank_.get());
 
         PushLog("Behavior loading: done.");
@@ -118,6 +118,7 @@ namespace decl_audio
         behavior_resolver_.Resolve(
             control_runtime_.GetWorldState(),
             *compiled_bank_,
+            BankId{0u, 0u}, // single-bank: the one loaded bank lives in slot 0
             [this](const playback::AudioCommand &command)
             {
                 audio_runtime_.Submit(command);
@@ -141,21 +142,21 @@ namespace decl_audio
     {
         control_runtime_.Submit(runtime::SetTagCommand{
             std::string(entity_id),
-            compiled_bank_->GetTagId(tag)});
+            std::string(tag)});
     }
 
     void Engine::RemoveTag(const char *entity_id, const char *tag) noexcept
     {
         control_runtime_.Submit(runtime::RemoveTagCommand{
             std::string(entity_id),
-            compiled_bank_->GetTagId(tag)});
+            std::string(tag)});
     }
 
     void Engine::SetTransientTag(const char *entity_id, const char *tag) noexcept
     {
         control_runtime_.Submit(runtime::SetTransientTagCommand{
             std::string(entity_id),
-            compiled_bank_->GetTagId(tag)}); // transient
+            std::string(tag)}); // transient
     }
 
     void Engine::SetValue(const char *entity_id, const char *parameter, float value) noexcept
@@ -170,24 +171,24 @@ namespace decl_audio
 
         control_runtime_.Submit(runtime::SetFloatValueCommand{
             std::string(entity_id),
-            compiled_bank_->GetParameterId(parameter),
+            std::string(parameter),
             value});
     }
 
     void Engine::SetGlobalTag(const char *tag) noexcept
     {
         control_runtime_.Submit(runtime::SetGlobalTagCommand{
-            compiled_bank_->GetTagId(tag)});
+            std::string(tag)});
     }
     void Engine::RemoveGlobalTag(const char *tag) noexcept
     {
         control_runtime_.Submit(runtime::RemoveGlobalTagCommand{
-            compiled_bank_->GetTagId(tag)});
+            std::string(tag)});
     }
     void Engine::SetGlobalValue(const char *param, float value) noexcept
     {
         control_runtime_.Submit(runtime::SetGlobalFloatValueCommand{
-            compiled_bank_->GetParameterId(param),
+            std::string(param),
             value});
     }
 

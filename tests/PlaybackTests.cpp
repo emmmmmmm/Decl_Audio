@@ -102,7 +102,8 @@ namespace
     {
         decl_audio::compiler::CompiledBank compiled_bank;
         decl_audio::assets::AssetBank asset_bank;
-        decl_audio::runtime::ControlRuntime control_runtime;
+        decl_audio::runtime::VocabularyRegistry vocabulary;
+        decl_audio::runtime::ControlRuntime control_runtime{vocabulary};
         decl_audio::runtime::BehaviorResolver behavior_resolver;
         decl_audio::playback::AudioRuntime audio_runtime;
         decl_audio::backends::StubBackend stub_backend;
@@ -122,7 +123,7 @@ namespace
             compiled_bank = compile_result.bank;
             asset_bank = asset_result.bank;
             behavior_resolver.Reset();
-            control_runtime.SetBank(&compiled_bank);
+            vocabulary.AdoptBank(compiled_bank);
             audio_runtime.SetBanks(&compiled_bank, &asset_bank);
             return true;
         }
@@ -136,14 +137,14 @@ namespace
         {
             control_runtime.Submit(decl_audio::runtime::SetTagCommand{
                 std::string(entity_id),
-                compiled_bank.GetTagId(tag)});
+                std::string(tag)});
         }
 
         void RemoveTag(const char *entity_id, const char *tag)
         {
             control_runtime.Submit(decl_audio::runtime::RemoveTagCommand{
                 std::string(entity_id),
-                compiled_bank.GetTagId(tag)});
+                std::string(tag)});
         }
 
         void SetValue(const char *entity_id, const char *parameter, const float value)
@@ -158,7 +159,7 @@ namespace
 
             control_runtime.Submit(decl_audio::runtime::SetFloatValueCommand{
                 std::string(entity_id),
-                compiled_bank.GetParameterId(parameter),
+                std::string(parameter),
                 value});
         }
 
@@ -195,6 +196,7 @@ namespace
             behavior_resolver.Resolve(
                 control_runtime.GetWorldState(),
                 compiled_bank,
+                decl_audio::BankId{0u, 0u},
                 [this](const decl_audio::playback::AudioCommand &command)
                 {
                     audio_runtime.Submit(command);

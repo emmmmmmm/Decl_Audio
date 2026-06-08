@@ -93,6 +93,8 @@ namespace decl_audio::playback
         Clear();
         compiled_bank_ = compiled_bank;
         asset_bank_ = asset_bank;
+        slot_compiled_[0] = compiled_bank;
+        slot_assets_[0] = asset_bank;
         ResizeStorageForBank();
     }
 
@@ -282,7 +284,7 @@ namespace decl_audio::playback
             for (std::uint32_t node_offset = 0; node_offset < instance.compiled->node_count; ++node_offset)
             {
                 const compiler::NodeId node_id = instance.compiled->first_node + node_offset;
-                const compiler::CompiledNode &node = GetCompiledNode(node_id);
+                const compiler::CompiledNode &node = GetCompiledNode(instance, node_id);
                 const NodeRuntimeState &state = instance.node_state[node_offset];
                 instance_snapshot.nodes.push_back(NodeDebugSnapshot{
                     node_id,
@@ -302,7 +304,7 @@ namespace decl_audio::playback
 
                 instance_snapshot.voices.push_back(VoiceDebugSnapshot{
                     voice.leaf_node,
-                    GetCompiledNode(voice.leaf_node).type,
+                    GetCompiledNode(instance, voice.leaf_node).type,
                     voice.sample_position,
                     voice.remaining_loops,
                     voice.picked_asset_slot});
@@ -330,7 +332,14 @@ namespace decl_audio::playback
 
     void AudioRuntime::Apply(const CreateInstanceCommand &command) noexcept
     {
-        if (compiled_bank_ == nullptr || asset_bank_ == nullptr)
+        if (command.bank_id.slot >= kMaxBanks)
+        {
+            std::terminate();
+        }
+
+        const compiler::CompiledBank *bank = slot_compiled_[command.bank_id.slot];
+        const assets::AssetBank *assets = slot_assets_[command.bank_id.slot];
+        if (bank == nullptr || assets == nullptr)
         {
             std::terminate();
         }
@@ -345,7 +354,7 @@ namespace decl_audio::playback
             std::terminate();
         }
 
-        const compiler::CompiledProgram &compiled_program = compiled_bank_->GetProgram(command.program_id);
+        const compiler::CompiledProgram &compiled_program = bank->GetProgram(command.program_id);
         const std::size_t slice_index = free_slices_.back();
         free_slices_.pop_back();
 
@@ -357,7 +366,7 @@ namespace decl_audio::playback
             }
 
             return std::span<NodeRuntimeState>(
-                node_state_storage_.data() + (slice_index * static_cast<std::size_t>(compiled_bank_->max_program_node_count)),
+                node_state_storage_.data() + (slice_index * static_cast<std::size_t>(bank->max_program_node_count)),
                 count);
         };
 
@@ -369,7 +378,7 @@ namespace decl_audio::playback
             }
 
             return std::span<VoiceState>(
-                voice_storage_.data() + (slice_index * static_cast<std::size_t>(compiled_bank_->max_program_concurrent_voices)),
+                voice_storage_.data() + (slice_index * static_cast<std::size_t>(bank->max_program_concurrent_voices)),
                 count);
         };
 
@@ -381,12 +390,14 @@ namespace decl_audio::playback
             }
 
             return std::span<float>(
-                parameter_storage_.data() + (slice_index * static_cast<std::size_t>(compiled_bank_->max_program_parameter_slot_count)),
+                parameter_storage_.data() + (slice_index * static_cast<std::size_t>(bank->max_program_parameter_slot_count)),
                 count);
         };
 
         ProgramInstance instance;
         instance.instance_id = command.instance_id;
+        instance.bank = bank;
+        instance.assets = assets;
         instance.compiled = &compiled_program;
         instance.slice_index = slice_index;
         instance.volume = command.volume;
@@ -473,7 +484,7 @@ namespace decl_audio::playback
                     continue;
                 }
 
-                if (GetCompiledNode(voice.leaf_node).type == compiler::NodeType::Loop)
+                if (GetCompiledNode(instance, voice.leaf_node).type == compiler::NodeType::Loop)
                 {
                     voice.remaining_loops = 0;
                 }
@@ -569,8 +580,8 @@ namespace decl_audio::playback
 
     void AudioRuntime::RenderVoice(ProgramInstance &instance, VoiceState &voice, float *output, const std::uint32_t frames) noexcept
     {
-        const compiler::CompiledNode &node = GetCompiledNode(voice.leaf_node);
-        const std::span<const compiler::AssetId> asset_ids = GetNodeAssets(voice.leaf_node);
+        const compiler::CompiledNode &node = GetCompiledNode(instance, voice.leaf_node);
+        const std::span<const compiler::AssetId> asset_ids = GetNodeAssets(instance, voice.leaf_node);
         const float gain = ComputeVoiceGain(instance, voice.leaf_node);
 
         auto add_frames = [&](const assets::DecodedBuffer &buffer,
@@ -607,16 +618,16 @@ namespace decl_audio::playback
         switch (node.type)
         {
         case compiler::NodeType::OneShot:
-            (void)add_frames(asset_bank_->GetBuffer(asset_ids[0]), voice.sample_position, output, frames);
+            (void)add_frames(instance.assets->GetBuffer(asset_ids[0]), voice.sample_position, output, frames);
             return;
 
         case compiler::NodeType::Random:
-            (void)add_frames(asset_bank_->GetBuffer(asset_ids[voice.picked_asset_slot]), voice.sample_position, output, frames);
+            (void)add_frames(instance.assets->GetBuffer(asset_ids[voice.picked_asset_slot]), voice.sample_position, output, frames);
             return;
 
         case compiler::NodeType::Loop:
         {
-            const assets::DecodedBuffer &buffer = asset_bank_->GetBuffer(asset_ids[0]);
+            const assets::DecodedBuffer &buffer = instance.assets->GetBuffer(asset_ids[0]);
             if (buffer.frame_count == 0)
             {
                 std::terminate();
@@ -666,8 +677,8 @@ namespace decl_audio::playback
 
     void AudioRuntime::ActivateVoice(ProgramInstance &instance, const compiler::NodeId leaf_node) noexcept
     {
-        const compiler::CompiledNode &node = GetCompiledNode(leaf_node);
-        const std::span<const compiler::AssetId> asset_ids = GetNodeAssets(leaf_node);
+        const compiler::CompiledNode &node = GetCompiledNode(instance, leaf_node);
+        const std::span<const compiler::AssetId> asset_ids = GetNodeAssets(instance, leaf_node);
 
         for (VoiceState &voice : instance.voices)
         {
@@ -721,7 +732,7 @@ namespace decl_audio::playback
             }
 
             ++instance.active_voice_count;
-            for (compiler::NodeId current_node = leaf_node; current_node != kInvalidNodeId; current_node = GetCompiledNode(current_node).parent)
+            for (compiler::NodeId current_node = leaf_node; current_node != kInvalidNodeId; current_node = GetCompiledNode(instance, current_node).parent)
             {
                 ++instance.node_state[current_node - instance.compiled->first_node].active_voice_count;
             }
@@ -744,7 +755,7 @@ namespace decl_audio::playback
         voice = VoiceState{};
 
         --instance.active_voice_count;
-        for (compiler::NodeId current_node = leaf_node; current_node != kInvalidNodeId; current_node = GetCompiledNode(current_node).parent)
+        for (compiler::NodeId current_node = leaf_node; current_node != kInvalidNodeId; current_node = GetCompiledNode(instance, current_node).parent)
         {
             --instance.node_state[current_node - instance.compiled->first_node].active_voice_count;
         }
@@ -764,8 +775,8 @@ namespace decl_audio::playback
         state.finished = false;
         state.chosen_child = -1;
 
-        const compiler::CompiledNode &node = GetCompiledNode(node_id);
-        const std::span<const compiler::NodeId> children = GetNodeChildren(node_id);
+        const compiler::CompiledNode &node = GetCompiledNode(instance, node_id);
+        const std::span<const compiler::NodeId> children = GetNodeChildren(instance, node_id);
         switch (node.type)
         {
         case compiler::NodeType::Sequence:
@@ -819,8 +830,8 @@ namespace decl_audio::playback
             return;
         }
 
-        const compiler::CompiledNode &node = GetCompiledNode(node_id);
-        const std::span<const compiler::NodeId> children = GetNodeChildren(node_id);
+        const compiler::CompiledNode &node = GetCompiledNode(instance, node_id);
+        const std::span<const compiler::NodeId> children = GetNodeChildren(instance, node_id);
         switch (node.type)
         {
         case compiler::NodeType::OneShot:
@@ -898,20 +909,20 @@ namespace decl_audio::playback
 
     std::uint64_t AudioRuntime::ComputeVoiceTerminalFrames(const ProgramInstance &instance, const VoiceState &voice) const noexcept
     {
-        const compiler::CompiledNode &node = GetCompiledNode(voice.leaf_node);
-        const std::span<const compiler::AssetId> asset_ids = GetNodeAssets(voice.leaf_node);
+        const compiler::CompiledNode &node = GetCompiledNode(instance, voice.leaf_node);
+        const std::span<const compiler::AssetId> asset_ids = GetNodeAssets(instance, voice.leaf_node);
 
         switch (node.type)
         {
         case compiler::NodeType::OneShot:
-            return asset_bank_->GetBuffer(asset_ids[0]).frame_count - voice.sample_position;
+            return instance.assets->GetBuffer(asset_ids[0]).frame_count - voice.sample_position;
 
         case compiler::NodeType::Random:
-            return asset_bank_->GetBuffer(asset_ids[voice.picked_asset_slot]).frame_count - voice.sample_position;
+            return instance.assets->GetBuffer(asset_ids[voice.picked_asset_slot]).frame_count - voice.sample_position;
 
         case compiler::NodeType::Loop:
         {
-            const assets::DecodedBuffer &buffer = asset_bank_->GetBuffer(asset_ids[0]);
+            const assets::DecodedBuffer &buffer = instance.assets->GetBuffer(asset_ids[0]);
             const std::uint64_t current_pass_remaining = buffer.frame_count - voice.sample_position;
             if (voice.remaining_loops < 0)
             {
@@ -937,7 +948,7 @@ namespace decl_audio::playback
         compiler::NodeId current_node = leaf_node;
         while (current_node != kInvalidNodeId)
         {
-            const compiler::CompiledNode &node = GetCompiledNode(current_node);
+            const compiler::CompiledNode &node = GetCompiledNode(instance, current_node);
             gain *= node.authored_gain;
 
             const compiler::NodeId parent_id = node.parent;
@@ -946,7 +957,7 @@ namespace decl_audio::playback
                 break;
             }
 
-            const compiler::CompiledNode &parent = GetCompiledNode(parent_id);
+            const compiler::CompiledNode &parent = GetCompiledNode(instance, parent_id);
             if (parent.type == compiler::NodeType::Blend)
             {
                 if (parent.parameter_slot == kInvalidParameterSlot)
@@ -954,7 +965,7 @@ namespace decl_audio::playback
                     std::terminate();
                 }
 
-                const std::span<const compiler::NodeId> children = GetNodeChildren(parent_id);
+                const std::span<const compiler::NodeId> children = GetNodeChildren(instance, parent_id);
                 if (children.size() != 2)
                 {
                     std::terminate();
@@ -981,24 +992,24 @@ namespace decl_audio::playback
         return gain;
     }
 
-    const compiler::CompiledNode &AudioRuntime::GetCompiledNode(const compiler::NodeId node_id) const noexcept
+    const compiler::CompiledNode &AudioRuntime::GetCompiledNode(const ProgramInstance &instance, const compiler::NodeId node_id) noexcept
     {
-        return compiled_bank_->nodes[node_id];
+        return instance.bank->nodes[node_id];
     }
 
-    std::span<const compiler::NodeId> AudioRuntime::GetNodeChildren(const compiler::NodeId node_id) const noexcept
+    std::span<const compiler::NodeId> AudioRuntime::GetNodeChildren(const ProgramInstance &instance, const compiler::NodeId node_id) noexcept
     {
-        return compiled_bank_->GetNodeChildren(GetCompiledNode(node_id));
+        return instance.bank->GetNodeChildren(GetCompiledNode(instance, node_id));
     }
 
-    std::span<const compiler::AssetId> AudioRuntime::GetNodeAssets(const compiler::NodeId node_id) const noexcept
+    std::span<const compiler::AssetId> AudioRuntime::GetNodeAssets(const ProgramInstance &instance, const compiler::NodeId node_id) noexcept
     {
-        return compiled_bank_->GetNodeAssets(GetCompiledNode(node_id));
+        return instance.bank->GetNodeAssets(GetCompiledNode(instance, node_id));
     }
 
     std::uint16_t AudioRuntime::FindProgramParameterSlot(const ProgramInstance &instance, const compiler::ParameterId parameter_id) const noexcept
     {
-        const std::span<const compiler::ParameterId> parameters = compiled_bank_->GetProgramParameters(instance.compiled->id);
+        const std::span<const compiler::ParameterId> parameters = instance.bank->GetProgramParameters(instance.compiled->id);
         for (std::uint16_t parameter_index = 0; parameter_index < parameters.size(); ++parameter_index)
         {
             if (parameters[parameter_index] == parameter_id)

@@ -33,6 +33,11 @@ namespace decl_audio::playback
     struct ProgramInstance final
     {
         InstanceId instance_id = 0;
+        // Bank the instance was minted from, resolved off the command's BankId at
+        // Apply time. Local derivations, exactly like `compiled` - they never cross
+        // a thread boundary; the command carried the id.
+        const compiler::CompiledBank *bank = nullptr;
+        const assets::AssetBank *assets = nullptr;
         const compiler::CompiledProgram *compiled = nullptr;
         float volume = 1.0f;
         Vec3 position{};
@@ -130,6 +135,10 @@ namespace decl_audio::playback
 
     private:
         static constexpr compiler::NodeId kInvalidNodeId = std::numeric_limits<compiler::NodeId>::max();
+        // One slot today; bumped when additive multi-bank loading lands (stage 4).
+        // A CreateInstanceCommand's BankId.slot indexes this table - the audio
+        // thread never holds "a bank", it learns one per instance via the command.
+        static constexpr std::size_t kMaxBanks = 1;
 
         void ApplyPendingCommands() noexcept;
         void Apply(const CreateInstanceCommand &command) noexcept;
@@ -149,9 +158,9 @@ namespace decl_audio::playback
         void TryFinishNode(ProgramInstance &instance, compiler::NodeId node_id) noexcept;
         [[nodiscard]] std::uint64_t ComputeVoiceTerminalFrames(const ProgramInstance &instance, const VoiceState &voice) const noexcept;
         [[nodiscard]] float ComputeVoiceGain(const ProgramInstance &instance, compiler::NodeId leaf_node) const noexcept;
-        [[nodiscard]] const compiler::CompiledNode &GetCompiledNode(compiler::NodeId node_id) const noexcept;
-        [[nodiscard]] std::span<const compiler::NodeId> GetNodeChildren(compiler::NodeId node_id) const noexcept;
-        [[nodiscard]] std::span<const compiler::AssetId> GetNodeAssets(compiler::NodeId node_id) const noexcept;
+        [[nodiscard]] static const compiler::CompiledNode &GetCompiledNode(const ProgramInstance &instance, compiler::NodeId node_id) noexcept;
+        [[nodiscard]] static std::span<const compiler::NodeId> GetNodeChildren(const ProgramInstance &instance, compiler::NodeId node_id) noexcept;
+        [[nodiscard]] static std::span<const compiler::AssetId> GetNodeAssets(const ProgramInstance &instance, compiler::NodeId node_id) noexcept;
         [[nodiscard]] std::uint16_t FindProgramParameterSlot(const ProgramInstance &instance, compiler::ParameterId parameter_id) const noexcept;
         [[nodiscard]] std::size_t FindInstanceIndex(InstanceId instance_id) const noexcept;
         [[nodiscard]] std::uint64_t DeriveNodeSeed(InstanceId instance_id, compiler::ProgramId program_id, compiler::NodeId node_id) const noexcept;
@@ -166,6 +175,11 @@ namespace decl_audio::playback
         std::vector<float> parameter_storage_;
         const compiler::CompiledBank *compiled_bank_ = nullptr;
         const assets::AssetBank *asset_bank_ = nullptr;
+        // Audio-thread bank table, indexed by BankId.slot. In single-bank mode slot
+        // 0 mirrors compiled_bank_/asset_bank_ (which still size per-instance
+        // storage). Stage 4 deletes the scalar members in favor of this table.
+        const compiler::CompiledBank *slot_compiled_[kMaxBanks] = {};
+        const assets::AssetBank *slot_assets_[kMaxBanks] = {};
         ListenerState listener_{};
         float master_gain_ = 1.0f;
         std::uint64_t root_seed_ = 0;

@@ -8,27 +8,30 @@
 
 namespace decl_audio::runtime
 {
+    // Tag/parameter commands carry the raw *name*; the control thread interns it
+    // against the VocabularyRegistry while draining (single-writer, section 4.4).
+    // entity_id was already a string here - this extends the same idiom.
     struct SetTagCommand final
     {
         std::string entity_id;
-        compiler::TagId tag_id = 0;
+        std::string tag_name;
     };
     struct SetTransientTagCommand final
     {
         std::string entity_id;
-        compiler::TagId tag_id = 0;
+        std::string tag_name;
     };
 
     struct RemoveTagCommand final
     {
         std::string entity_id;
-        compiler::TagId tag_id = 0;
+        std::string tag_name;
     };
 
     struct SetFloatValueCommand final
     {
         std::string entity_id;
-        compiler::ParameterId parameter_id = 0;
+        std::string parameter_name;
         float value = 0.0f;
     };
 
@@ -56,15 +59,15 @@ namespace decl_audio::runtime
 
     struct SetGlobalTagCommand final
     {
-        compiler::TagId tag_id = 0;
+        std::string tag_name;
     };
     struct RemoveGlobalTagCommand final
     {
-        compiler::TagId tag_id = 0;
+        std::string tag_name;
     };
     struct SetGlobalFloatValueCommand final
     {
-        compiler::ParameterId parameter_id = 0;
+        std::string parameter_name;
         float value = 0.0f;
     };
 

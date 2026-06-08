@@ -13,6 +13,7 @@
 #include "../playback/AudioRuntime.hpp"
 #include "../runtime/BehaviorResolver.hpp"
 #include "../runtime/ControlRuntime.hpp"
+#include "../runtime/VocabularyRegistry.hpp"
 #include "../runtime/WorldState.hpp"
 
 namespace decl_audio
@@ -109,6 +110,7 @@ namespace decl_audio
         std::unique_ptr<backends::AudioDeviceBackend> audio_backend_;
         std::vector<decl_audio::Diagnostic> load_diagnostics_;
         RingBuffer<std::string> host_log_queue_;
+        runtime::VocabularyRegistry vocabulary_;
         runtime::ControlRuntime control_runtime_;
         runtime::BehaviorResolver behavior_resolver_;
         playback::AudioRuntime audio_runtime_;

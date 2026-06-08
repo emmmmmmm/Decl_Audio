@@ -2,15 +2,14 @@
 
 #include "ControlRuntime.hpp"
 
-#include "../compiler/CompiledBank.hpp"
 #include <algorithm>
 #include <exception>
 #include <variant>
 
 namespace decl_audio::runtime
 {
-    ControlRuntime::ControlRuntime(const std::size_t host_queue_capacity)
-        : host_to_control_(host_queue_capacity)
+    ControlRuntime::ControlRuntime(VocabularyRegistry &vocabulary, const std::size_t host_queue_capacity)
+        : vocabulary_(vocabulary), host_to_control_(host_queue_capacity)
     {
     }
 
@@ -50,22 +49,21 @@ namespace decl_audio::runtime
 
     void ControlRuntime::Apply(const SetTagCommand &command) noexcept
     {
+        const compiler::TagId tag_id = vocabulary_.GetOrInternTag(command.tag_name);
         EntityState &entity = world_state_.GetOrCreateEntity(command.entity_id);
-        if (compiled_bank_ != nullptr)
+        const compiler::TagId group_head = vocabulary_.TagGroupHead(tag_id);
+        std::erase_if(entity.tags, [&](const compiler::TagId t)
         {
-            const compiler::TagId group_head = compiled_bank_->tag_group_head[command.tag_id];
-            std::erase_if(entity.tags, [&](const compiler::TagId t)
-            {
-                return compiled_bank_->tag_group_head[t] == group_head;
-            });
-        }
-        entity.tags.insert(command.tag_id);
+            return vocabulary_.TagGroupHead(t) == group_head;
+        });
+        entity.tags.insert(tag_id);
     }
 
     void ControlRuntime::Apply(const SetTransientTagCommand &command) noexcept
     {
-        world_state_.GetOrCreateEntity(command.entity_id).transient_tags.insert(command.tag_id);
-        transientTags_.push_back({command.entity_id, command.tag_id});
+        const compiler::TagId tag_id = vocabulary_.GetOrInternTag(command.tag_name);
+        world_state_.GetOrCreateEntity(command.entity_id).transient_tags.insert(tag_id);
+        transientTags_.push_back({command.entity_id, tag_id});
     }
 
     void ControlRuntime::Apply(const RemoveTagCommand &command) noexcept
@@ -76,33 +74,33 @@ namespace decl_audio::runtime
             return;
         }
 
-        entity_it->second.tags.erase(command.tag_id);
+        entity_it->second.tags.erase(vocabulary_.GetOrInternTag(command.tag_name));
     }
 
     void ControlRuntime::Apply(const SetFloatValueCommand &command) noexcept
     {
-        world_state_.GetOrCreateEntity(command.entity_id).float_values[command.parameter_id] = command.value;
+        const compiler::ParameterId parameter_id = vocabulary_.GetOrInternParam(command.parameter_name);
+        world_state_.GetOrCreateEntity(command.entity_id).float_values[parameter_id] = command.value;
     }
 
     void ControlRuntime::Apply(const SetGlobalTagCommand &command) noexcept
     {
-        if (compiled_bank_ != nullptr)
+        const compiler::TagId tag_id = vocabulary_.GetOrInternTag(command.tag_name);
+        const compiler::TagId group_head = vocabulary_.TagGroupHead(tag_id);
+        std::erase_if(world_state_.global_tags, [&](const compiler::TagId t)
         {
-            const compiler::TagId group_head = compiled_bank_->tag_group_head[command.tag_id];
-            std::erase_if(world_state_.global_tags, [&](const compiler::TagId t)
-            {
-                return compiled_bank_->tag_group_head[t] == group_head;
-            });
-        }
-        world_state_.global_tags.insert(command.tag_id);
+            return vocabulary_.TagGroupHead(t) == group_head;
+        });
+        world_state_.global_tags.insert(tag_id);
     }
     void ControlRuntime::Apply(const RemoveGlobalTagCommand &command) noexcept
     {
-        world_state_.global_tags.erase(command.tag_id);
+        world_state_.global_tags.erase(vocabulary_.GetOrInternTag(command.tag_name));
     }
     void ControlRuntime::Apply(const SetGlobalFloatValueCommand &command) noexcept
     {
-        world_state_.global_float_values[command.parameter_id] = command.value; // uuuuuh do we need to ... init those?
+        const compiler::ParameterId parameter_id = vocabulary_.GetOrInternParam(command.parameter_name);
+        world_state_.global_float_values[parameter_id] = command.value; // uuuuuh do we need to ... init those?
     }
 
     void ControlRuntime::Apply(const SetEntityVolumeCommand &command) noexcept

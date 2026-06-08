@@ -227,15 +227,16 @@ namespace
 
     bool TestTransientTagsExpireWithoutErasingPersistentTags()
     {
-        const std::filesystem::path fixture_path = GetFixturePath("ValidBehaviorBank.json");
-        const decl_audio::compiler::CompileResult compile_result = decl_audio::compiler::LoadCompiledBankFromJsonFile(fixture_path);
-        const decl_audio::compiler::TagId walking_tag_id = compile_result.bank.GetTagId("movement.walking");
-
-        decl_audio::runtime::ControlRuntime control_runtime;
+        // Exercises ControlRuntime directly: names intern on the control thread
+        // against the registry (no bank required - intern-on-demand).
+        decl_audio::runtime::VocabularyRegistry vocabulary;
+        decl_audio::runtime::ControlRuntime control_runtime(vocabulary);
         control_runtime.Submit(decl_audio::runtime::SetTransientTagCommand{
             "player",
-            walking_tag_id});
+            "movement.walking"});
         control_runtime.Tick();
+
+        const decl_audio::compiler::TagId walking_tag_id = vocabulary.GetOrInternTag("movement.walking");
 
         if (!Expect(control_runtime.GetWorldState().HasEntity("player"), "transient tag should materialize the entity during drain"))
         {
@@ -258,10 +259,10 @@ namespace
 
         control_runtime.Submit(decl_audio::runtime::SetTagCommand{
             "player",
-            walking_tag_id});
+            "movement.walking"});
         control_runtime.Submit(decl_audio::runtime::SetTransientTagCommand{
             "player",
-            walking_tag_id});
+            "movement.walking"});
         control_runtime.Tick();
         control_runtime.ClearTransientTags();
 

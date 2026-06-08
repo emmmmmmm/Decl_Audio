@@ -4,6 +4,7 @@
 #include <variant>
 
 #include "../compiler/CompilerTypes.hpp"
+#include "../core/BankId.hpp"
 #include "../core/vec3.hpp"
 
 namespace decl_audio::playback
@@ -16,6 +17,7 @@ namespace decl_audio::playback
         compiler::ProgramId program_id = 0;
         Vec3 position{};
         float volume = 1.0f;
+        BankId bank_id{}; // resolves to a slot in the audio thread's bank table
     };
 
     struct SetVolumeCommand final

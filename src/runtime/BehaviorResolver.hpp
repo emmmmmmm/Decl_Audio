@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "../compiler/CompiledBank.hpp"
+#include "../core/BankId.hpp"
 #include "../playback/AudioCommands.hpp"
 #include "WorldState.hpp"
 
@@ -39,6 +40,7 @@ namespace decl_audio::runtime
         template <typename TEmitCommand>
         void Resolve(const WorldState &world_state,
                      const compiler::CompiledBank &compiled_bank,
+                     BankId bank_id,
                      TEmitCommand &&emit_command) noexcept
         {
             // Phase 1: Compute the desired set of (entity_id, behavior_id) pairs.
@@ -120,7 +122,7 @@ namespace decl_audio::runtime
                 const float initial_volume = entity_state.HasVolume() ? entity_state.GetVolume() : 1.0f;
                 const Vec3 initial_position = entity_state.HasPosition() ? entity_state.GetPosition() : Vec3{};
 
-                emit_command(playback::CreateInstanceCommand{instance_id, behavior.program_id, initial_position, initial_volume});
+                emit_command(playback::CreateInstanceCommand{instance_id, behavior.program_id, initial_position, initial_volume, bank_id});
 
                 ActiveBehaviorBinding binding{std::string(entity_id), behavior_id, instance_id, initial_volume, initial_position};
                 binding.parameter_values.resize(program_parameters.size(), 0.0f);
