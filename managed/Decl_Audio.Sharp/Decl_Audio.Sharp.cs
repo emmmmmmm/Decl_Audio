@@ -24,6 +24,11 @@ public struct EngineConfig
     public uint CommandQueueCapacity;
     public uint HostQueueCapacity;
 
+    // per-instance storage caps
+    public uint MaxProgramNodeCount;
+    public uint MaxProgramConcurrentVoices;
+    public uint MaxProgramParameterSlotCount;
+
     public DeclAudioBackend Backend;
 }
 
