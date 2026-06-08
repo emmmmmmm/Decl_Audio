@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -33,6 +34,7 @@ namespace decl_audio::playback
     struct ProgramInstance final
     {
         InstanceId instance_id = 0;
+        BankId bank_id{}; // owning bank's slot+generation; drives live_instances_ bookkeeping
         // Bank the instance was minted from, resolved off the command's BankId at
         // Apply time. Local derivations, exactly like `compiled` - they never cross
         // a thread boundary; the command carried the id.
@@ -107,6 +109,17 @@ namespace decl_audio::playback
         Vec3 position{};
     };
 
+    // Per-slot drain state owned by the audio thread (Active/Retiring/Drained,
+    // section 3.1). Active is set by control at InstallBank; the audio thread flips
+    // Retiring on RetireBankCommand and Drained once that bank's last instance
+    // retires. Control polls for Drained, then frees the bucket.
+    enum class SlotState : std::uint8_t
+    {
+        Active,
+        Retiring,
+        Drained,
+    };
+
     class AudioRuntime final
     {
     public:
@@ -114,10 +127,20 @@ namespace decl_audio::playback
                               std::size_t max_instances = 256,
                               std::uint32_t max_block_frames = 4096,
                               std::uint32_t out_channel_count = 2,
-                              std::size_t command_queue_capacity = 1024);
+                              std::size_t command_queue_capacity = 1024,
+                              std::uint32_t max_program_node_count = 256,
+                              std::uint32_t max_program_concurrent_voices = 64,
+                              std::uint32_t max_program_parameter_slot_count = 64);
 
-        void SetBanks(const compiler::CompiledBank *compiled_bank, const assets::AssetBank *asset_bank) noexcept;
-        void Clear() noexcept;
+        // Control-thread bank-table management. InstallBank publishes a bank into a
+        // slot before the resolver emits any CreateInstance for it (the command ring
+        // then carries the happens-before to the audio thread). FreeBankSlot clears a
+        // slot after the audio thread has confirmed Drained. IsSlotDrained is the
+        // poll control uses to know the drain handshake completed.
+        void InstallBank(BankId bank_id, const compiler::CompiledBank *compiled_bank, const assets::AssetBank *asset_bank) noexcept;
+        void FreeBankSlot(BankId bank_id) noexcept;
+        [[nodiscard]] bool IsSlotDrained(BankId bank_id) const noexcept;
+
         void Submit(const AudioCommand &command);
         void Render(float *output, std::uint32_t frames) noexcept;
 
@@ -135,10 +158,6 @@ namespace decl_audio::playback
 
     private:
         static constexpr compiler::NodeId kInvalidNodeId = std::numeric_limits<compiler::NodeId>::max();
-        // One slot today; bumped when additive multi-bank loading lands (stage 4).
-        // A CreateInstanceCommand's BankId.slot indexes this table - the audio
-        // thread never holds "a bank", it learns one per instance via the command.
-        static constexpr std::size_t kMaxBanks = 1;
 
         void ApplyPendingCommands() noexcept;
         void Apply(const CreateInstanceCommand &command) noexcept;
@@ -146,8 +165,13 @@ namespace decl_audio::playback
         void Apply(const SetPositionCommand &command) noexcept;
         void Apply(const SetParameterCommand &command) noexcept;
         void Apply(const RequestStopCommand &command) noexcept;
+        void Apply(const RetireBankCommand &command) noexcept;
         void Apply(const SetListenerPositionCommand &command) noexcept;
         void Apply(const SetMasterGainCommand &command) noexcept;
+        void RequestInstanceStop(ProgramInstance &instance) noexcept;
+        // The single retirement chokepoint: removes instance `index`, returns its
+        // slice, and does the live_instances_/Drained bookkeeping (section 3.4).
+        void RetireInstance(std::size_t instance_index) noexcept;
 
         [[nodiscard]] bool RenderProgramInstance(ProgramInstance &instance, float *output, std::uint32_t frames) noexcept;
         [[nodiscard]] std::uint32_t ComputeSegmentFrames(const ProgramInstance &instance, std::uint32_t frames_remaining) const noexcept;
@@ -164,7 +188,6 @@ namespace decl_audio::playback
         [[nodiscard]] std::uint16_t FindProgramParameterSlot(const ProgramInstance &instance, compiler::ParameterId parameter_id) const noexcept;
         [[nodiscard]] std::size_t FindInstanceIndex(InstanceId instance_id) const noexcept;
         [[nodiscard]] std::uint64_t DeriveNodeSeed(InstanceId instance_id, compiler::ProgramId program_id, compiler::NodeId node_id) const noexcept;
-        void ResizeStorageForBank() noexcept;
 
         RingBuffer<AudioCommand> commands_;
         std::vector<ProgramInstance> instances_;
@@ -173,18 +196,26 @@ namespace decl_audio::playback
         std::vector<NodeRuntimeState> node_state_storage_;
         std::vector<VoiceState> voice_storage_;
         std::vector<float> parameter_storage_;
-        const compiler::CompiledBank *compiled_bank_ = nullptr;
-        const assets::AssetBank *asset_bank_ = nullptr;
-        // Audio-thread bank table, indexed by BankId.slot. In single-bank mode slot
-        // 0 mirrors compiled_bank_/asset_bank_ (which still size per-instance
-        // storage). Stage 4 deletes the scalar members in favor of this table.
+        // Audio-thread bank table, indexed by BankId.slot. The runtime holds no
+        // single "current bank" - it learns banks per instance via commands. The
+        // pointers are plain (the command ring carries the write ordering); the
+        // per-slot drain state and live-instance counters are atomic because the
+        // audio thread publishes them up to the control thread.
         const compiler::CompiledBank *slot_compiled_[kMaxBanks] = {};
         const assets::AssetBank *slot_assets_[kMaxBanks] = {};
+        std::atomic<std::uint32_t> live_instances_[kMaxBanks] = {};
+        std::atomic<SlotState> slot_state_[kMaxBanks] = {};
         ListenerState listener_{};
         float master_gain_ = 1.0f;
         std::uint64_t root_seed_ = 0;
         std::size_t max_instances_ = 0;
         std::uint32_t max_block_frames_ = 0;
         std::uint32_t out_channel_count_ = 2;
+        // Per-instance storage caps (EngineConfig-driven). Storage is sized once at
+        // construction to max_instances_ * cap and never resized; AddBank rejects a
+        // bank whose programs exceed these. These are the slice strides.
+        std::uint32_t cap_node_count_ = 0;
+        std::uint32_t cap_voice_count_ = 0;
+        std::uint32_t cap_param_slot_count_ = 0;
     };
 } // namespace decl_audio::playback

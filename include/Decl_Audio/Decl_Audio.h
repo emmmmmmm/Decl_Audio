@@ -10,7 +10,7 @@
 #include "Export.h"
 
 #define DECL_AUDIO_VERSION_MAJOR 0u
-#define DECL_AUDIO_VERSION_MINOR 6u
+#define DECL_AUDIO_VERSION_MINOR 7u
 #define DECL_AUDIO_VERSION_PATCH 0u
 #define DECL_AUDIO_MAKE_VERSION(major, minor, patch) (((major) << 22u) | ((minor) << 12u) | (patch))
 #define DECL_AUDIO_API_VERSION DECL_AUDIO_MAKE_VERSION(DECL_AUDIO_VERSION_MAJOR, DECL_AUDIO_VERSION_MINOR, DECL_AUDIO_VERSION_PATCH)
@@ -50,6 +50,12 @@ extern "C"
         uint32_t command_queue_capacity;
         uint32_t host_queue_capacity;
 
+        // per-instance storage caps - audio-owned storage is sized once from these
+        // and never resized. A loaded bank must fit within them or it is rejected.
+        uint32_t max_program_node_count;
+        uint32_t max_program_concurrent_voices;
+        uint32_t max_program_parameter_slot_count;
+
         DeclAudioBackend backend;
     } EngineConfig;
 
@@ -62,6 +68,10 @@ extern "C"
     // Non-blocking bank load. Returns false if a load is already in flight or the
     // path is empty. The bank is wired in during a subsequent Update().
     DECL_AUDIO_API bool LoadBankAsync(DeclAudioEngine *engine, const char *bank_path);
+    // Unload a previously loaded bank, named by the path it was loaded from. Its
+    // instances fade out and the bank is freed once drained; safe to call while
+    // audio is live. No-op if no matching active bank is loaded.
+    DECL_AUDIO_API void UnloadBank(DeclAudioEngine *engine, const char *bank_path);
     DECL_AUDIO_API void Update(DeclAudioEngine *engine);
     DECL_AUDIO_API bool TryDequeueLog(DeclAudioEngine *engine, DeclAudioLogMessage *out_message);
 

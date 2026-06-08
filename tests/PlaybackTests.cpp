@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -123,8 +124,8 @@ namespace
             compiled_bank = compile_result.bank;
             asset_bank = asset_result.bank;
             behavior_resolver.Reset();
-            vocabulary.AdoptBank(compiled_bank);
-            audio_runtime.SetBanks(&compiled_bank, &asset_bank);
+            vocabulary.MergeBank(compiled_bank); // intern + remap vocabulary to global ids
+            audio_runtime.InstallBank(decl_audio::BankId{0u, 0u}, &compiled_bank, &asset_bank);
             return true;
         }
 
@@ -193,10 +194,10 @@ namespace
                     listener_position});
             }
 
+            const decl_audio::runtime::ResolverBankView view{decl_audio::BankId{0u, 0u}, &compiled_bank, false};
             behavior_resolver.Resolve(
                 control_runtime.GetWorldState(),
-                compiled_bank,
-                decl_audio::BankId{0u, 0u},
+                std::span<const decl_audio::runtime::ResolverBankView>(&view, 1),
                 [this](const decl_audio::playback::AudioCommand &command)
                 {
                     audio_runtime.Submit(command);
@@ -940,7 +941,7 @@ int RunAudioCapacityOverflowDeathTestChild(const char *started_flag_path)
     decl_audio::compiler::CompiledBank compiled_bank = compile_result.bank;
     decl_audio::assets::AssetBank asset_bank = asset_result.bank;
     decl_audio::playback::AudioRuntime audio_runtime(0xC0FFEEULL, 1, 8);
-    audio_runtime.SetBanks(&compiled_bank, &asset_bank);
+    audio_runtime.InstallBank(decl_audio::BankId{0u, 0u}, &compiled_bank, &asset_bank);
 
     const decl_audio::compiler::ProgramId program_id = compiled_bank.GetProgramId("playback.loop");
     audio_runtime.Submit(decl_audio::playback::CreateInstanceCommand{

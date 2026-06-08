@@ -76,6 +76,14 @@ namespace decl_audio::runtime
         float gain = 1.0f;
     };
 
+    // Routed through the host->control ring like the fact-setters so unload still
+    // works once Update() moves to its own thread. The control thread maps the path
+    // to a BankId and runs the retire handshake (section 3.2).
+    struct UnloadBankCommand final
+    {
+        std::string bank_path;
+    };
+
     using HostCommand = std::variant<
         SetTagCommand,
         SetTransientTagCommand,
@@ -88,5 +96,6 @@ namespace decl_audio::runtime
         SetGlobalTagCommand,
         RemoveGlobalTagCommand,
         SetGlobalFloatValueCommand,
-        SetMasterGainCommand>;
+        SetMasterGainCommand,
+        UnloadBankCommand>;
 } // namespace decl_audio::runtime

@@ -12,7 +12,9 @@
 #include "../assets/AssetBank.hpp"
 #include "../backends/AudioDeviceBackend.hpp"
 #include "../compiler/CompiledBank.hpp"
+#include "BankId.hpp"
 #include "BankSerializer.hpp"
+#include "LoadedBank.hpp"
 #include "../core/RingBuffer.hpp"
 #include "../playback/AudioRuntime.hpp"
 #include "../runtime/BehaviorResolver.hpp"
@@ -39,6 +41,9 @@ namespace decl_audio
         // if a load is already in flight (no concurrent loads). The finished bank is
         // wired in on the control thread during a later Update(); fire-and-forget.
         bool LoadBankAsync(const char *bank_path) noexcept;
+        // Unload the bank loaded from `bank_path`. Routed through the control ring;
+        // the bank's instances fade out and the bucket is freed once drained.
+        void UnloadBank(const char *bank_path) noexcept;
         void Update() noexcept;
         void RenderAudioForTesting(float *output, std::uint32_t frames) noexcept;
         [[nodiscard]] bool TryDequeueLog(std::string &message) noexcept;
@@ -72,21 +77,31 @@ namespace decl_audio
         {
             return audio_runtime_.GetDebugSnapshot();
         };
-        [[nodiscard]] const assets::AssetBank &GetAssetBank() const noexcept
+        // Per-bank accessor. Returns nullptr if no live bank occupies that slot/id.
+        [[nodiscard]] const LoadedBank *TryGetBank(BankId bank_id) const noexcept
         {
-            return *asset_bank_;
+            const LoadedBank *bank = banks_[bank_id.slot].get();
+            return (bank != nullptr && bank->id == bank_id) ? bank : nullptr;
         };
-        [[nodiscard]] const compiler::CompiledBank &GetCompiledBank() const noexcept
-        {
-            return *compiled_bank_;
-        };
+        // Convenience accessors for the first loaded bank - handy for single-bank
+        // tests/debug. Multi-bank callers should use TryGetBank(BankId).
         [[nodiscard]] const compiler::CompiledBank *TryGetCompiledBank() const noexcept
         {
-            return compiled_bank_.get();
+            const LoadedBank *bank = FirstLoadedBank();
+            return bank != nullptr ? &bank->compiled : nullptr;
         };
         [[nodiscard]] const assets::AssetBank *TryGetAssetBank() const noexcept
         {
-            return asset_bank_.get();
+            const LoadedBank *bank = FirstLoadedBank();
+            return bank != nullptr ? &bank->assets : nullptr;
+        };
+        [[nodiscard]] const assets::AssetBank &GetAssetBank() const noexcept
+        {
+            return *TryGetAssetBank();
+        };
+        [[nodiscard]] const compiler::CompiledBank &GetCompiledBank() const noexcept
+        {
+            return *TryGetCompiledBank();
         };
         [[nodiscard]] bool HasStartedBackend() const noexcept
         {
@@ -106,22 +121,39 @@ namespace decl_audio
         [[nodiscard]] bool
         StartConfiguredAudioBackend(const char *source_path) noexcept;
         void StopConfiguredAudioBackend() noexcept;
-        [[nodiscard]] bool
-        WireLoadedBanks(std::unique_ptr<compiler::CompiledBank> compiled_bank,
-                        std::unique_ptr<assets::AssetBank> asset_bank,
-                        const char *source_path) noexcept;
+        // Intern + remap the bank's vocabulary, install it into a free slot, and make
+        // it resolvable. No backend stop - gapless. Returns false (with a diagnostic)
+        // if the bank exceeds the storage caps or no slot is free.
+        bool AddBank(compiler::CompiledBank &&compiled, assets::AssetBank &&assets, const char *source_path) noexcept;
         // Shared tail of the binary-bank load (sync LoadBank + async completion):
-        // record diagnostics, then wire the banks unless the result errored.
+        // record diagnostics, then add the bank unless the result errored.
         bool ConsumeBankResult(serialization::LoadBankResult &&result, const char *source_path) noexcept;
         // Control-thread side of async loading: if the worker finished, join it and
         // wire the result. No-op when nothing is pending. Called from Update().
         void PollAsyncLoad() noexcept;
+        // Run the resolver over every loaded bank (skipping retiring ones).
+        void ResolveLoadedBanks() noexcept;
+        // Drain host unload requests: mark the named bank Retiring, drop its
+        // bindings, and submit the RetireBankCommand to the audio thread.
+        void ProcessPendingUnloads() noexcept;
+        // Free buckets whose slots the audio thread has confirmed Drained.
+        void SweepDrainedBanks() noexcept;
+        [[nodiscard]] const LoadedBank *FirstLoadedBank() const noexcept;
+        // True if a bank loaded from this path is currently Active. Path is a bank's
+        // identity: re-loading an already-loaded bank is an idempotent no-op success.
+        // (A Retiring bank with the same path does not count - it is on its way out,
+        // so a fresh load brings the content back.)
+        [[nodiscard]] bool HasActiveBank(const char *source_path) const noexcept;
         void PushLog(std::string message);
         void PushDiagnostics(std::span<const decl_audio::Diagnostic> diagnostics);
 
-        std::unique_ptr<compiler::CompiledBank> compiled_bank_;
-        std::unique_ptr<assets::AssetBank> asset_bank_;
         std::unique_ptr<backends::AudioDeviceBackend> audio_backend_;
+        // Control-thread-only bank registry, indexed by BankId.slot. A null slot is
+        // free; a retiring bank occupies its slot until the audio thread drains it.
+        // unique_ptr keeps each bank address-stable for the audio thread's raw
+        // pointers. slot_generation_ bumps on each (re)use so stale ids mismatch.
+        std::unique_ptr<LoadedBank> banks_[kMaxBanks];
+        std::uint32_t slot_generation_[kMaxBanks] = {};
 
         // Async load handoff. The worker writes pending_load_result_ then sets
         // load_result_ready_ (release); the control thread reads it (acquire) in

@@ -26,6 +26,9 @@ namespace decl_audio
     inline constexpr std::uint32_t kDefaultMaxBlockFrames = kDefaultCallbackFrameCount * 4;
     inline constexpr std::uint32_t kDefaultCommandQueueCapacity = 1024;
     inline constexpr std::uint32_t kDefaultHostQueueCapacity = 1024;
+    inline constexpr std::uint32_t kDefaultMaxProgramNodeCount = 256;
+    inline constexpr std::uint32_t kDefaultMaxProgramConcurrentVoices = 64;
+    inline constexpr std::uint32_t kDefaultMaxProgramParameterSlotCount = 64;
 
     void CopyLogMessage(const std::string &source, DeclAudioLogMessage &destination) noexcept
     {
@@ -49,6 +52,9 @@ extern "C"
         config.max_block_frames = decl_audio::kDefaultMaxBlockFrames;
         config.command_queue_capacity = decl_audio::kDefaultCommandQueueCapacity;
         config.host_queue_capacity = decl_audio::kDefaultHostQueueCapacity;
+        config.max_program_node_count = decl_audio::kDefaultMaxProgramNodeCount;
+        config.max_program_concurrent_voices = decl_audio::kDefaultMaxProgramConcurrentVoices;
+        config.max_program_parameter_slot_count = decl_audio::kDefaultMaxProgramParameterSlotCount;
         config.backend = DECL_AUDIO_BACKEND_PLATFORM_DEFAULT;
         return config;
     }
@@ -70,6 +76,12 @@ extern "C"
         if (config->command_queue_capacity < 2)
             return false;
         if (config->host_queue_capacity < 2)
+            return false;
+        if (config->max_program_node_count == 0)
+            return false;
+        if (config->max_program_concurrent_voices == 0)
+            return false;
+        if (config->max_program_parameter_slot_count == 0)
             return false;
         return true;
     }
@@ -119,6 +131,14 @@ extern "C"
             return false;
 
         return engine->engine.LoadBankAsync(bank_path);
+    }
+
+    void UnloadBank(DeclAudioEngine *engine, const char *bank_path)
+    {
+        if (engine == nullptr || bank_path == nullptr)
+            return;
+
+        engine->engine.UnloadBank(bank_path);
     }
 
     void Update(DeclAudioEngine *engine)

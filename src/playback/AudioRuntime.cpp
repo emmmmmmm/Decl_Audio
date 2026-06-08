@@ -77,43 +77,28 @@ namespace decl_audio::playback
                                const std::size_t max_instances,
                                const std::uint32_t max_block_frames,
                                const std::uint32_t out_channel_count,
-                               const std::size_t command_queue_capacity)
+                               const std::size_t command_queue_capacity,
+                               const std::uint32_t max_program_node_count,
+                               const std::uint32_t max_program_concurrent_voices,
+                               const std::uint32_t max_program_parameter_slot_count)
         : commands_(command_queue_capacity),
           root_seed_(root_seed),
           max_instances_(max_instances),
           max_block_frames_(max_block_frames),
-          out_channel_count_(out_channel_count)
+          out_channel_count_(out_channel_count),
+          cap_node_count_(max_program_node_count),
+          cap_voice_count_(max_program_concurrent_voices),
+          cap_param_slot_count_(max_program_parameter_slot_count)
     {
         instances_.reserve(max_instances_);
         scratch_.resize(static_cast<std::size_t>(max_block_frames_) * out_channel_count);
-    }
 
-    void AudioRuntime::SetBanks(const compiler::CompiledBank *compiled_bank, const assets::AssetBank *asset_bank) noexcept
-    {
-        Clear();
-        compiled_bank_ = compiled_bank;
-        asset_bank_ = asset_bank;
-        slot_compiled_[0] = compiled_bank;
-        slot_assets_[0] = asset_bank;
-        ResizeStorageForBank();
-    }
+        // Per-instance storage is sized once against the config caps and never
+        // resized - adding banks never touches audio-owned memory.
+        node_state_storage_.resize(max_instances_ * static_cast<std::size_t>(cap_node_count_));
+        voice_storage_.resize(max_instances_ * static_cast<std::size_t>(cap_voice_count_));
+        parameter_storage_.resize(max_instances_ * static_cast<std::size_t>(cap_param_slot_count_));
 
-    void AudioRuntime::ResizeStorageForBank() noexcept
-    {
-        node_state_storage_.clear();
-        voice_storage_.clear();
-        parameter_storage_.clear();
-
-        if (compiled_bank_ == nullptr)
-        {
-            return;
-        }
-
-        node_state_storage_.resize(max_instances_ * static_cast<std::size_t>(compiled_bank_->max_program_node_count));
-        voice_storage_.resize(max_instances_ * static_cast<std::size_t>(compiled_bank_->max_program_concurrent_voices));
-        parameter_storage_.resize(max_instances_ * static_cast<std::size_t>(compiled_bank_->max_program_parameter_slot_count));
-
-        free_slices_.clear();
         free_slices_.reserve(max_instances_);
         for (std::size_t i = max_instances_; i > 0; --i)
         {
@@ -121,21 +106,30 @@ namespace decl_audio::playback
         }
     }
 
-    void AudioRuntime::Clear() noexcept
+    void AudioRuntime::InstallBank(const BankId bank_id, const compiler::CompiledBank *compiled_bank, const assets::AssetBank *asset_bank) noexcept
     {
-        instances_.clear();
+        const std::size_t slot = bank_id.slot;
+        // Plain pointer writes: the resolver only emits CreateInstance(bank_id)
+        // after this call, and the command ring's release/acquire makes these
+        // visible to the audio thread before it dereferences the slot.
+        slot_compiled_[slot] = compiled_bank;
+        slot_assets_[slot] = asset_bank;
+        live_instances_[slot].store(0, std::memory_order_relaxed);
+        slot_state_[slot].store(SlotState::Active, std::memory_order_release);
+    }
 
-        free_slices_.clear();
-        free_slices_.reserve(max_instances_);
-        for (std::size_t i = max_instances_; i > 0; --i)
-        {
-            free_slices_.push_back(i - 1);
-        }
+    void AudioRuntime::FreeBankSlot(const BankId bank_id) noexcept
+    {
+        // Control thread, only after observing Drained: the bank has no live
+        // instances and no pending creates, so clearing the slot races nothing.
+        const std::size_t slot = bank_id.slot;
+        slot_compiled_[slot] = nullptr;
+        slot_assets_[slot] = nullptr;
+    }
 
-        AudioCommand command;
-        while (commands_.pop(command))
-        {
-        }
+    bool AudioRuntime::IsSlotDrained(const BankId bank_id) const noexcept
+    {
+        return slot_state_[bank_id.slot].load(std::memory_order_acquire) == SlotState::Drained;
     }
 
     void AudioRuntime::Submit(const AudioCommand &command)
@@ -223,9 +217,7 @@ namespace decl_audio::playback
 
             if (!keep_instance)
             {
-                free_slices_.push_back(instances_[instance_index].slice_index);
-                instances_[instance_index] = instances_.back();
-                instances_.pop_back();
+                RetireInstance(instance_index);
                 continue;
             }
 
@@ -366,7 +358,7 @@ namespace decl_audio::playback
             }
 
             return std::span<NodeRuntimeState>(
-                node_state_storage_.data() + (slice_index * static_cast<std::size_t>(bank->max_program_node_count)),
+                node_state_storage_.data() + (slice_index * static_cast<std::size_t>(cap_node_count_)),
                 count);
         };
 
@@ -378,7 +370,7 @@ namespace decl_audio::playback
             }
 
             return std::span<VoiceState>(
-                voice_storage_.data() + (slice_index * static_cast<std::size_t>(bank->max_program_concurrent_voices)),
+                voice_storage_.data() + (slice_index * static_cast<std::size_t>(cap_voice_count_)),
                 count);
         };
 
@@ -390,12 +382,13 @@ namespace decl_audio::playback
             }
 
             return std::span<float>(
-                parameter_storage_.data() + (slice_index * static_cast<std::size_t>(bank->max_program_parameter_slot_count)),
+                parameter_storage_.data() + (slice_index * static_cast<std::size_t>(cap_param_slot_count_)),
                 count);
         };
 
         ProgramInstance instance;
         instance.instance_id = command.instance_id;
+        instance.bank_id = command.bank_id;
         instance.bank = bank;
         instance.assets = assets;
         instance.compiled = &compiled_program;
@@ -414,6 +407,7 @@ namespace decl_audio::playback
         std::fill(instance.voices.begin(), instance.voices.end(), VoiceState{});
         std::fill(instance.parameter_slots.begin(), instance.parameter_slots.end(), 0.0f);
 
+        live_instances_[command.bank_id.slot].fetch_add(1, std::memory_order_relaxed);
         instances_.push_back(instance);
         EnterNode(instances_.back(), compiled_program.root_node);
     }
@@ -466,7 +460,11 @@ namespace decl_audio::playback
             return;
         }
 
-        ProgramInstance &instance = instances_[instance_index];
+        RequestInstanceStop(instances_[instance_index]);
+    }
+
+    void AudioRuntime::RequestInstanceStop(ProgramInstance &instance) noexcept
+    {
         instance.stop_requested = true;
 
         if (instance.compiled->stop_mode == compiler::StopMode::Immediate)
@@ -489,6 +487,46 @@ namespace decl_audio::playback
                     voice.remaining_loops = 0;
                 }
             }
+        }
+    }
+
+    void AudioRuntime::Apply(const RetireBankCommand &command) noexcept
+    {
+        // FIFO ordering guarantees every prior CreateInstance(bank) is already
+        // applied, so live_instances_ for this slot is now authoritative and only
+        // decreases. Request stop on each surviving instance (honoring its fade).
+        const std::size_t slot = command.bank_id.slot;
+        slot_state_[slot].store(SlotState::Retiring, std::memory_order_relaxed);
+
+        for (ProgramInstance &instance : instances_)
+        {
+            if (instance.bank_id == command.bank_id)
+            {
+                RequestInstanceStop(instance);
+            }
+        }
+
+        // Nothing was playing: no retirement will fire to flip Drained, so do it now.
+        if (live_instances_[slot].load(std::memory_order_relaxed) == 0)
+        {
+            slot_state_[slot].store(SlotState::Drained, std::memory_order_release);
+        }
+    }
+
+    void AudioRuntime::RetireInstance(const std::size_t instance_index) noexcept
+    {
+        // The single chokepoint where a slice returns to the pool. Every instance
+        // death funnels here, so the live_instances_ decrement is exact (section 3.4).
+        const std::size_t slot = instances_[instance_index].bank_id.slot;
+
+        free_slices_.push_back(instances_[instance_index].slice_index);
+        instances_[instance_index] = instances_.back();
+        instances_.pop_back();
+
+        const std::uint32_t remaining = live_instances_[slot].fetch_sub(1, std::memory_order_relaxed) - 1u;
+        if (remaining == 0 && slot_state_[slot].load(std::memory_order_relaxed) == SlotState::Retiring)
+        {
+            slot_state_[slot].store(SlotState::Drained, std::memory_order_release);
         }
     }
 

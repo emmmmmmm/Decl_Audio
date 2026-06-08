@@ -266,9 +266,9 @@ namespace
             }
             ok = Expect(loaded, "async: bank wired after pumping Update") && ok;
 
-            // Flag reset on completion: a fresh async load is accepted again. The
-            // engine destructor joins this worker, keeping the file in use until scope end.
-            ok = Expect(engine.LoadBankAsync(output_path.string().c_str()), "async: load accepted again after completion") && ok;
+            // Loading the same path again returns success - now via the idempotent
+            // early-out (the bank is already Active), so no second worker is spawned.
+            ok = Expect(engine.LoadBankAsync(output_path.string().c_str()), "async: reload of loaded bank succeeds (idempotent)") && ok;
         }
 
         std::filesystem::remove(output_path);

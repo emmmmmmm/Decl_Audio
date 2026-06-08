@@ -133,4 +133,11 @@ namespace decl_audio::runtime
         master_gain_ = command.gain;
         master_gain_dirty_ = true;
     }
+
+    void ControlRuntime::Apply(const UnloadBankCommand &command) noexcept
+    {
+        // The engine owns the bank registry, so just record the request; it drains
+        // these after Tick() and runs the retire handshake.
+        pending_unloads_.push_back(command.bank_path);
+    }
 } // namespace decl_audio::runtime

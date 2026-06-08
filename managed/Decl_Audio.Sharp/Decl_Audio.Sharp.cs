@@ -51,6 +51,12 @@ public sealed class AudioEngine : IDisposable
     public bool LoadBank(string sourcePath)
         => NativeMethods.LoadBank(_handle, sourcePath);
 
+    public bool LoadBankAsync(string sourcePath)
+        => NativeMethods.LoadBankAsync(_handle, sourcePath);
+
+    public void UnloadBank(string sourcePath)
+        => NativeMethods.UnloadBank(_handle, sourcePath);
+
     public void Update()
         => NativeMethods.Update(_handle);
 
@@ -134,6 +140,13 @@ internal static partial class NativeMethods
     [LibraryImport(Dll, StringMarshalling = StringMarshalling.Utf8)]
     [return: MarshalAs(UnmanagedType.I1)]
     internal static partial bool LoadBank(IntPtr engine, string sourcePath);
+
+    [LibraryImport(Dll, StringMarshalling = StringMarshalling.Utf8)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    internal static partial bool LoadBankAsync(IntPtr engine, string sourcePath);
+
+    [LibraryImport(Dll, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial void UnloadBank(IntPtr engine, string sourcePath);
 
     [LibraryImport(Dll)]
     internal static partial void Update(IntPtr engine);

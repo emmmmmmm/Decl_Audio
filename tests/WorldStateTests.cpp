@@ -498,6 +498,106 @@ namespace
         return true;
     }
 
+    bool TestMultipleBanksLayer()
+    {
+        // Two distinct banks, each with one behavior on its own tag. An entity tagged
+        // for both matches a behavior in each bank, so they layer - one instance per
+        // bank. This only works because binding identity is (BankId, BehaviorId):
+        // both behaviors are id 0 in their own bank, so a bare BehaviorId would
+        // collide and drop one.
+        const std::string bank_a = GetFixturePath("LayerBankA.json").string();
+        const std::string bank_b = GetFixturePath("LayerBankB.json").string();
+
+        auto config = GetTestConfig();
+        decl_audio::Engine engine(config);
+        if (!Expect(engine.LoadBehaviors(bank_a.c_str()), "bank A should load"))
+            return false;
+        if (!Expect(engine.LoadBehaviors(bank_b.c_str()), "bank B should load into another slot"))
+            return false;
+
+        engine.SetTag("player", "bank_a.on");
+        engine.SetTag("player", "bank_b.on");
+        engine.Update();
+        RenderAudioForTesting(engine, 1);
+
+        if (!Expect(engine.GetDebugSnapshot().active_instance_count == 2, "both banks should layer one instance each"))
+            return false;
+
+        return true;
+    }
+
+    bool TestReloadingBankIsIdempotent()
+    {
+        // Path is a bank's identity: loading an already-loaded bank returns success
+        // but adds nothing, so it never double-triggers.
+        const std::string bank_a = GetFixturePath("LayerBankA.json").string();
+
+        auto config = GetTestConfig();
+        decl_audio::Engine engine(config);
+        if (!Expect(engine.LoadBehaviors(bank_a.c_str()), "first load should succeed"))
+            return false;
+        if (!Expect(engine.LoadBehaviors(bank_a.c_str()), "reloading the same bank should succeed (idempotent)"))
+            return false;
+
+        engine.SetTag("player", "bank_a.on");
+        engine.Update();
+        RenderAudioForTesting(engine, 1);
+
+        if (!Expect(engine.GetDebugSnapshot().active_instance_count == 1, "reloaded bank should not double-trigger"))
+            return false;
+
+        return true;
+    }
+
+    bool TestUnloadIsPerBankAndFreesTheSlot()
+    {
+        // Load two banks and play both. Unloading one must stop only its instance and
+        // free only its slot; the other keeps playing. The freed slot is then reusable.
+        const std::string bank_a = GetFixturePath("LayerBankA.json").string();
+        const std::string bank_b = GetFixturePath("LayerBankB.json").string();
+
+        auto config = GetTestConfig();
+        decl_audio::Engine engine(config);
+        if (!Expect(engine.LoadBehaviors(bank_a.c_str()), "bank A should load"))
+            return false;
+        if (!Expect(engine.LoadBehaviors(bank_b.c_str()), "bank B should load"))
+            return false;
+
+        engine.SetTag("player", "bank_a.on");
+        engine.SetTag("player", "bank_b.on");
+        engine.Update();
+        RenderAudioForTesting(engine, 1);
+        if (!Expect(engine.GetDebugSnapshot().active_instance_count == 2, "both banks should be playing"))
+            return false;
+
+        // Unload A: routed through the control ring, applied next Update, which marks
+        // A Retiring, drops its binding, and submits RetireBankCommand for A only.
+        engine.UnloadBank(bank_a.c_str());
+        engine.Update();
+
+        // Render until A's instance fades out and drains - B's instance must survive.
+        bool a_drained = false;
+        for (int i = 0; i < 500 && !a_drained; ++i)
+        {
+            RenderAudioForTesting(engine, 1024);
+            a_drained = engine.GetDebugSnapshot().active_instance_count == 1;
+        }
+        if (!Expect(a_drained, "unloading A should stop A's instance but leave B's playing"))
+            return false;
+
+        // Sweep reclaims A's bucket; reloading A reuses the freed slot and replays
+        // (the entity still carries bank_a.on), bringing the count back to two.
+        engine.Update();
+        if (!Expect(engine.LoadBehaviors(bank_a.c_str()), "freed slot should accept A again"))
+            return false;
+        engine.Update();
+        RenderAudioForTesting(engine, 1);
+        if (!Expect(engine.GetDebugSnapshot().active_instance_count == 2, "reloaded A should layer with B again"))
+            return false;
+
+        return true;
+    }
+
 } // namespace
 
 bool RunWorldStateTests()
@@ -548,6 +648,21 @@ bool RunWorldStateTests()
     }
 
     if (!TestResolverChangesApplyOnNextRenderBlock())
+    {
+        return false;
+    }
+
+    if (!TestMultipleBanksLayer())
+    {
+        return false;
+    }
+
+    if (!TestReloadingBankIsIdempotent())
+    {
+        return false;
+    }
+
+    if (!TestUnloadIsPerBankAndFreesTheSlot())
     {
         return false;
     }

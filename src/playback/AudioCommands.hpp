@@ -44,6 +44,14 @@ namespace decl_audio::playback
         InstanceId instance_id = 0;
     };
 
+    // Travels the same FIFO command ring as CreateInstanceCommand, so by the time
+    // the audio thread processes it every prior CreateInstance(bank) has been
+    // applied - that ordering is what makes the unload drain race-free (section 3.3).
+    struct RetireBankCommand final
+    {
+        BankId bank_id{};
+    };
+
     struct SetListenerPositionCommand final
     {
         Vec3 position{};
@@ -60,6 +68,7 @@ namespace decl_audio::playback
         SetPositionCommand,
         SetParameterCommand,
         RequestStopCommand,
+        RetireBankCommand,
         SetListenerPositionCommand,
         SetMasterGainCommand>;
 } // namespace decl_audio::playback

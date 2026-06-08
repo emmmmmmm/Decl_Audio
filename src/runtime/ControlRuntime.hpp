@@ -21,6 +21,15 @@ namespace decl_audio::runtime
 
         void ClearTransientTags();
 
+        // Bank paths the host asked to unload, drained on the control thread by the
+        // engine after Tick(). Moves them out and clears the buffer.
+        [[nodiscard]] std::vector<std::string> TakePendingUnloads()
+        {
+            std::vector<std::string> taken = std::move(pending_unloads_);
+            pending_unloads_.clear();
+            return taken;
+        }
+
         [[nodiscard]] const WorldState &GetWorldState() const noexcept
         {
             return world_state_;
@@ -63,6 +72,7 @@ namespace decl_audio::runtime
         void Apply(const SetListenerPositionCommand &command) noexcept;
         void Apply(const DestroyEntityCommand &command) noexcept;
         void Apply(const SetMasterGainCommand &command) noexcept;
+        void Apply(const UnloadBankCommand &command) noexcept;
 
         VocabularyRegistry &vocabulary_;
         RingBuffer<HostCommand> host_to_control_;
@@ -73,5 +83,6 @@ namespace decl_audio::runtime
         bool master_gain_dirty_ = false;
 
         std::vector<std::tuple<std::string, decl_audio::compiler::TagId>> transientTags_{};
+        std::vector<std::string> pending_unloads_{};
     };
 } // namespace decl_audio::runtime

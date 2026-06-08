@@ -1,15 +1,17 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 namespace decl_audio
 {
-    // Identifies a loaded bank. `slot` indexes the audio thread's fixed bank
-    // table; `generation` is bumped on slot reuse so a stale id from a logic bug
-    // mismatches instead of silently addressing a different bank (used once
-    // unloading lands - see docs/BankLoadingRefactor.md section 3.4).
-    //
-    // Ids cross thread boundaries (commands carry a BankId); pointers are resolved
+    // Maximum number of banks that can be loaded (or draining) at once. The audio
+    // thread's bank table and the control-thread registry are both fixed arrays of
+    // this size, indexed by BankId.slot. A retiring/draining bank still occupies its
+    // slot until fully drained, so AddBank may legitimately fail "no free slot".
+    inline constexpr std::size_t kMaxBanks = 16;
+
+        // Ids cross thread boundaries (commands carry a BankId); pointers are resolved
     // locally off the slot. This mirrors how an InstanceId resolves to a
     // ProgramInstance and a program_id resolves to a CompiledProgram.
     struct BankId final

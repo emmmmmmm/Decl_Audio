@@ -23,27 +23,45 @@ namespace decl_audio::runtime
     // once minted, an id never moves (that is about id stability, not thread
     // safety; the single-writer rule is what makes lock-free access safe).
     //
-    // Stage 1/2 are single-bank, so AdoptBank mirrors the one loaded bank exactly:
-    // registry ids == that bank's ids, which keeps the resolver (still matching on
-    // the bank's local TagIds) consistent with the world state's interned ids.
-    // Stage 4 replaces the wholesale adopt with additive interning + a remap.
+    // MergeBank interns a freshly loaded bank's vocabulary additively and rewrites
+    // the bank's vocabulary fields in place to global ids. The merged tag set drives
+    // the recomputed hierarchy, so exclusive namespaces span banks (bank A's
+    // "movement.x" and bank B's "movement.y" share one group).
     class VocabularyRegistry final
     {
     public:
-        // Mirror a freshly loaded bank's vocabulary. Single-bank: overwrite, so the
-        // registry's ids stay identical to the bank's. (Becomes additive in stage 4.)
-        void AdoptBank(const compiler::CompiledBank &bank)
+        // Intern `bank`'s vocabulary into the registry (additive) and rewrite ONLY
+        // its vocabulary fields - behavior_tags, conditions[].parameter_id, and
+        // program_parameters - from bank-local ids to global ids. Content arrays
+        // (programs, nodes, node_children, node_assets, audio buffers) and
+        // node.parameter_slot are LEFT ALONE; the instance carries the bank, so
+        // local content ids never need re-indexing. The bank's own name->id maps
+        // keep their stale local ids but are no longer the runtime path.
+        void MergeBank(compiler::CompiledBank &bank)
         {
-            tag_name_to_id_ = bank.tag_name_to_id;
-            parameter_name_to_id_ = bank.parameter_name_to_id;
-            tag_depths_ = bank.tag_depths;
-            tag_group_head_ = bank.tag_group_head;
-
-            prefix_to_head_.clear();
-            prefix_to_head_.reserve(tag_name_to_id_.size());
-            for (const auto &[name, tag_id] : tag_name_to_id_)
+            std::vector<compiler::TagId> tag_remap(bank.tag_name_to_id.size());
+            for (const auto &[name, local_id] : bank.tag_name_to_id)
             {
-                prefix_to_head_.emplace(GroupPrefix(name), tag_group_head_[tag_id]);
+                tag_remap[local_id] = GetOrInternTag(name);
+            }
+
+            std::vector<compiler::ParameterId> param_remap(bank.parameter_name_to_id.size());
+            for (const auto &[name, local_id] : bank.parameter_name_to_id)
+            {
+                param_remap[local_id] = GetOrInternParam(name);
+            }
+
+            for (compiler::TagId &tag_id : bank.behavior_tags)
+            {
+                tag_id = tag_remap[tag_id];
+            }
+            for (compiler::CompiledCondition &condition : bank.conditions)
+            {
+                condition.parameter_id = param_remap[condition.parameter_id];
+            }
+            for (compiler::ParameterId &parameter_id : bank.program_parameters)
+            {
+                parameter_id = param_remap[parameter_id];
             }
         }
 

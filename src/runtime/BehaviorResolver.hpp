@@ -14,9 +14,19 @@
 
 namespace decl_audio::runtime
 {
+    // A read-only view of one loaded bank handed to the resolver each tick. The
+    // engine builds these from its bank registry; the resolver never owns banks.
+    struct ResolverBankView final
+    {
+        BankId id;
+        const compiler::CompiledBank *compiled = nullptr;
+        bool retiring = false; // skip when gathering candidates (section 3.2)
+    };
+
     struct ActiveBehaviorBinding final
     {
         std::string entity_id;
+        BankId bank_id{};
         compiler::BehaviorId behavior_id = 0;
         playback::InstanceId instance_id = 0;
         float volume = 1.0f;
@@ -37,34 +47,61 @@ namespace decl_audio::runtime
             next_instance_id_ = 1;
         }
 
+        // Drop all bindings for a retiring bank without emitting per-instance stops -
+        // the RetireBankCommand stops every instance of that bank in one shot on the
+        // audio thread (section 3.2). After this, the resolver skips the bank (its
+        // view is `retiring`) so it can never re-mint an instance for it.
+        void DropBank(const BankId bank_id) noexcept
+        {
+            std::size_t i = 0;
+            while (i < active_bindings_.size())
+            {
+                if (active_bindings_[i].bank_id == bank_id)
+                {
+                    active_bindings_[i] = active_bindings_.back();
+                    active_bindings_.pop_back();
+                    continue;
+                }
+                ++i;
+            }
+        }
+
         template <typename TEmitCommand>
         void Resolve(const WorldState &world_state,
-                     const compiler::CompiledBank &compiled_bank,
-                     BankId bank_id,
+                     std::span<const ResolverBankView> banks,
                      TEmitCommand &&emit_command) noexcept
         {
-            // Phase 1: Compute the desired set of (entity_id, behavior_id) pairs.
-            // For each entity, gather all matching behaviors, filter out those subsumed
-            // by a higher-scoring match (matchTags(A) subset of matchTags(B) -> A loses), keep the rest.
+            // Phase 1: compute the desired set of (entity, bank, behavior) triples.
+            // Candidates are gathered from *all* active banks into one list and
+            // scored together, so specificity is global: unrelated tag sets layer
+            // (both play), a strict superset subsumes (override wins) - across bank
+            // boundaries, because vocabulary ids are global after the merge.
             desired_.clear();
             for (const auto &[entity_id, entity_state] : world_state.entities)
             {
                 candidates_.clear();
-                for (const compiler::CompiledBehavior &behavior : compiled_bank.behaviors)
+                for (const ResolverBankView &view : banks)
                 {
-                    if (MatchesBehavior(entity_state, world_state, behavior, compiled_bank))
-                        candidates_.push_back({behavior.id, behavior.score});
+                    if (view.retiring)
+                        continue;
+
+                    const compiler::CompiledBank &bank = *view.compiled;
+                    for (const compiler::CompiledBehavior &behavior : bank.behaviors)
+                    {
+                        if (MatchesBehavior(entity_state, world_state, behavior, bank))
+                            candidates_.push_back({view.id, behavior.id, behavior.score, view.compiled});
+                    }
                 }
-                ComputeWinners(compiled_bank, entity_id);
+                ComputeWinners(entity_id);
             }
 
-            // Phase 2: Stop or update active bindings.
+            // Phase 2: stop or update active bindings.
             std::size_t binding_index = 0;
             while (binding_index < active_bindings_.size())
             {
                 ActiveBehaviorBinding &binding = active_bindings_[binding_index];
 
-                if (!IsDesired(binding.entity_id, binding.behavior_id))
+                if (!IsDesired(binding.entity_id, binding.bank_id, binding.behavior_id))
                 {
                     emit_command(playback::RequestStopCommand{binding.instance_id});
                     active_bindings_[binding_index] = active_bindings_.back();
@@ -72,8 +109,10 @@ namespace decl_audio::runtime
                     continue;
                 }
 
-                // Entity must exist - we only add to desired_ from world_state.entities.
+                // Entity exists (desired_ only draws from world_state.entities) and the
+                // bank is active (a desired binding came from a non-retiring bank).
                 const EntityState &entity_state = world_state.entities.at(binding.entity_id);
+                const compiler::CompiledBank &compiled_bank = *FindBank(banks, binding.bank_id);
 
                 if (entity_state.HasVolume() && entity_state.GetVolume() != binding.volume)
                 {
@@ -108,23 +147,24 @@ namespace decl_audio::runtime
                 ++binding_index;
             }
 
-            // Phase 3: Start new desired bindings not yet active.
-            for (const auto &[entity_id, behavior_id] : desired_)
+            // Phase 3: start new desired bindings not yet active.
+            for (const DesiredBehavior &desired : desired_)
             {
-                if (FindBindingIndex(entity_id, behavior_id) != kNotFound)
+                if (FindBindingIndex(desired.entity_id, desired.bank_id, desired.behavior_id) != kNotFound)
                     continue;
 
-                const EntityState &entity_state = world_state.entities.at(std::string(entity_id));
-                const compiler::CompiledBehavior &behavior = compiled_bank.GetBehavior(behavior_id);
+                const EntityState &entity_state = world_state.entities.at(std::string(desired.entity_id));
+                const compiler::CompiledBank &compiled_bank = *desired.bank;
+                const compiler::CompiledBehavior &behavior = compiled_bank.GetBehavior(desired.behavior_id);
                 const playback::InstanceId instance_id = MintInstanceId();
                 const compiler::CompiledProgram &compiled_program = compiled_bank.GetProgram(behavior.program_id);
                 const std::span<const compiler::ParameterId> program_parameters = compiled_bank.GetProgramParameters(compiled_program.id);
                 const float initial_volume = entity_state.HasVolume() ? entity_state.GetVolume() : 1.0f;
                 const Vec3 initial_position = entity_state.HasPosition() ? entity_state.GetPosition() : Vec3{};
 
-                emit_command(playback::CreateInstanceCommand{instance_id, behavior.program_id, initial_position, initial_volume, bank_id});
+                emit_command(playback::CreateInstanceCommand{instance_id, behavior.program_id, initial_position, initial_volume, desired.bank_id});
 
-                ActiveBehaviorBinding binding{std::string(entity_id), behavior_id, instance_id, initial_volume, initial_position};
+                ActiveBehaviorBinding binding{std::string(desired.entity_id), desired.bank_id, desired.behavior_id, instance_id, initial_volume, initial_position};
                 binding.parameter_values.resize(program_parameters.size(), 0.0f);
                 binding.has_parameter_values.resize(program_parameters.size(), false);
 
@@ -149,9 +189,29 @@ namespace decl_audio::runtime
 
         struct BehaviorCandidate final
         {
+            BankId bank_id{};
             compiler::BehaviorId behavior_id = 0;
             std::uint32_t score = 0;
+            const compiler::CompiledBank *bank = nullptr;
         };
+
+        struct DesiredBehavior final
+        {
+            std::string_view entity_id;
+            BankId bank_id{};
+            compiler::BehaviorId behavior_id = 0;
+            const compiler::CompiledBank *bank = nullptr;
+        };
+
+        [[nodiscard]] static const compiler::CompiledBank *FindBank(std::span<const ResolverBankView> banks, const BankId bank_id) noexcept
+        {
+            for (const ResolverBankView &view : banks)
+            {
+                if (view.id == bank_id)
+                    return view.compiled;
+            }
+            return nullptr;
+        }
 
         // Returns true if every tag in `a` is also in `b` and `a` is strictly smaller.
         // Used to detect when behavior A is a strict specialization-target of behavior B.
@@ -177,9 +237,10 @@ namespace decl_audio::runtime
             return true;
         }
 
-        // From the current candidates_ list, determine which behaviors win (are not subsumed
-        // by any other match) and append them to desired_.
-        void ComputeWinners(const compiler::CompiledBank &compiled_bank, std::string_view entity_id) noexcept
+        // From the current candidates_ list (gathered across all banks), determine
+        // which behaviors win (are not subsumed by any other match) and append them
+        // to desired_.
+        void ComputeWinners(std::string_view entity_id) noexcept
         {
             // Process candidates highest-score first so that when we encounter a lower-scoring
             // candidate we can check it against already-accepted winners only.
@@ -190,30 +251,31 @@ namespace decl_audio::runtime
             winners_.clear();
             for (const BehaviorCandidate &candidate : candidates_)
             {
-                const auto candidate_tags = compiled_bank.GetBehaviorTags(candidate.behavior_id);
+                const auto candidate_tags = candidate.bank->GetBehaviorTags(candidate.behavior_id);
                 bool subsumed = false;
-                for (const compiler::BehaviorId winner_id : winners_)
+                for (const BehaviorCandidate &winner : winners_)
                 {
-                    if (IsStrictSubset(candidate_tags, compiled_bank.GetBehaviorTags(winner_id)))
+                    if (IsStrictSubset(candidate_tags, winner.bank->GetBehaviorTags(winner.behavior_id)))
                     {
                         subsumed = true;
                         break;
                     }
                 }
                 if (!subsumed)
-                    winners_.push_back(candidate.behavior_id);
+                    winners_.push_back(candidate);
             }
 
-            for (const compiler::BehaviorId behavior_id : winners_)
-                desired_.push_back({entity_id, behavior_id});
+            for (const BehaviorCandidate &winner : winners_)
+                desired_.push_back({entity_id, winner.bank_id, winner.behavior_id, winner.bank});
         }
 
         [[nodiscard]] bool IsDesired(std::string_view entity_id,
+                                     const BankId bank_id,
                                      const compiler::BehaviorId behavior_id) const noexcept
         {
-            for (const auto &[eid, bid] : desired_)
+            for (const DesiredBehavior &desired : desired_)
             {
-                if (bid == behavior_id && eid == entity_id)
+                if (desired.behavior_id == behavior_id && desired.bank_id == bank_id && desired.entity_id == entity_id)
                     return true;
             }
             return false;
@@ -278,12 +340,13 @@ namespace decl_audio::runtime
         }
 
         [[nodiscard]] std::size_t FindBindingIndex(const std::string_view entity_id,
+                                                   const BankId bank_id,
                                                    const compiler::BehaviorId behavior_id) const noexcept
         {
             for (std::size_t i = 0; i < active_bindings_.size(); ++i)
             {
                 const ActiveBehaviorBinding &binding = active_bindings_[i];
-                if (binding.behavior_id == behavior_id && binding.entity_id == entity_id)
+                if (binding.behavior_id == behavior_id && binding.bank_id == bank_id && binding.entity_id == entity_id)
                     return i;
             }
             return kNotFound;
@@ -302,8 +365,8 @@ namespace decl_audio::runtime
 
         // Per-tick scratch buffers -> kept as members to avoid reallocation every frame.
         std::vector<BehaviorCandidate> candidates_;
-        std::vector<compiler::BehaviorId> winners_;
-        std::vector<std::pair<std::string_view, compiler::BehaviorId>> desired_;
+        std::vector<BehaviorCandidate> winners_;
+        std::vector<DesiredBehavior> desired_;
 
         playback::InstanceId next_instance_id_ = 1;
     };
