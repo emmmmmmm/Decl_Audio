@@ -1,7 +1,9 @@
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <thread>
 
 #include "../include/Decl_Audio/Decl_Audio.h"
 #include "../src/assets/AssetBank.hpp"
@@ -210,7 +212,67 @@ namespace
             return false;
         if (!Expect(!engine.LoadBank(""), "empty path: LoadBank should return false"))
             return false;
+        if (!Expect(!engine.LoadBankAsync(nullptr), "null path: LoadBankAsync should return false"))
+            return false;
+        if (!Expect(!engine.LoadBankAsync(""), "empty path: LoadBankAsync should return false"))
+            return false;
         return true;
+    }
+
+    bool TestLoadBankAsyncCompletesViaUpdate()
+    {
+        // Build a temp .dacbank from a known-good JSON fixture, then load it async.
+        const std::filesystem::path json_path   = GetFixturePath("ValidBehaviorBank.json");
+        const std::filesystem::path output_path = GetFixturePath("temp_async.dacbank");
+
+        const decl_audio::compiler::CompileResult compile_result =
+            decl_audio::compiler::LoadCompiledBankFromJsonFile(json_path);
+        if (!Expect(!compile_result.HasErrors(), "async: JSON should compile"))
+            return false;
+
+        const decl_audio::assets::LoadResult asset_result =
+            decl_audio::assets::LoadAssetBank(compile_result.bank, json_path);
+        if (!Expect(!asset_result.HasErrors(), "async: assets should load"))
+            return false;
+
+        std::vector<decl_audio::Diagnostic> write_diags;
+        if (!Expect(
+                decl_audio::serialization::WriteBankToFile(
+                    output_path.string().c_str(), compile_result.bank, asset_result.bank, write_diags),
+                "async: WriteBankToFile should succeed"))
+        {
+            std::cerr << decl_audio::DumpDiagnostics(write_diags);
+            return false;
+        }
+
+        bool ok = true;
+        {
+            const EngineConfig cfg = GetTestConfig();
+            decl_audio::Engine engine(cfg);
+
+            ok = Expect(engine.TryGetCompiledBank() == nullptr, "async: no bank before load") && ok;
+            ok = Expect(engine.LoadBankAsync(output_path.string().c_str()), "async: first async load accepted") && ok;
+            // In-flight until Update consumes the result; even if the worker already
+            // finished, the flag stays set, so a concurrent load is rejected.
+            ok = Expect(!engine.LoadBankAsync(output_path.string().c_str()), "async: concurrent load rejected") && ok;
+
+            bool loaded = false;
+            for (int i = 0; i < 2000 && !loaded; ++i)
+            {
+                engine.Update();
+                loaded = engine.TryGetCompiledBank() != nullptr;
+                if (!loaded)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            ok = Expect(loaded, "async: bank wired after pumping Update") && ok;
+
+            // Flag reset on completion: a fresh async load is accepted again. The
+            // engine destructor joins this worker, keeping the file in use until scope end.
+            ok = Expect(engine.LoadBankAsync(output_path.string().c_str()), "async: load accepted again after completion") && ok;
+        }
+
+        std::filesystem::remove(output_path);
+        return ok;
     }
 
 } // namespace
@@ -222,6 +284,7 @@ bool RunBankSerializerTests()
     if (!TestVersionMismatch())   return false;
     if (!TestTruncatedFile())     return false;
     if (!TestEmptyAndNullPath())  return false;
+    if (!TestLoadBankAsyncCompletesViaUpdate()) return false;
 
     std::cout << "BankSerializerTests passed\n";
     return true;

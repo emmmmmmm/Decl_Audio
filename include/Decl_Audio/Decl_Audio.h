@@ -10,7 +10,7 @@
 #include "Export.h"
 
 #define DECL_AUDIO_VERSION_MAJOR 0u
-#define DECL_AUDIO_VERSION_MINOR 5u
+#define DECL_AUDIO_VERSION_MINOR 6u
 #define DECL_AUDIO_VERSION_PATCH 0u
 #define DECL_AUDIO_MAKE_VERSION(major, minor, patch) (((major) << 22u) | ((minor) << 12u) | (patch))
 #define DECL_AUDIO_API_VERSION DECL_AUDIO_MAKE_VERSION(DECL_AUDIO_VERSION_MAJOR, DECL_AUDIO_VERSION_MINOR, DECL_AUDIO_VERSION_PATCH)
@@ -59,6 +59,9 @@ extern "C"
     DECL_AUDIO_API void DestroyEngine(DeclAudioEngine *engine);
     DECL_AUDIO_API bool LoadBehaviors(DeclAudioEngine *engine, const char *source_path);
     DECL_AUDIO_API bool LoadBank(DeclAudioEngine *engine, const char *bank_path);
+    // Non-blocking bank load. Returns false if a load is already in flight or the
+    // path is empty. The bank is wired in during a subsequent Update().
+    DECL_AUDIO_API bool LoadBankAsync(DeclAudioEngine *engine, const char *bank_path);
     DECL_AUDIO_API void Update(DeclAudioEngine *engine);
     DECL_AUDIO_API bool TryDequeueLog(DeclAudioEngine *engine, DeclAudioLogMessage *out_message);
 

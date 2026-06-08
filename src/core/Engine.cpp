@@ -28,6 +28,11 @@ namespace decl_audio
 
     Engine::~Engine()
     {
+        // Join the load worker before tearing anything down it might still touch.
+        if (load_worker_.joinable())
+        {
+            load_worker_.join();
+        }
         StopConfiguredAudioBackend();
     }
 
@@ -71,6 +76,43 @@ namespace decl_audio
             return false;
 
         serialization::LoadBankResult result = serialization::LoadBankFromFile(bank_path);
+        return ConsumeBankResult(std::move(result), bank_path);
+    }
+
+    bool Engine::LoadBankAsync(const char *bank_path) noexcept
+    {
+        if (bank_path == nullptr || bank_path[0] == '\0')
+            return false;
+
+        bool expected = false;
+        if (!load_in_flight_.compare_exchange_strong(expected, true))
+            return false; // a load is already in flight
+
+        // The previous worker is already joined (load_in_flight_ only clears in
+        // PollAsyncLoad, after the join), but guard before reassigning the handle.
+        if (load_worker_.joinable())
+        {
+            load_worker_.join();
+        }
+
+        load_result_ready_.store(false, std::memory_order_relaxed);
+        pending_load_path_ = bank_path;
+
+        load_worker_ = std::thread(
+            [this, path = std::string(bank_path)]() noexcept
+            {
+                // Worker: only the slow, pure deserialize. Touches no engine state
+                // beyond the result + ready flag. Diagnostics ride in the result and
+                // are drained by the control thread - never the SPSC host log queue.
+                pending_load_result_ = serialization::LoadBankFromFile(path.c_str());
+                load_result_ready_.store(true, std::memory_order_release);
+            });
+
+        return true;
+    }
+
+    bool Engine::ConsumeBankResult(serialization::LoadBankResult &&result, const char *source_path) noexcept
+    {
         load_diagnostics_ = result.diagnostics;
         PushDiagnostics(result.diagnostics);
 
@@ -79,7 +121,22 @@ namespace decl_audio
 
         auto compiled_bank = std::make_unique<compiler::CompiledBank>(std::move(result.compiled_bank));
         auto asset_bank = std::make_unique<assets::AssetBank>(std::move(result.asset_bank));
-        return WireLoadedBanks(std::move(compiled_bank), std::move(asset_bank), bank_path);
+        return WireLoadedBanks(std::move(compiled_bank), std::move(asset_bank), source_path);
+    }
+
+    void Engine::PollAsyncLoad() noexcept
+    {
+        if (!load_result_ready_.load(std::memory_order_acquire))
+            return;
+
+        load_worker_.join();
+        load_result_ready_.store(false, std::memory_order_relaxed);
+
+        // Fast, stateful wiring on the control thread - the same work synchronous
+        // LoadBank does, just deferred off the worker.
+        (void)ConsumeBankResult(std::move(pending_load_result_), pending_load_path_.c_str());
+
+        load_in_flight_.store(false, std::memory_order_release);
     }
 
     bool Engine::WireLoadedBanks(
@@ -101,6 +158,8 @@ namespace decl_audio
     // to be on its own thread in the future i guess...!
     void Engine::Update() noexcept
     {
+        PollAsyncLoad(); // wire any finished async load before resolving this tick
+
         control_runtime_.Tick(); // drain control queue
         Vec3 listener_position;
         if (control_runtime_.ListenerPositionChanged(listener_position))
@@ -115,14 +174,20 @@ namespace decl_audio
             audio_runtime_.Submit(playback::SetMasterGainCommand{master_gain});
         }
 
-        behavior_resolver_.Resolve(
-            control_runtime_.GetWorldState(),
-            *compiled_bank_,
-            BankId{0u, 0u}, // single-bank: the one loaded bank lives in slot 0
-            [this](const playback::AudioCommand &command)
-            {
-                audio_runtime_.Submit(command);
-            });
+        // No bank yet (e.g. an async load still in flight): world state keeps
+        // accumulating from the drained commands; the resolver starts matching once
+        // a bank is wired. Declarative facts self-heal - load order stops mattering.
+        if (compiled_bank_ != nullptr)
+        {
+            behavior_resolver_.Resolve(
+                control_runtime_.GetWorldState(),
+                *compiled_bank_,
+                BankId{0u, 0u}, // single-bank: the one loaded bank lives in slot 0
+                [this](const playback::AudioCommand &command)
+                {
+                    audio_runtime_.Submit(command);
+                });
+        }
 
         // transient tags
         control_runtime_.ClearTransientTags();

@@ -113,6 +113,14 @@ extern "C"
         return engine->engine.LoadBank(bank_path);
     }
 
+    bool LoadBankAsync(DeclAudioEngine *engine, const char *bank_path)
+    {
+        if (engine == nullptr)
+            return false;
+
+        return engine->engine.LoadBankAsync(bank_path);
+    }
+
     void Update(DeclAudioEngine *engine)
     {
         engine->engine.Update();

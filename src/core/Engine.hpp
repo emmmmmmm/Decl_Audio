@@ -1,14 +1,18 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <string>
+#include <thread>
 #include <vector>
 
 #include "Decl_Audio/Decl_Audio.h"
 #include "../assets/AssetBank.hpp"
 #include "../backends/AudioDeviceBackend.hpp"
 #include "../compiler/CompiledBank.hpp"
+#include "BankSerializer.hpp"
 #include "../core/RingBuffer.hpp"
 #include "../playback/AudioRuntime.hpp"
 #include "../runtime/BehaviorResolver.hpp"
@@ -31,6 +35,10 @@ namespace decl_audio
 
         bool LoadBehaviors(const char *source_path) noexcept;
         bool LoadBank(const char *bank_path) noexcept;
+        // Kicks off a background deserialize and returns immediately. Returns false
+        // if a load is already in flight (no concurrent loads). The finished bank is
+        // wired in on the control thread during a later Update(); fire-and-forget.
+        bool LoadBankAsync(const char *bank_path) noexcept;
         void Update() noexcept;
         void RenderAudioForTesting(float *output, std::uint32_t frames) noexcept;
         [[nodiscard]] bool TryDequeueLog(std::string &message) noexcept;
@@ -102,12 +110,28 @@ namespace decl_audio
         WireLoadedBanks(std::unique_ptr<compiler::CompiledBank> compiled_bank,
                         std::unique_ptr<assets::AssetBank> asset_bank,
                         const char *source_path) noexcept;
+        // Shared tail of the binary-bank load (sync LoadBank + async completion):
+        // record diagnostics, then wire the banks unless the result errored.
+        bool ConsumeBankResult(serialization::LoadBankResult &&result, const char *source_path) noexcept;
+        // Control-thread side of async loading: if the worker finished, join it and
+        // wire the result. No-op when nothing is pending. Called from Update().
+        void PollAsyncLoad() noexcept;
         void PushLog(std::string message);
         void PushDiagnostics(std::span<const decl_audio::Diagnostic> diagnostics);
 
         std::unique_ptr<compiler::CompiledBank> compiled_bank_;
         std::unique_ptr<assets::AssetBank> asset_bank_;
         std::unique_ptr<backends::AudioDeviceBackend> audio_backend_;
+
+        // Async load handoff. The worker writes pending_load_result_ then sets
+        // load_result_ready_ (release); the control thread reads it (acquire) in
+        // PollAsyncLoad. load_in_flight_ stays set from LoadBankAsync until the
+        // result is consumed, gating concurrent loads.
+        std::thread load_worker_;
+        std::atomic<bool> load_in_flight_{false};
+        std::atomic<bool> load_result_ready_{false};
+        serialization::LoadBankResult pending_load_result_;
+        std::string pending_load_path_;
         std::vector<decl_audio::Diagnostic> load_diagnostics_;
         RingBuffer<std::string> host_log_queue_;
         runtime::VocabularyRegistry vocabulary_;
