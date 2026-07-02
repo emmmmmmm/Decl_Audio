@@ -39,16 +39,34 @@ namespace decl_audio::runtime
         // keep their stale local ids but are no longer the runtime path.
         void MergeBank(compiler::CompiledBank &bank)
         {
-            std::vector<compiler::TagId> tag_remap(bank.tag_name_to_id.size());
+            // Bank-local ids are dense (0..size-1), assigned in JSON parse order at
+            // compile time - deterministic on every platform. But bank.tag_name_to_id
+            // itself is an unordered_map, so iterating it directly (as this used to do)
+            // visits names in hash/bucket order, which is STL-implementation-defined and
+            // differs between MSVC and libstdc++. That let the global id assigned to a
+            // given name vary by platform even though the local id never does. Reorder
+            // by local id first so GetOrInternTag/GetOrInternParam are always called in
+            // the same, platform-independent sequence.
+            std::vector<std::string_view> tag_names_by_local_id(bank.tag_name_to_id.size());
             for (const auto &[name, local_id] : bank.tag_name_to_id)
             {
-                tag_remap[local_id] = GetOrInternTag(name);
+                tag_names_by_local_id[local_id] = name;
+            }
+            std::vector<compiler::TagId> tag_remap(bank.tag_name_to_id.size());
+            for (std::size_t local_id = 0; local_id < tag_names_by_local_id.size(); ++local_id)
+            {
+                tag_remap[local_id] = GetOrInternTag(tag_names_by_local_id[local_id]);
             }
 
-            std::vector<compiler::ParameterId> param_remap(bank.parameter_name_to_id.size());
+            std::vector<std::string_view> param_names_by_local_id(bank.parameter_name_to_id.size());
             for (const auto &[name, local_id] : bank.parameter_name_to_id)
             {
-                param_remap[local_id] = GetOrInternParam(name);
+                param_names_by_local_id[local_id] = name;
+            }
+            std::vector<compiler::ParameterId> param_remap(bank.parameter_name_to_id.size());
+            for (std::size_t local_id = 0; local_id < param_names_by_local_id.size(); ++local_id)
+            {
+                param_remap[local_id] = GetOrInternParam(param_names_by_local_id[local_id]);
             }
 
             for (compiler::TagId &tag_id : bank.behavior_tags)

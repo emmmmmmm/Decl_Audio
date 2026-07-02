@@ -9,10 +9,8 @@ namespace decl_audio::backends
 {
     struct MiniaudioBackend::Impl final
     {
-#if defined(_WIN32)
         ma_device device{};
         bool started = false;
-#endif
     };
 
     namespace
@@ -24,7 +22,6 @@ namespace decl_audio::backends
             return stream.str();
         }
 
-#if defined(_WIN32)
         void DataCallback(ma_device *device, void *output, const void *input, ma_uint32 frame_count)
         {
             (void)input;
@@ -32,7 +29,6 @@ namespace decl_audio::backends
             playback::AudioRuntime *runtime = static_cast<playback::AudioRuntime *>(device->pUserData);
             runtime->Render(static_cast<float *>(output), static_cast<std::uint32_t>(frame_count));
         }
-#endif
     } // namespace
 
     MiniaudioBackend::MiniaudioBackend()
@@ -49,17 +45,11 @@ namespace decl_audio::backends
                                  const EngineConfig &config,
                                  std::string &error_message) noexcept
     {
-#if !defined(_WIN32)
-        (void)runtime;
-        (void)config;
-        error_message = "platform default audio backend is currently implemented for Windows builds only";
-        return false;
-#else
         if (impl_->started)
         {
             Stop();
         }
-        
+
         ma_device_config device_config = ma_device_config_init(ma_device_type_playback);
         device_config.playback.format = ma_format_f32;
         device_config.playback.channels = config.output_channel_count;
@@ -85,12 +75,10 @@ namespace decl_audio::backends
 
         impl_->started = true;
         return true;
-#endif
     }
 
     void MiniaudioBackend::Stop() noexcept
     {
-#if defined(_WIN32)
         if (!impl_->started)
         {
             return;
@@ -98,15 +86,10 @@ namespace decl_audio::backends
 
         ma_device_uninit(&impl_->device);
         impl_->started = false;
-#endif
     }
 
     bool MiniaudioBackend::IsStarted() const noexcept
     {
-#if defined(_WIN32)
         return impl_->started;
-#else
-        return false;
-#endif
     }
 } // namespace decl_audio::backends
